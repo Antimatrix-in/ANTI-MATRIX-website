@@ -1460,14 +1460,14 @@ def create_employee():
             employee.set_temp_password(temp_password, secret_key)
             db.session.add(employee)
 
-            # Sync with candidate user account if present
+            # Sync with candidate user account if present (strictly protect admin accounts)
             if application.user_id:
                 cand_user = db.session.get(User, application.user_id)
-                if cand_user:
+                if cand_user and getattr(cand_user, 'role', '') != 'admin':
                     cand_user.set_password(temp_password)
             elif application.email:
-                cand_user = User.query.filter(User.email.ilike(application.email)).first()
-                if cand_user:
+                cand_user = User.query.filter(User.email.ilike(application.email.strip())).first()
+                if cand_user and getattr(cand_user, 'role', '') != 'admin':
                     application.user_id = cand_user.id
                     cand_user.set_password(temp_password)
 

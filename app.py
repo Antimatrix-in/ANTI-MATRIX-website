@@ -349,18 +349,35 @@ def create_app(config_name=None):
         except Exception as e:
             app.logger.warning(f"Database auto-migration note: {str(e)}")
 
-        # Seed default admin user if none exists
-        admin_user = User.query.filter_by(role='admin').first()
+        # Maintain primary configured admin user (preserve existing record, ID, and data)
+        admin_email = os.environ.get('ADMIN_EMAIL', 'admin@antimatrix.ai').strip()
+        admin_password = os.environ.get('ADMIN_PASSWORD', 'Admin@AntiMatrix2026!')
+        admin_user = User.query.filter(User.email.ilike(admin_email)).first()
         if not admin_user:
             default_admin = User(
                 name='Anti-Matrix Admin',
-                email=os.environ.get('ADMIN_EMAIL', 'admin@antimatrix.ai'),
+                email=admin_email.lower(),
                 role='admin',
                 is_active=True
             )
-            default_admin.set_password(os.environ.get('ADMIN_PASSWORD', 'Admin@AntiMatrix2026!'))
+            default_admin.set_password(admin_password)
             db.session.add(default_admin)
             db.session.commit()
+        else:
+            # Preserve existing user ID, created_at, and relationships.
+            # Restore admin role and valid password hash if corrupted/overwritten.
+            needs_update = False
+            if admin_user.role != 'admin':
+                admin_user.role = 'admin'
+                needs_update = True
+            if not admin_user.is_active:
+                admin_user.is_active = True
+                needs_update = True
+            if not admin_user.check_password(admin_password):
+                admin_user.set_password(admin_password)
+                needs_update = True
+            if needs_update:
+                db.session.commit()
 
         logger.info("APPLICATION IMPORT SUCCESS | SERVER READY")
 
