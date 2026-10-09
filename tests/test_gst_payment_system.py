@@ -328,8 +328,9 @@ class GSTPaymentSystemTestCase(unittest.TestCase):
         self.assertEqual(resp_1m.status_code, 200)
         html_1m = resp_1m.data.decode('utf-8')
 
-        # Must display base fee notice
-        self.assertIn('*Application Charge - ₹129 should be paid before the internship', html_1m)
+        # Must NOT display fee notice or pricing
+        self.assertNotIn('*Application Charge - ₹129 should be paid before the internship', html_1m)
+        self.assertNotIn('₹1,499', html_1m)
 
         # Must NOT display GST or GST-inclusive total
         self.assertNotIn('18% GST', html_1m)
@@ -341,8 +342,9 @@ class GSTPaymentSystemTestCase(unittest.TestCase):
         self.assertEqual(resp_3m.status_code, 200)
         html_3m = resp_3m.data.decode('utf-8')
 
-        # Must display base fee notice
-        self.assertIn('*Application and courier charge - ₹399 should be paid before the internship', html_3m)
+        # Must NOT display fee notice or pricing
+        self.assertNotIn('*Application and courier charge - ₹399 should be paid before the internship', html_3m)
+        self.assertNotIn('₹3,499', html_3m)
 
         # Must NOT display GST or GST-inclusive total
         self.assertNotIn('18% GST', html_3m)

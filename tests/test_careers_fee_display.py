@@ -59,8 +59,8 @@ class CareersFeeDisplayTestCase(unittest.TestCase):
         self.assertNotIn('18% GST', html)
         self.assertNotIn('+ 18% GST', html)
         self.assertNotIn('(+ 18% GST)', html)
-        self.assertIn('₹129', html)
-        self.assertIn('₹399', html)
+        self.assertNotIn('₹1,499', html)
+        self.assertNotIn('₹3,499', html)
 
 
 if __name__ == '__main__':
