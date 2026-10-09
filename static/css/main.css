@@ -53,10 +53,11 @@
   --color-text-muted:   #1e293b;
   --color-text-dim:     #475569;
 
-  /* Executive Humanist Typography (Matched to "Crafting Intelligent Experiences" - Myriad Pro / Source Sans 3) */
-  --font-body:    'Source Sans 3', 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-heading: 'myriad-pro', 'Myriad Pro', 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-brand:   'myriad-pro', 'Myriad Pro', 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /* Apple Typography System (SF Pro Display / SF Pro Text / -apple-system / Inter fallback) */
+  --font-apple:   -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-body:    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", "Inter", "Source Sans 3", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", "Inter", "Myriad Pro", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-brand:   -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", "Inter", "Myriad Pro", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-serif:   'Times New Roman', Times, 'Liberation Serif', Georgia, serif;
 
   /* Spacing */

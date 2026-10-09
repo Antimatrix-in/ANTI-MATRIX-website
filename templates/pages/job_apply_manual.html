@@ -60,6 +60,31 @@
     <!-- ================================================================= -->
     {% if job.is_internship or benefits_1m or benefits_3m %}
     <style>
+      /* Apple Typography System (SF Pro Display / SF Pro Text / -apple-system) */
+      .apply-manual-container,
+      .apply-manual-container input,
+      .apply-manual-container select,
+      .apply-manual-container textarea,
+      .apply-manual-container button,
+      .apply-manual-container label,
+      .apply-manual-container p,
+      .apply-manual-container span,
+      .apply-manual-container div {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", "Inter", -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      .apply-manual-container h1,
+      .apply-manual-container h2,
+      .apply-manual-container h3,
+      .benefit-card-title {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", "Inter", -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+        letter-spacing: -0.02em;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
       .internship-benefits-section {
         width: 100%;
         margin-bottom: 2rem;
