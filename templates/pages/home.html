@@ -361,63 +361,72 @@
       </p>
     </div>
     
-    <div class="grid-3">
-      {# Testimonial 1 #}
-      <div class="testimonial-card animate-fade-up delay-1" style="border: 1px solid var(--color-border); box-shadow: 0 4px 16px rgba(15,23,42,0.04);">
-        <div class="testimonial-stars">
-          {% for _ in range(5) %}
-            {{ icon('star', size=14, color='#f59e0b', fill='#f59e0b') }}
-          {% endfor %}
-        </div>
-        <p class="testimonial-text" style="color: #334155; line-height: 1.7; font-size: 0.95rem;">
-          "Anti-Matrix felt less like an external agency and more like our most devoted in-house team. They took a daunting legacy system and breathed fresh life into it in just 14 weeks. They didn't just deliver software — they gave our whole company a renewed sense of pride and momentum."
-        </p>
-        <div class="testimonial-author">
-          <div class="testimonial-avatar" style="background: #059669; color: #ffffff; font-weight: 800;">SM</div>
-          <div>
-            <div class="testimonial-company" style="color: #0f172a; font-weight: 700;">ScaleUp Finance</div>
-            <div class="testimonial-industry" style="color: var(--color-primary-600); font-weight: 600;">Global FinTech Pioneers</div>
+    {% set testimonials = [
+      {
+        'stars': 5,
+        'text': 'Anti-Matrix felt less like an external agency and more like our most devoted in-house team. They took a daunting legacy system and breathed fresh life into it in just 14 weeks. They didn\'t just deliver software — they gave our whole company a renewed sense of pride and momentum.',
+        'initials': 'SM',
+        'avatar_bg': '#059669',
+        'company': 'ScaleUp Finance',
+        'industry': 'Global FinTech Pioneers'
+      },
+      {
+        'stars': 5,
+        'text': 'What makes Anti-Matrix rare is their profound empathy. They spent days listening to our clinicians and patients before writing a single line of code. The AI companion they crafted cut patient wait times by 60%, but more than that, it brought warmth back to the clinical experience.',
+        'initials': 'LK',
+        'avatar_bg': '#0f172a',
+        'company': 'MedCore Health Networks',
+        'industry': 'Patient-First HealthTech'
+      },
+      {
+        'stars': 5,
+        'text': 'Working with Anti-Matrix was an absolute joy. They listened deeply, challenged us to think bigger, and built an online experience that sailed through our biggest holiday rush without a hitch. Our revenue grew 42%, but the genuine trust we built together is what we treasure most.',
+        'initials': 'RJ',
+        'avatar_bg': '#10b981',
+        'company': 'RetailNova Enterprise',
+        'industry': 'Modern Omnichannel Commerce'
+      }
+    ] %}
+
+    <div class="testimonial-slider-container" id="testimonialSlider" role="region" aria-roledescription="carousel" aria-label="Client Testimonials" tabindex="0">
+      {# Previous Testimonial Arrow #}
+      <button type="button" class="testimonial-nav-btn testimonial-prev-btn" id="testimonialPrevBtn" aria-label="Previous testimonial" title="Previous testimonial">
+        {{ icon('chevron-left', size=20, stroke_width=2.5) }}
+      </button>
+
+      {# Carousel Viewport & Sliding Track #}
+      <div class="testimonial-slider-viewport" id="testimonialViewport">
+        <div class="testimonial-slider-track" id="testimonialTrack">
+          {% for t in testimonials %}
+          <div class="testimonial-slide" role="group" aria-roledescription="slide" aria-label="Testimonial {{ loop.index }} of {{ testimonials|length }}" data-slide-index="{{ loop.index0 }}">
+            <div class="testimonial-card testimonial-slider-card">
+              <div class="testimonial-stars" aria-label="{{ t.stars }} out of 5 stars">
+                {% for _ in range(t.stars) %}
+                  {{ icon('star', size=15, color='#f59e0b', fill='#f59e0b') }}
+                {% endfor %}
+              </div>
+              <blockquote class="testimonial-text">
+                "{{ t.text }}"
+              </blockquote>
+              <div class="testimonial-author">
+                <div class="testimonial-avatar" style="background: {{ t.avatar_bg }}; color: #ffffff; font-weight: 800;">
+                  {{ t.initials }}
+                </div>
+                <div>
+                  <div class="testimonial-company">{{ t.company }}</div>
+                  <div class="testimonial-industry">{{ t.industry }}</div>
+                </div>
+              </div>
+            </div>
           </div>
+          {% endfor %}
         </div>
       </div>
 
-      {# Testimonial 2 #}
-      <div class="testimonial-card animate-fade-up delay-2" style="border: 1px solid var(--color-border); box-shadow: 0 4px 16px rgba(15,23,42,0.04);">
-        <div class="testimonial-stars">
-          {% for _ in range(5) %}
-            {{ icon('star', size=14, color='#f59e0b', fill='#f59e0b') }}
-          {% endfor %}
-        </div>
-        <p class="testimonial-text" style="color: #334155; line-height: 1.7; font-size: 0.95rem;">
-          "What makes Anti-Matrix rare is their profound empathy. They spent days listening to our clinicians and patients before writing a single line of code. The AI companion they crafted cut patient wait times by 60%, but more than that, it brought warmth back to the clinical experience."
-        </p>
-        <div class="testimonial-author">
-          <div class="testimonial-avatar" style="background: #0f172a; color: #ffffff; font-weight: 800;">LK</div>
-          <div>
-            <div class="testimonial-company" style="color: #0f172a; font-weight: 700;">MedCore Health Networks</div>
-            <div class="testimonial-industry" style="color: var(--color-primary-600); font-weight: 600;">Patient-First HealthTech</div>
-          </div>
-        </div>
-      </div>
-
-      {# Testimonial 3 #}
-      <div class="testimonial-card animate-fade-up delay-3" style="border: 1px solid var(--color-border); box-shadow: 0 4px 16px rgba(15,23,42,0.04);">
-        <div class="testimonial-stars">
-          {% for _ in range(5) %}
-            {{ icon('star', size=14, color='#f59e0b', fill='#f59e0b') }}
-          {% endfor %}
-        </div>
-        <p class="testimonial-text" style="color: #334155; line-height: 1.7; font-size: 0.95rem;">
-          "Working with Anti-Matrix was an absolute joy. They listened deeply, challenged us to think bigger, and built an online experience that sailed through our biggest holiday rush without a hitch. Our revenue grew 42%, but the genuine trust we built together is what we treasure most."
-        </p>
-        <div class="testimonial-author">
-          <div class="testimonial-avatar" style="background: #10b981; color: #ffffff; font-weight: 800;">RJ</div>
-          <div>
-            <div class="testimonial-company" style="color: #0f172a; font-weight: 700;">RetailNova Enterprise</div>
-            <div class="testimonial-industry" style="color: var(--color-primary-600); font-weight: 600;">Modern Omnichannel Commerce</div>
-          </div>
-        </div>
-      </div>
+      {# Next Testimonial Arrow #}
+      <button type="button" class="testimonial-nav-btn testimonial-next-btn" id="testimonialNextBtn" aria-label="Next testimonial" title="Next testimonial">
+        {{ icon('chevron-right', size=20, stroke_width=2.5) }}
+      </button>
     </div>
   </div>
 </section>
@@ -425,4 +434,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/matrix_story.js') }}"></script>
+<script src="{{ url_for('static', filename='js/testimonial_slider.js') }}"></script>
 {% endblock %}
