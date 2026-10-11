@@ -1794,9 +1794,9 @@ textarea.form-control {
 /* ── Testimonial Carousel Slider ── */
 .testimonial-slider-container {
   position: relative;
-  max-width: 860px;
+  width: 100%;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 0 58px;
   box-sizing: border-box;
   outline: none;
 }
@@ -1804,6 +1804,8 @@ textarea.form-control {
 .testimonial-slider-viewport {
   overflow: hidden;
   width: 100%;
+  max-width: 744px;
+  margin: 0 auto;
   border-radius: var(--radius-xl);
   position: relative;
 }
@@ -1905,6 +1907,12 @@ textarea.form-control {
   outline-offset: 2px;
 }
 
+@media (max-width: 900px) {
+  .testimonial-slider-container {
+    padding: 0 54px;
+  }
+}
+
 @media (max-width: 768px) {
   .testimonial-slider-container {
     padding: 0 48px;
@@ -1924,7 +1932,7 @@ textarea.form-control {
 
 @media (max-width: 480px) {
   .testimonial-slider-container {
-    padding: 0 38px;
+    padding: 0 42px;
   }
   .testimonial-slider-card {
     padding: 1.5rem 1.25rem;
@@ -1935,8 +1943,8 @@ textarea.form-control {
     line-height: 1.65;
   }
   .testimonial-nav-btn {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
   }
 }
 
