@@ -14,7 +14,7 @@ from werkzeug.utils import secure_filename
 from models import (
     db, JobPosting, JobApplication, Payment, User, Employee,
     DocumentTemplate, EmailTemplate, EmployeeDocument, MoneyTransaction,
-    InternshipBenefit
+    InternshipBenefit, ContactInquiry
 )
 
 from services.offer_letter_service import (
@@ -25,6 +25,22 @@ from services.offer_letter_service import (
 )
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+
+@admin_bp.context_processor
+def inject_admin_inquiry_counts():
+    try:
+        unread = ContactInquiry.query.filter_by(is_processed=False).count()
+        total = ContactInquiry.query.count()
+        return {
+            'unread_inquiries_count': unread,
+            'total_inquiries_count': total
+        }
+    except Exception:
+        return {
+            'unread_inquiries_count': 0,
+            'total_inquiries_count': 0
+        }
 
 
 def admin_required(f):
@@ -53,6 +69,10 @@ def dashboard():
     ).count()
     total_employees = Employee.query.count()
 
+    total_inquiries = ContactInquiry.query.count()
+    unread_inquiries = ContactInquiry.query.filter_by(is_processed=False).count()
+    recent_inquiries = ContactInquiry.query.order_by(ContactInquiry.created_at.desc()).limit(6).all()
+
     recent_jobs = JobPosting.query.order_by(JobPosting.created_at.desc()).limit(5).all()
     recent_applications = JobApplication.query.order_by(JobApplication.created_at.desc()).limit(8).all()
 
@@ -64,6 +84,9 @@ def dashboard():
         new_applications=new_applications,
         paid_applications=paid_applications,
         total_employees=total_employees,
+        total_inquiries=total_inquiries,
+        unread_inquiries=unread_inquiries,
+        recent_inquiries=recent_inquiries,
         recent_jobs=recent_jobs,
         recent_applications=recent_applications
     )
@@ -2932,3 +2955,165 @@ def reset_default_internship_benefits():
         flash("Both 1-Month and 3-Month configurations already exist. Existing records were preserved safely.", "info")
 
     return redirect(url_for('admin.internship_benefits'))
+
+
+# ── CONTACT INQUIRIES MANAGEMENT ───────────────────────────────────────────
+
+INQUIRY_SUBJECT_OPTIONS = [
+    'New Project Inquiry',
+    'Pricing & Packages',
+    'Partnership Opportunity',
+    'Support & Maintenance',
+    'Careers',
+    'Other'
+]
+
+
+@admin_bp.route('/inquiries', methods=['GET'], strict_slashes=False)
+@admin_required
+def inquiries():
+    status_filter = (request.args.get('status') or 'all').strip().lower()
+    subject_filter = (request.args.get('subject') or '').strip()
+    search_query = (request.args.get('q') or '').strip()
+
+    query = ContactInquiry.query
+
+    if status_filter == 'unread':
+        query = query.filter_by(is_processed=False)
+    elif status_filter == 'processed':
+        query = query.filter_by(is_processed=True)
+
+    if subject_filter:
+        query = query.filter(ContactInquiry.subject == subject_filter)
+
+    if search_query:
+        like_pattern = f"%{search_query}%"
+        query = query.filter(
+            db.or_(
+                ContactInquiry.name.ilike(like_pattern),
+                ContactInquiry.email.ilike(like_pattern),
+                ContactInquiry.phone.ilike(like_pattern),
+                ContactInquiry.subject.ilike(like_pattern),
+                ContactInquiry.message.ilike(like_pattern)
+            )
+        )
+
+    all_inquiries = query.order_by(ContactInquiry.created_at.desc()).all()
+
+    total_count = ContactInquiry.query.count()
+    unread_count = ContactInquiry.query.filter_by(is_processed=False).count()
+    processed_count = ContactInquiry.query.filter_by(is_processed=True).count()
+
+    return render_template(
+        'admin/inquiries.html',
+        inquiries=all_inquiries,
+        total_count=total_count,
+        unread_count=unread_count,
+        processed_count=processed_count,
+        selected_status=status_filter,
+        selected_subject=subject_filter,
+        search_query=search_query,
+        subjects=INQUIRY_SUBJECT_OPTIONS
+    )
+
+
+@admin_bp.route('/inquiries/<int:inquiry_id>', methods=['GET'])
+@admin_required
+def get_inquiry_detail(inquiry_id):
+    inquiry = db.session.get(ContactInquiry, inquiry_id)
+    if not inquiry:
+        return jsonify({'status': 'error', 'message': 'Inquiry not found'}), 404
+
+    return jsonify({
+        'status': 'success',
+        'inquiry': {
+            'id': inquiry.id,
+            'name': inquiry.name,
+            'email': inquiry.email,
+            'phone': inquiry.phone or 'Not provided',
+            'subject': inquiry.subject,
+            'message': inquiry.message,
+            'is_processed': inquiry.is_processed,
+            'created_at': inquiry.created_at.strftime('%b %d, %Y at %I:%M %p') if inquiry.created_at else ''
+        }
+    })
+
+
+@admin_bp.route('/inquiries/<int:inquiry_id>/toggle-status', methods=['POST'])
+@admin_required
+def toggle_inquiry_status(inquiry_id):
+    inquiry = db.session.get(ContactInquiry, inquiry_id)
+    if not inquiry:
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'status': 'error', 'message': 'Inquiry not found'}), 404
+        flash('Inquiry not found.', 'danger')
+        return redirect(url_for('admin.inquiries'))
+
+    inquiry.is_processed = not inquiry.is_processed
+    db.session.commit()
+
+    new_status = 'Processed / Read' if inquiry.is_processed else 'New / Unread'
+    current_app.logger.info(f"[Inquiries] Admin {current_user.email} toggled inquiry #{inquiry.id} status to {new_status}")
+
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({
+            'status': 'success',
+            'is_processed': inquiry.is_processed,
+            'message': f"Inquiry #{inquiry.id} marked as {new_status}."
+        })
+
+    flash(f"Inquiry #{inquiry.id} marked as {new_status}.", 'success')
+    return redirect(url_for('admin.inquiries'))
+
+
+@admin_bp.route('/inquiries/<int:inquiry_id>/delete', methods=['POST'])
+@admin_required
+def delete_inquiry(inquiry_id):
+    inquiry = db.session.get(ContactInquiry, inquiry_id)
+    if not inquiry:
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'status': 'error', 'message': 'Inquiry not found'}), 404
+        flash('Inquiry not found.', 'danger')
+        return redirect(url_for('admin.inquiries'))
+
+    sender_name = inquiry.name
+    db.session.delete(inquiry)
+    db.session.commit()
+
+    current_app.logger.info(f"[Inquiries] Admin {current_user.email} deleted inquiry #{inquiry_id} from {sender_name}")
+
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({
+            'status': 'success',
+            'message': f"Inquiry from {sender_name} deleted successfully."
+        })
+
+    flash(f"Inquiry from {sender_name} deleted successfully.", 'success')
+    return redirect(url_for('admin.inquiries'))
+
+
+@admin_bp.route('/inquiries/mark-all-read', methods=['POST'])
+@admin_required
+def mark_all_inquiries_read():
+    unread_inquiries = ContactInquiry.query.filter_by(is_processed=False).all()
+    count = len(unread_inquiries)
+    for inq in unread_inquiries:
+        inq.is_processed = True
+    db.session.commit()
+
+    current_app.logger.info(f"[Inquiries] Admin {current_user.email} marked all {count} unread inquiries as read.")
+    flash(f"Marked {count} inquiry message(s) as read.", 'success')
+    return redirect(url_for('admin.inquiries'))
+
+
+@admin_bp.route('/inquiries/delete-all', methods=['POST'])
+@admin_required
+def delete_all_inquiries():
+    count = ContactInquiry.query.count()
+    ContactInquiry.query.delete()
+    db.session.commit()
+
+    current_app.logger.info(f"[Inquiries] Admin {current_user.email} permanently deleted all {count} contact inquiries.")
+    flash(f"Permanently deleted all {count} contact inquiries.", 'info')
+    return redirect(url_for('admin.inquiries'))
+

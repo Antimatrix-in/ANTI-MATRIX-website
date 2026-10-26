@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% from 'components/icons.html' import icon %}
+
+{% block title %}500 Internal Server Error | Anti-Matrix{% endblock %}
+
+{% block content %}
+<section class="section" style="min-height: 80vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 40%, rgba(239, 68, 68, 0.08) 0%, var(--color-bg) 70%);">
+  <div class="container" style="max-width: 600px; text-align: center;">
+    <div class="card" style="padding: var(--space-3xl) var(--space-2xl); border-color: rgba(239, 68, 68, 0.3);">
+      
+      <div style="width: 72px; height: 72px; border-radius: 50%; background: rgba(239, 68, 68, 0.1); border: 2px solid rgba(239, 68, 68, 0.4); display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-xl); color: #f87171;">
+        {{ icon('alert-triangle', size=32) }}
+      </div>
+
+      <div class="badge" style="background: rgba(239, 68, 68, 0.1); color: #f87171; border-color: rgba(239, 68, 68, 0.25); margin: 0 auto var(--space-md);">
+        Error 500
+      </div>
+
+      <h1 style="font-size: 2.25rem; font-weight: 800; color: #000000; margin-bottom: var(--space-sm);">
+        Something Went Wrong
+      </h1>
+
+      <p style="color: var(--color-text-dim); font-size: 1rem; margin-bottom: var(--space-2xl); line-height: 1.6;">
+        An unexpected server error occurred while processing your request. Our technical team has been notified. Please try again in a few moments.
+      </p>
+
+      <div style="display: flex; justify-content: center; gap: var(--space-md); flex-wrap: wrap;">
+        <a href="{{ url_for('main.home') }}" class="btn btn-primary" style="gap: 8px;">
+          {{ icon('arrow-left', size=16) }} Return Home
+        </a>
+        <a href="{{ url_for('main.contact') }}" class="btn btn-outline">
+          Contact Support
+        </a>
+      </div>
+
+    </div>
+  </div>
+</section>
+{% endblock %}

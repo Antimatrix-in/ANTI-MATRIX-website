@@ -114,9 +114,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── 4. Contact Form Handler (AJAX + Validation) ─────────────────────────
   const contactForm = document.getElementById('contact-form');
   const contactSuccessCard = document.getElementById('contact-success-card');
+  const contactErrorBanner = document.getElementById('contact-form-error-banner');
+  const contactErrorText = document.getElementById('contact-form-error-text');
+  const contactResetBtn = document.getElementById('contact-reset-btn');
 
   if (contactForm) {
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const getCsrfToken = () => {
+      const formInput = document.querySelector('input[name="csrf_token"]');
+      if (formInput && formInput.value) return formInput.value;
+      const metaTag = document.querySelector('meta[name="csrf-token"]');
+      return metaTag ? metaTag.getAttribute('content') || '' : '';
+    };
 
     const nameInput = document.getElementById('contact-name');
     const emailInput = document.getElementById('contact-email');
@@ -124,6 +132,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const subjectSelect = document.getElementById('contact-subject');
     const messageInput = document.getElementById('contact-message');
     const submitBtn = document.getElementById('contact-submit-btn');
+
+    const showErrorBanner = (msg) => {
+      if (contactErrorBanner && contactErrorText) {
+        contactErrorText.textContent = msg;
+        contactErrorBanner.style.display = 'block';
+      }
+    };
+
+    const hideErrorBanner = () => {
+      if (contactErrorBanner) {
+        contactErrorBanner.style.display = 'none';
+      }
+    };
 
     const validateForm = () => {
       const errors = {};
@@ -172,6 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
     [nameInput, emailInput, phoneInput, subjectSelect, messageInput].forEach((input) => {
       if (input) {
         input.addEventListener('input', () => {
+          hideErrorBanner();
           input.classList.remove('error');
           const field = input.id.replace('contact-', '');
           const errSpan = document.getElementById(`${field}-err`);
@@ -183,8 +205,20 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    // Reset button handler to send another message
+    if (contactResetBtn) {
+      contactResetBtn.addEventListener('click', () => {
+        contactForm.reset();
+        renderErrors({});
+        hideErrorBanner();
+        if (contactSuccessCard) contactSuccessCard.style.display = 'none';
+        contactForm.style.display = 'block';
+      });
+    }
+
     contactForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      hideErrorBanner();
       const errors = validateForm();
       renderErrors(errors);
 
@@ -204,32 +238,46 @@ document.addEventListener('DOMContentLoaded', () => {
           message: messageInput.value.trim()
         };
 
+        const csrfToken = getCsrfToken();
         const res = await fetch('/contact', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken
+            'Accept': 'application/json',
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
           },
           body: JSON.stringify(payload)
         });
 
-        const data = await res.json();
+        let data = null;
+        try {
+          data = await res.json();
+        } catch (jsonErr) {
+          // If response was not valid JSON
+        }
 
-        if (res.ok && data.status === 'success') {
+        if (res.ok && data && data.status === 'success') {
+          hideErrorBanner();
           contactForm.style.display = 'none';
-          if (contactSuccessCard) contactSuccessCard.style.display = 'block';
-        } else if (data.errors) {
+          if (contactSuccessCard) {
+            contactSuccessCard.style.display = 'block';
+            contactSuccessCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        } else if (data && data.errors) {
           renderErrors(data.errors);
           submitBtn.disabled = false;
           submitBtn.innerHTML = originalBtnHtml;
         } else {
-          alert(data.message || 'An error occurred. Please try again.');
+          const errMsg = (data && data.message) ? data.message : 'Unable to send message. Please verify your details and try again.';
+          showErrorBanner(errMsg);
           submitBtn.disabled = false;
           submitBtn.innerHTML = originalBtnHtml;
         }
       } catch (err) {
-        // Fallback: standard form submit if fetch fails
-        contactForm.submit();
+        showErrorBanner('Network or server connection issue. Please check your internet connection and try again.');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnHtml;
       }
     });
   }

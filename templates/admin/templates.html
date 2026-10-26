@@ -32,6 +32,12 @@
       <a href="{{ url_for('admin.employees') }}" class="admin-nav-tab">
         {{ icon('user-check', size=15) }} Employees
       </a>
+      <a href="{{ url_for('admin.inquiries') }}" class="admin-nav-tab">
+        {{ icon('message-square', size=15) }} Inquiries <span class="admin-tab-count {{ 'new' if unread_inquiries_count > 0 else '' }}">{{ total_inquiries_count }}</span>
+        {% if unread_inquiries_count > 0 %}
+          <span class="admin-tab-count new">{{ unread_inquiries_count }} NEW</span>
+        {% endif %}
+      </a>
       <a href="{{ url_for('admin.templates') }}" class="admin-nav-tab active">
         {{ icon('file-text', size=15) }} Templates
       </a>

@@ -1369,11 +1369,13 @@ def my_application_document(app_id, doc_type):
     return send_from_directory(folder, safe_filename)
 
 
-@main_bp.route('/contact', methods=['GET', 'POST'])
+@main_bp.route('/contact', methods=['GET', 'POST'], strict_slashes=False)
+@main_bp.route('/contact/', methods=['GET', 'POST'], strict_slashes=False)
 def contact():
     if request.method == 'POST':
         is_json = request.is_json
-        data = request.get_json() if is_json else request.form
+        is_ajax = is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json
+        data = (request.get_json(silent=True) if is_json else None) or request.form or {}
 
         name = (data.get('name') or '').strip()
         email = (data.get('email') or '').strip()
@@ -1399,7 +1401,7 @@ def contact():
             errors['message'] = 'Message must be at least 20 characters'
 
         if errors:
-            if is_json:
+            if is_ajax:
                 return jsonify({'status': 'error', 'errors': errors}), 400
             for field, err in errors.items():
                 flash(err, 'error')
@@ -1411,17 +1413,36 @@ def contact():
                 success=False
             )
 
-        inquiry = ContactInquiry(
-            name=name,
-            email=email,
-            phone=phone if phone else None,
-            subject=subject,
-            message=message
-        )
-        db.session.add(inquiry)
-        db.session.commit()
+        try:
+            inquiry = ContactInquiry(
+                name=name,
+                email=email,
+                phone=phone if phone else None,
+                subject=subject,
+                message=message,
+                is_processed=False
+            )
+            db.session.add(inquiry)
+            db.session.commit()
+            current_app.logger.info(f"[Contact] New inquiry #{inquiry.id} received from {email} ({name}) - {subject}")
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"[Contact] Error saving contact inquiry: {e}", exc_info=True)
+            if is_ajax:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to save your inquiry due to a temporary database error. Please try again.'
+                }), 500
+            flash('Failed to send your message. Please try again in a few moments.', 'error')
+            return render_template(
+                'pages/contact.html',
+                errors={},
+                form_data={'name': name, 'email': email, 'phone': phone, 'subject': subject, 'message': message},
+                subjects=SUBJECT_OPTIONS,
+                success=False
+            )
 
-        if is_json:
+        if is_ajax:
             return jsonify({
                 'status': 'success',
                 'message': 'Message sent! Thank you for reaching out. Our team will review your message and reply within 24 hours.'

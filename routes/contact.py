@@ -6,9 +6,10 @@ contact_bp = Blueprint('contact', __name__)
 EMAIL_REGEX = re.compile(r'^\S+@\S+\.\S+$')
 
 
-@contact_bp.route('/api/contact', methods=['POST'])
+@contact_bp.route('/api/contact', methods=['POST'], strict_slashes=False)
+@contact_bp.route('/api/contact/', methods=['POST'], strict_slashes=False)
 def api_contact():
-    data = request.get_json() or request.form
+    data = (request.get_json(silent=True) if request.is_json else None) or request.form or {}
     name = (data.get('name') or '').strip()
     email = (data.get('email') or '').strip()
     phone = (data.get('phone') or '').strip()
@@ -32,15 +33,23 @@ def api_contact():
     if errors:
         return jsonify({'status': 'error', 'errors': errors}), 400
 
-    inquiry = ContactInquiry(
-        name=name,
-        email=email,
-        phone=phone if phone else None,
-        subject=subject,
-        message=message
-    )
-    db.session.add(inquiry)
-    db.session.commit()
+    try:
+        inquiry = ContactInquiry(
+            name=name,
+            email=email,
+            phone=phone if phone else None,
+            subject=subject,
+            message=message,
+            is_processed=False
+        )
+        db.session.add(inquiry)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to save your inquiry. Please try again.'
+        }), 500
 
     return jsonify({
         'status': 'success',

@@ -1,0 +1,530 @@
+{% extends 'base.html' %}
+{% from 'components/icons.html' import icon %}
+
+{% block title %}Contact Inquiries | Anti-Matrix Admin{% endblock %}
+
+{% block content %}
+<section class="section" style="padding-top: calc(var(--nav-height, 80px) + 2rem); background: var(--color-bg); min-height: 85vh;">
+  <div class="container">
+
+    <!-- Admin Header -->
+    <div class="admin-header">
+      <div class="admin-header-title">
+        <h1>Contact Inquiries</h1>
+        <p>Inbound client messages, project briefs, and partnership requests received from the contact page.</p>
+      </div>
+      <div style="display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap;">
+        {% if unread_count > 0 %}
+          <form method="POST" action="{{ url_for('admin.mark_all_inquiries_read') }}" style="display: inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="btn btn-outline" style="gap: 6px;">
+              {{ icon('check-circle', size=15) }} Mark All as Read ({{ unread_count }})
+            </button>
+          </form>
+        {% endif %}
+        {% if total_count > 0 %}
+          <button type="button" class="btn btn-danger-outline" id="open-delete-all-inquiries-modal" style="gap: 6px;">
+            {{ icon('trash-2', size=15) }} Delete All
+          </button>
+        {% endif %}
+        <a href="{{ url_for('main.contact') }}" target="_blank" class="btn btn-primary" style="gap: 6px;">
+          {{ icon('external-link', size=15) }} Open Contact Page
+        </a>
+      </div>
+    </div>
+
+    <!-- Admin Nav Tabs -->
+    <div class="admin-nav-tabs">
+      <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-tab">
+        {{ icon('layout', size=15) }} Overview
+      </a>
+      <a href="{{ url_for('admin.jobs') }}" class="admin-nav-tab">
+        {{ icon('briefcase', size=15) }} Job Postings
+      </a>
+      <a href="{{ url_for('admin.applications') }}" class="admin-nav-tab">
+        {{ icon('users', size=15) }} Candidate Applications
+      </a>
+      <a href="{{ url_for('admin.employees') }}" class="admin-nav-tab">
+        {{ icon('user-check', size=15) }} Employees
+      </a>
+      <a href="{{ url_for('admin.inquiries') }}" class="admin-nav-tab active">
+        {{ icon('message-square', size=15) }} Inquiries <span class="admin-tab-count {{ 'new' if unread_count > 0 else '' }}">{{ total_count }}</span>
+      </a>
+      <a href="{{ url_for('admin.templates') }}" class="admin-nav-tab">
+        {{ icon('file-text', size=15) }} Templates
+      </a>
+      <a href="{{ url_for('admin.money_management') }}" class="admin-nav-tab">
+        {{ icon('wallet', size=15) }} Money Management
+      </a>
+      <a href="{{ url_for('admin.internship_benefits') }}" class="admin-nav-tab">
+        {{ icon('award', size=15) }} Internship Benefits
+      </a>
+    </div>
+
+    <!-- Summary Stat Cards -->
+    <div class="admin-stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #f1f5f9; color: #475569; border-color: #cbd5e1;">
+          {{ icon('inbox', size=20) }}
+        </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ total_count }}</div>
+          <div class="stat-label">Total Inquiries</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #ecfdf5; color: #059669; border-color: #a7f3d0;">
+          {{ icon('mail', size=20) }}
+        </div>
+        <div class="stat-info">
+          <div class="stat-value" style="color: #059669;">{{ unread_count }}</div>
+          <div class="stat-label">New / Unread</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #f8fafc; color: #64748b; border-color: #e2e8f0;">
+          {{ icon('check-circle', size=20) }}
+        </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ processed_count }}</div>
+          <div class="stat-label">Processed / Responded</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter & Search Controls Bar -->
+    <div class="admin-controls-bar" style="margin-bottom: var(--space-xl);">
+      <form method="GET" action="{{ url_for('admin.inquiries') }}" class="admin-search-form" style="flex: 1; min-width: 260px;">
+        {% if selected_status and selected_status != 'all' %}
+          <input type="hidden" name="status" value="{{ selected_status }}" />
+        {% endif %}
+        {% if selected_subject %}
+          <input type="hidden" name="subject" value="{{ selected_subject }}" />
+        {% endif %}
+        <input
+          type="text"
+          name="q"
+          placeholder="Search by name, email, phone, or keyword..."
+          class="form-input"
+          value="{{ search_query }}"
+          style="padding: 0.55rem 0.875rem; font-size: 0.875rem; width: 100%; border-radius: var(--radius-sm);"
+        />
+        <button type="submit" class="btn btn-outline btn-sm" style="padding: 0.55rem 0.85rem;">
+          {{ icon('search', size=14) }}
+        </button>
+      </form>
+
+      <div class="admin-filter-group" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+        <form method="GET" action="{{ url_for('admin.inquiries') }}" id="filter-form" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          {% if search_query %}
+            <input type="hidden" name="q" value="{{ search_query }}" />
+          {% endif %}
+
+          <select name="status" class="form-select" onchange="this.form.submit()" style="padding: 0.55rem 0.875rem; font-size: 0.85rem; border-radius: var(--radius-sm);">
+            <option value="all" {{ 'selected' if selected_status == 'all' or not selected_status else '' }}>All Statuses</option>
+            <option value="unread" {{ 'selected' if selected_status == 'unread' else '' }}>Unread / New ({{ unread_count }})</option>
+            <option value="processed" {{ 'selected' if selected_status == 'processed' else '' }}>Processed / Read ({{ processed_count }})</option>
+          </select>
+
+          <select name="subject" class="form-select" onchange="this.form.submit()" style="padding: 0.55rem 0.875rem; font-size: 0.85rem; border-radius: var(--radius-sm);">
+            <option value="" {{ 'selected' if not selected_subject else '' }}>All Subjects</option>
+            {% for s in subjects %}
+              <option value="{{ s }}" {{ 'selected' if selected_subject == s else '' }}>{{ s }}</option>
+            {% endfor %}
+          </select>
+
+          {% if search_query or (selected_status and selected_status != 'all') or selected_subject %}
+            <a href="{{ url_for('admin.inquiries') }}" class="btn btn-outline btn-sm" style="align-self: center; font-size: 0.8rem; color: #dc2626;">
+              {{ icon('x', size=12) }} Clear Filters
+            </a>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+
+    <!-- Inquiries List / Table Card -->
+    <div class="card" style="padding: 0; overflow: hidden; border: 1px solid var(--color-border); box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+      {% if inquiries %}
+        <div style="overflow-x: auto;">
+          <table class="table" style="width: 100%; margin: 0; border-collapse: collapse; text-align: left; font-size: 0.875rem;">
+            <thead>
+              <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #475569; font-weight: 600; font-size: 0.775rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                <th style="padding: 0.85rem 1.25rem;">Status</th>
+                <th style="padding: 0.85rem 1.25rem;">Sender Details</th>
+                <th style="padding: 0.85rem 1.25rem;">Subject</th>
+                <th style="padding: 0.85rem 1.25rem;">Message Preview</th>
+                <th style="padding: 0.85rem 1.25rem;">Received</th>
+                <th style="padding: 0.85rem 1.25rem; text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for inq in inquiries %}
+                <tr style="border-bottom: 1px solid #f1f5f9; background: {{ '#fbfdfe' if not inq.is_processed else '#ffffff' }}; transition: background 0.15s ease;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='{{ '#fbfdfe' if not inq.is_processed else '#ffffff' }}'">
+                  
+                  {# Status Badge #}
+                  <td style="padding: 1rem 1.25rem; vertical-align: middle; white-space: nowrap;">
+                    {% if not inq.is_processed %}
+                      <span class="badge" style="background: #ecfdf5; color: #059669; border-color: #a7f3d0; font-size: 0.725rem; font-weight: 700; padding: 0.2rem 0.55rem;">
+                        ● NEW
+                      </span>
+                    {% else %}
+                      <span class="badge" style="background: #f1f5f9; color: #64748b; border-color: #e2e8f0; font-size: 0.725rem; font-weight: 600; padding: 0.2rem 0.55rem;">
+                        READ
+                      </span>
+                    {% endif %}
+                  </td>
+
+                  {# Sender Name & Contact #}
+                  <td style="padding: 1rem 1.25rem; vertical-align: middle;">
+                    <div style="font-weight: 600; color: #0f172a; font-size: 0.925rem; margin-bottom: 2px;">
+                      {{ inq.name }}
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 2px; font-size: 0.8rem;">
+                      <a href="mailto:{{ inq.email }}" style="color: var(--color-primary); text-decoration: none; display: inline-flex; align-items: center; gap: 4px;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                        {{ icon('mail', size=12) }} {{ inq.email }}
+                      </a>
+                      {% if inq.phone %}
+                        <a href="tel:{{ inq.phone }}" style="color: #64748b; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+                          {{ icon('phone', size=12) }} {{ inq.phone }}
+                        </a>
+                      {% endif %}
+                    </div>
+                  </td>
+
+                  {# Subject #}
+                  <td style="padding: 1rem 1.25rem; vertical-align: middle;">
+                    <span style="display: inline-block; padding: 0.25rem 0.65rem; border-radius: 999px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-size: 0.775rem; font-weight: 600;">
+                      {{ inq.subject }}
+                    </span>
+                  </td>
+
+                  {# Message Preview #}
+                  <td style="padding: 1rem 1.25rem; vertical-align: middle; max-width: 320px;">
+                    <div style="color: #334155; line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;" title="{{ inq.message }}">
+                      {{ inq.message }}
+                    </div>
+                  </td>
+
+                  {# Received Timestamp #}
+                  <td style="padding: 1rem 1.25rem; vertical-align: middle; white-space: nowrap; color: #64748b; font-size: 0.8rem;">
+                    <div>{{ inq.created_at.strftime('%b %d, %Y') if inq.created_at else 'Recent' }}</div>
+                    <div style="font-size: 0.75rem; color: #94a3b8;">{{ inq.created_at.strftime('%I:%M %p') if inq.created_at else '' }}</div>
+                  </td>
+
+                  {# Actions #}
+                  <td style="padding: 1rem 1.25rem; vertical-align: middle; text-align: right; white-space: nowrap;">
+                    <div style="display: inline-flex; gap: 6px; align-items: center;">
+                      
+                      {# View Message Button (Modal) #}
+                      <button
+                        type="button"
+                        class="btn btn-outline btn-sm view-inquiry-btn"
+                        data-id="{{ inq.id }}"
+                        data-name="{{ inq.name }}"
+                        data-email="{{ inq.email }}"
+                        data-phone="{{ inq.phone or '' }}"
+                        data-subject="{{ inq.subject }}"
+                        data-date="{{ inq.created_at.strftime('%b %d, %Y at %I:%M %p') if inq.created_at else '' }}"
+                        data-message="{{ inq.message | e }}"
+                        data-processed="{{ '1' if inq.is_processed else '0' }}"
+                        title="View Full Message"
+                        style="padding: 0.35rem 0.65rem; font-size: 0.785rem; gap: 4px;"
+                      >
+                        {{ icon('eye', size=13) }} View
+                      </button>
+
+                      {# Reply mailto #}
+                      <a
+                        href="mailto:{{ inq.email }}?subject=Re: {{ inq.subject | urlencode }}&body=Hi {{ inq.name | urlencode }},%0D%0A%0D%0AThank you for contacting Anti-Matrix regarding {{ inq.subject | urlencode }}.%0D%0A%0D%0A"
+                        class="btn btn-outline btn-sm"
+                        title="Reply via Email"
+                        style="padding: 0.35rem 0.65rem; font-size: 0.785rem; gap: 4px; color: var(--color-primary);"
+                      >
+                        {{ icon('send', size=13) }} Reply
+                      </a>
+
+                      {# Toggle Status (POST) #}
+                      <form method="POST" action="{{ url_for('admin.toggle_inquiry_status', inquiry_id=inq.id) }}" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button
+                          type="submit"
+                          class="btn btn-outline btn-sm"
+                          title="{{ 'Mark as Unread' if inq.is_processed else 'Mark as Read' }}"
+                          style="padding: 0.35rem 0.65rem; font-size: 0.785rem;"
+                        >
+                          {% if inq.is_processed %}
+                            {{ icon('rotate-ccw', size=13) }}
+                          {% else %}
+                            {{ icon('check', size=13) }}
+                          {% endif %}
+                        </button>
+                      </form>
+
+                      {# Delete Single (POST with modal) #}
+                      <button
+                        type="button"
+                        class="btn btn-danger-outline btn-sm delete-single-inquiry-btn"
+                        data-id="{{ inq.id }}"
+                        data-name="{{ inq.name }}"
+                        title="Delete Inquiry"
+                        style="padding: 0.35rem 0.55rem; font-size: 0.785rem;"
+                      >
+                        {{ icon('trash-2', size=13) }}
+                      </button>
+
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        {# Empty State #}
+        <div style="text-align: center; padding: 4rem 2rem;">
+          <div style="width: 64px; height: 64px; border-radius: 50%; background: #f1f5f9; color: #94a3b8; display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-lg);">
+            {{ icon('inbox', size=32) }}
+          </div>
+          <h3 style="color: #0f172a; margin-bottom: var(--space-xs); font-family: var(--font-admin-heading);">No inquiries found</h3>
+          <p style="color: #64748b; font-size: 0.9rem; max-width: 420px; margin: 0 auto var(--space-lg);">
+            {% if search_query or (selected_status and selected_status != 'all') or selected_subject %}
+              No contact inquiries match your filter criteria. Try adjusting your search query or reset filters.
+            {% else %}
+              There are no messages from the contact page yet. Inbound inquiries will appear here as soon as visitors submit the contact form.
+            {% endif %}
+          </p>
+          {% if search_query or (selected_status and selected_status != 'all') or selected_subject %}
+            <a href="{{ url_for('admin.inquiries') }}" class="btn btn-outline btn-sm">
+              Clear All Filters
+            </a>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+</section>
+
+<!-- View Message Modal -->
+<div id="view-inquiry-modal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 1.5rem;">
+  <div class="card" style="max-width: 640px; width: 100%; max-height: 90vh; overflow-y: auto; background: #ffffff; border-radius: var(--radius-lg); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); padding: var(--space-2xl);">
+    
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-lg); border-bottom: 1px solid #e2e8f0; padding-bottom: var(--space-md);">
+      <div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <span id="modal-status-badge" class="badge" style="font-size: 0.725rem; font-weight: 700;"></span>
+          <span id="modal-subject-pill" style="display: inline-block; padding: 0.2rem 0.55rem; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: 0.75rem; font-weight: 600;"></span>
+        </div>
+        <h3 id="modal-sender-name" style="margin: 0; color: #0f172a; font-family: var(--font-admin-heading); font-size: 1.35rem;"></h3>
+      </div>
+      <button type="button" id="close-view-modal-btn" style="background: none; border: none; font-size: 1.5rem; color: #94a3b8; cursor: pointer; line-height: 1; padding: 4px;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#94a3b8'">&times;</button>
+    </div>
+
+    <!-- Contact Metadata Grid -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); margin-bottom: var(--space-lg); padding: var(--space-md); background: #f8fafc; border-radius: var(--radius-md); border: 1px solid #e2e8f0; font-size: 0.85rem;">
+      <div>
+        <div style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; font-weight: 600; margin-bottom: 2px;">Email Address</div>
+        <a id="modal-sender-email" href="#" style="color: var(--color-primary); font-weight: 500; text-decoration: none;"></a>
+      </div>
+      <div>
+        <div style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; font-weight: 600; margin-bottom: 2px;">Phone Number</div>
+        <div id="modal-sender-phone" style="color: #0f172a; font-weight: 500;"></div>
+      </div>
+      <div>
+        <div style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; font-weight: 600; margin-bottom: 2px;">Date Received</div>
+        <div id="modal-date" style="color: #0f172a; font-weight: 500;"></div>
+      </div>
+      <div>
+        <div style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; font-weight: 600; margin-bottom: 2px;">Inquiry ID</div>
+        <div id="modal-inquiry-id" style="color: #64748b; font-weight: 500;"></div>
+      </div>
+    </div>
+
+    <!-- Full Message Content -->
+    <div style="margin-bottom: var(--space-xl);">
+      <div style="color: #64748b; font-size: 0.8rem; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;">Message Content</div>
+      <div id="modal-message-body" style="padding: 1.25rem; background: #ffffff; border: 1px solid #e2e8f0; border-radius: var(--radius-md); color: #1e293b; font-size: 0.925rem; line-height: 1.6; white-space: pre-wrap; font-family: var(--font-admin-sans); max-height: 280px; overflow-y: auto;">
+      </div>
+    </div>
+
+    <!-- Modal Footer Actions -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-sm); border-top: 1px solid #e2e8f0; padding-top: var(--space-md);">
+      <div>
+        <form id="modal-toggle-status-form" method="POST" action="" style="display: inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button type="submit" id="modal-toggle-status-btn" class="btn btn-outline btn-sm">
+            Toggle Status
+          </button>
+        </form>
+      </div>
+      <div style="display: flex; gap: var(--space-sm);">
+        <button type="button" id="close-view-modal-btn2" class="btn btn-outline btn-sm">Close</button>
+        <a id="modal-reply-btn" href="#" class="btn btn-primary btn-sm" style="gap: 6px;">
+          {{ icon('send', size=14) }} Reply via Email
+        </a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Delete Single Confirmation Modal -->
+<div id="delete-single-modal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 1010; align-items: center; justify-content: center; padding: 1.5rem;">
+  <div class="card" style="max-width: 440px; width: 100%; background: #ffffff; border-radius: var(--radius-lg); padding: var(--space-xl); text-align: center;">
+    <div style="width: 52px; height: 52px; border-radius: 50%; background: #fef2f2; color: #ef4444; display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-md); border: 2px solid #fecaca;">
+      {{ icon('trash-2', size=24) }}
+    </div>
+    <h3 style="color: #0f172a; margin-bottom: var(--space-xs); font-family: var(--font-admin-heading);">Delete Inquiry</h3>
+    <p style="color: #64748b; font-size: 0.875rem; margin-bottom: var(--space-lg); line-height: 1.5;">
+      Are you sure you want to delete the inquiry from <strong id="delete-single-sender-name"></strong>? This action cannot be undone.
+    </p>
+    <div style="display: flex; justify-content: center; gap: var(--space-sm);">
+      <button type="button" id="cancel-delete-single-btn" class="btn btn-outline btn-sm">Cancel</button>
+      <form id="delete-single-form" method="POST" action="">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button type="submit" class="btn btn-danger btn-sm" style="background: #dc2626; color: #ffffff;">
+          Yes, Delete
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete All Inquiries Confirmation Modal -->
+<div id="delete-all-inquiries-modal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 1010; align-items: center; justify-content: center; padding: 1.5rem;">
+  <div class="card" style="max-width: 460px; width: 100%; background: #ffffff; border-radius: var(--radius-lg); padding: var(--space-xl); text-align: center;">
+    <div style="width: 56px; height: 56px; border-radius: 50%; background: #fef2f2; color: #ef4444; display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-md); border: 2px solid #fecaca;">
+      {{ icon('alert-triangle', size=26) }}
+    </div>
+    <h3 style="color: #0f172a; margin-bottom: var(--space-xs); font-family: var(--font-admin-heading);">Delete All Inquiries</h3>
+    <p style="color: #64748b; font-size: 0.875rem; margin-bottom: var(--space-lg); line-height: 1.5;">
+      Are you sure you want to permanently delete all <strong>{{ total_count }}</strong> inquiry messages? This cannot be reversed.
+    </p>
+    <div style="display: flex; justify-content: center; gap: var(--space-sm);">
+      <button type="button" id="cancel-delete-all-btn" class="btn btn-outline btn-sm">Cancel</button>
+      <form method="POST" action="{{ url_for('admin.delete_all_inquiries') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button type="submit" class="btn btn-danger btn-sm" style="background: #dc2626; color: #ffffff;">
+          Permanently Delete All
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // 1. View Inquiry Modal
+  const viewModal = document.getElementById('view-inquiry-modal');
+  const closeViewBtns = [document.getElementById('close-view-modal-btn'), document.getElementById('close-view-modal-btn2')];
+  const viewBtns = document.querySelectorAll('.view-inquiry-btn');
+
+  viewBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+      const id = this.getAttribute('data-id');
+      const name = this.getAttribute('data-name');
+      const email = this.getAttribute('data-email');
+      const phone = this.getAttribute('data-phone') || 'Not provided';
+      const subject = this.getAttribute('data-subject');
+      const date = this.getAttribute('data-date');
+      const message = this.getAttribute('data-message');
+      const isProcessed = this.getAttribute('data-processed') === '1';
+
+      document.getElementById('modal-sender-name').textContent = name;
+      document.getElementById('modal-sender-email').textContent = email;
+      document.getElementById('modal-sender-email').href = 'mailto:' + email;
+      document.getElementById('modal-sender-phone').textContent = phone;
+      document.getElementById('modal-subject-pill').textContent = subject;
+      document.getElementById('modal-date').textContent = date;
+      document.getElementById('modal-inquiry-id').textContent = '#' + id;
+      document.getElementById('modal-message-body').textContent = message;
+
+      const statusBadge = document.getElementById('modal-status-badge');
+      if (isProcessed) {
+        statusBadge.textContent = 'READ';
+        statusBadge.style.background = '#f1f5f9';
+        statusBadge.style.color = '#64748b';
+        statusBadge.style.borderColor = '#e2e8f0';
+      } else {
+        statusBadge.textContent = '● NEW';
+        statusBadge.style.background = '#ecfdf5';
+        statusBadge.style.color = '#059669';
+        statusBadge.style.borderColor = '#a7f3d0';
+      }
+
+      // Configure toggle status form
+      const toggleForm = document.getElementById('modal-toggle-status-form');
+      toggleForm.action = '/admin/inquiries/' + id + '/toggle-status';
+      const toggleBtn = document.getElementById('modal-toggle-status-btn');
+      toggleBtn.textContent = isProcessed ? 'Mark as Unread' : 'Mark as Read';
+
+      // Configure mailto reply button
+      const replyBtn = document.getElementById('modal-reply-btn');
+      const mailtoSubject = encodeURIComponent('Re: ' + subject);
+      const mailtoBody = encodeURIComponent('Hi ' + name + ',\n\nThank you for reaching out to Anti-Matrix regarding ' + subject + '.\n\n');
+      replyBtn.href = 'mailto:' + email + '?subject=' + mailtoSubject + '&body=' + mailtoBody;
+
+      viewModal.style.display = 'flex';
+    });
+  });
+
+  closeViewBtns.forEach(b => {
+    if (b) b.addEventListener('click', () => { viewModal.style.display = 'none'; });
+  });
+
+  if (viewModal) {
+    viewModal.addEventListener('click', function(e) {
+      if (e.target === viewModal) viewModal.style.display = 'none';
+    });
+  }
+
+  // 2. Delete Single Modal
+  const deleteSingleModal = document.getElementById('delete-single-modal');
+  const deleteSingleBtns = document.querySelectorAll('.delete-single-inquiry-btn');
+  const cancelDeleteSingleBtn = document.getElementById('cancel-delete-single-btn');
+  const deleteSingleForm = document.getElementById('delete-single-form');
+  const deleteSingleSenderName = document.getElementById('delete-single-sender-name');
+
+  deleteSingleBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+      const id = this.getAttribute('data-id');
+      const name = this.getAttribute('data-name');
+      deleteSingleSenderName.textContent = name;
+      deleteSingleForm.action = '/admin/inquiries/' + id + '/delete';
+      deleteSingleModal.style.display = 'flex';
+    });
+  });
+
+  if (cancelDeleteSingleBtn) {
+    cancelDeleteSingleBtn.addEventListener('click', () => { deleteSingleModal.style.display = 'none'; });
+  }
+
+  if (deleteSingleModal) {
+    deleteSingleModal.addEventListener('click', function(e) {
+      if (e.target === deleteSingleModal) deleteSingleModal.style.display = 'none';
+    });
+  }
+
+  // 3. Delete All Modal
+  const deleteAllModal = document.getElementById('delete-all-inquiries-modal');
+  const openDeleteAllBtn = document.getElementById('open-delete-all-inquiries-modal');
+  const cancelDeleteAllBtn = document.getElementById('cancel-delete-all-btn');
+
+  if (openDeleteAllBtn) {
+    openDeleteAllBtn.addEventListener('click', () => { deleteAllModal.style.display = 'flex'; });
+  }
+
+  if (cancelDeleteAllBtn) {
+    cancelDeleteAllBtn.addEventListener('click', () => { deleteAllModal.style.display = 'none'; });
+  }
+
+  if (deleteAllModal) {
+    deleteAllModal.addEventListener('click', function(e) {
+      if (e.target === deleteAllModal) deleteAllModal.style.display = 'none';
+    });
+  }
+});
+</script>
+{% endblock %}

@@ -2,11 +2,11 @@ import logging
 import os
 import sys
 from datetime import datetime, timezone
-from flask import Flask, render_template, jsonify, send_from_directory, abort
+from flask import Flask, render_template, jsonify, send_from_directory, abort, request, redirect, url_for, flash
 from flask_login import LoginManager
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, CSRFError
 from config import config, INTERNSHIP_FEES, INTERNSHIP_PRICING
-from models import db, User, JobPosting, JobApplication, Payment
+from models import db, User, JobPosting, JobApplication, Payment, ContactInquiry
 from routes import main_bp, auth_bp, contact_bp, admin_bp
 
 logging.basicConfig(
@@ -47,9 +47,10 @@ def create_app(config_name=None):
     from werkzeug.middleware.proxy_fix import ProxyFix
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-    # Exempt Cashfree webhook endpoint from CSRF
+    # Exempt Cashfree webhook and contact API endpoints from CSRF
     from routes.main import cashfree_webhook
     csrf.exempt(cashfree_webhook)
+    csrf.exempt(contact_bp)
 
     login_manager.login_view = 'auth.login'
     login_manager.login_message = 'Please log in to access this page.'
@@ -112,7 +113,21 @@ def create_app(config_name=None):
 
     @app.errorhandler(500)
     def internal_server_error(e):
-        return render_template('errors/404.html'), 500
+        logger.error(f"Internal server error (500): {e}", exc_info=True)
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.path.startswith('/api/'):
+            return jsonify({'status': 'error', 'message': 'An unexpected server error occurred. Please try again.'}), 500
+        return render_template('errors/500.html'), 500
+
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(e):
+        logger.warning(f"CSRF validation failed on {request.method} {request.path}: {e.description}")
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.path.startswith('/api/'):
+            return jsonify({
+                'status': 'error',
+                'message': 'Security token expired or invalid. Please refresh the page and try again.'
+            }), 400
+        flash('Your session expired. Please refresh the page and try submitting again.', 'warning')
+        return redirect(request.referrer or url_for('main.contact'))
 
     # Auto-initialize database tables and seed default data
     with app.app_context():
@@ -345,6 +360,27 @@ def create_app(config_name=None):
                         conn.execute(text(f"ALTER TABLE payments ADD COLUMN gst_rate {float_type} DEFAULT 18.0"))
                     if 'gst_amount' not in pay_cols:
                         conn.execute(text(f"ALTER TABLE payments ADD COLUMN gst_amount {float_type}"))
+                    conn.commit()
+
+            # Ensure contact_inquiries table has all required columns and sequence sync
+            if 'contact_inquiries' in inspector.get_table_names():
+                ci_cols = [c['name'] for c in inspector.get_columns('contact_inquiries')]
+                with db.engine.connect() as conn:
+                    if 'is_processed' not in ci_cols:
+                        conn.execute(text("ALTER TABLE contact_inquiries ADD COLUMN is_processed BOOLEAN DEFAULT FALSE"))
+                    if 'phone' not in ci_cols:
+                        conn.execute(text("ALTER TABLE contact_inquiries ADD COLUMN phone VARCHAR(40)"))
+                    if not dialect_is_sqlite:
+                        try:
+                            conn.execute(text("""
+                                SELECT setval(
+                                    pg_get_serial_sequence('contact_inquiries', 'id'),
+                                    COALESCE((SELECT MAX(id) FROM contact_inquiries), 1),
+                                    (SELECT MAX(id) IS NOT NULL FROM contact_inquiries)
+                                )
+                            """))
+                        except Exception as e:
+                            logger.warning(f"Note on sequence sync for contact_inquiries: {e}")
                     conn.commit()
         except Exception as e:
             app.logger.warning(f"Database auto-migration note: {str(e)}")
