@@ -49,6 +49,8 @@ def login():
     redirect_target = get_safe_redirect(raw_target)
     
     if current_user.is_authenticated:
+        if getattr(current_user, 'role', '') == 'admin' and (not raw_target or redirect_target == '/'):
+            return redirect(url_for('admin.dashboard'))
         return redirect(redirect_target)
 
     if request.method == 'POST':

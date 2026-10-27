@@ -23,6 +23,7 @@ from services.offer_letter_service import (
     get_active_offer_letter_template, determine_job_category,
     OFFER_LETTER_CATEGORIES, ensure_default_templates_initialized
 )
+from routes.auth import get_safe_redirect
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -48,11 +49,35 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated:
             flash('Please log in with an administrator account to access this area.', 'warning')
-            return redirect(url_for('auth.login', next=request.url))
+            target_path = request.path
+            if request.query_string:
+                target_path = f"{request.path}?{request.query_string.decode('utf-8', errors='ignore')}"
+            return redirect(url_for('auth.login', next=target_path))
         if getattr(current_user, 'role', '') != 'admin':
             abort(403)
         return f(*args, **kwargs)
     return decorated_function
+
+
+@admin_bp.route('/login', methods=['GET', 'POST'], strict_slashes=False)
+def admin_login():
+    """
+    Compatibility route for /admin/login and /admin/login/.
+    Keeps /login as the canonical login route and redirects safely with next target.
+    Directs already-authenticated admins straight to admin.dashboard.
+    """
+    raw_target = (
+        request.args.get('next') or
+        request.args.get('redirect') or
+        request.form.get('redirect') or
+        request.form.get('next')
+    )
+    safe_target = get_safe_redirect(raw_target, default='/admin/') if raw_target else '/admin/'
+
+    if current_user.is_authenticated and getattr(current_user, 'role', '') == 'admin':
+        return redirect(safe_target if raw_target else url_for('admin.dashboard'))
+
+    return redirect(url_for('auth.login', next=safe_target))
 
 
 @admin_bp.route('', strict_slashes=False)
