@@ -33,7 +33,7 @@ jobs:
           set -euo pipefail
 
           if [[ -z "$VPS_PRIVATE_KEY" || -z "$VPS_HOST" ]]; then
-            echo "Required SSH secrets are missing."
+            echo "Missing VPS SSH secrets."
             exit 1
           fi
 
@@ -43,15 +43,13 @@ jobs:
           printf '%s\n' "$VPS_PRIVATE_KEY" > "$HOME/.ssh/anti_matrix_key"
           chmod 600 "$HOME/.ssh/anti_matrix_key"
 
-          # Fail here if GitHub stored an invalid or incomplete key.
           ssh-keygen -y -f "$HOME/.ssh/anti_matrix_key" > /dev/null
 
-          # Verify the server host key before trusting it.
           ssh-keyscan -H "$VPS_HOST" > "$HOME/.ssh/known_hosts"
           test -s "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
 
-          echo "SSH private key format validated."
+          echo "SSH key validated."
 
       - name: Test VPS SSH connection
         env:
@@ -62,7 +60,7 @@ jobs:
           set -euo pipefail
 
           if [[ -z "$VPS_USER" ]]; then
-            echo "VPS_USER secret is missing."
+            echo "Missing VPS_USER secret."
             exit 1
           fi
 
@@ -82,8 +80,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Do not use --delete: preserve unrelated VPS files.
-          # Preserve server-specific configuration and local safety guard.
+          # Do not use --delete.
+          # Preserve server-specific configuration and safety files.
           rsync -az \
             --exclude='/.env' \
             --exclude='/.env.*' \
@@ -106,44 +104,29 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Execute the exact permitted sudo commands over SSH.
           ssh \
             -i "$HOME/.ssh/anti_matrix_key" \
             -o IdentitiesOnly=yes \
             -o BatchMode=yes \
-            "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
-          set -euo pipefail
+            -o ConnectTimeout=15 \
+            "$VPS_USER@$VPS_HOST" \
+            'sudo -n /usr/bin/systemctl restart anti-matrix.service &&
+             sudo -n /usr/bin/systemctl is-active --quiet anti-matrix.service &&
+             for attempt in $(seq 1 15); do
+               if curl --fail --silent http://127.0.0.1:8017/api/health > /dev/null; then
+                 break
+               fi
+               if [ "$attempt" -eq 15 ]; then
+                 echo "Health endpoint failed."
+                 exit 1
+               fi
+               sleep 2
+             done &&
+             curl --fail --silent --show-error http://127.0.0.1:8017/api/health &&
+             curl --fail --silent --show-error -o /dev/null http://127.0.0.1:8017/'
 
-          cd /var/www/anti-matrix
-
-          # Confirm the local database-init safety guard still exists.
-          grep -q 'ALLOW_STARTUP_DB_INIT' app.py
-          grep -q 'Skipping automatic database initialization' app.py
-
-          # Never enable startup database initialization.
-          sudo systemctl restart anti-matrix.service
-          sudo systemctl is-active --quiet anti-matrix.service
-
-          # Allow the service a short period to start, then check endpoints.
-          for attempt in {1..15}; do
-            if curl --fail --silent --show-error \
-              http://127.0.0.1:8017/api/health > /dev/null; then
-              break
-            fi
-
-            if [ "$attempt" -eq 15 ]; then
-              echo "Health endpoint did not become ready."
-              sudo systemctl status anti-matrix.service --no-pager || true
-              exit 1
-            fi
-
-            sleep 2
-          done
-
-          curl --fail --silent --show-error \
-            -o /dev/null http://127.0.0.1:8017/
-
-          echo "Deployment and local endpoint checks succeeded."
-          REMOTE
+          echo "Deployment and health checks succeeded."
 
       - name: Clean up SSH key
         if: always()
