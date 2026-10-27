@@ -7,6 +7,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: anti-matrix-production
   cancel-in-progress: false
@@ -15,48 +18,135 @@ jobs:
   deploy:
     name: Deploy website
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure SSH
+      - name: Configure and validate SSH
         env:
           VPS_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
+        shell: bash
         run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$VPS_PRIVATE_KEY" > ~/.ssh/anti_matrix_key
-          chmod 600 ~/.ssh/anti_matrix_key
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
+          set -euo pipefail
+
+          if [[ -z "$VPS_PRIVATE_KEY" || -z "$VPS_HOST" ]]; then
+            echo "Required SSH secrets are missing."
+            exit 1
+          fi
+
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+
+          printf '%s\n' "$VPS_PRIVATE_KEY" > "$HOME/.ssh/anti_matrix_key"
+          chmod 600 "$HOME/.ssh/anti_matrix_key"
+
+          # Fail here if GitHub stored an invalid or incomplete key.
+          ssh-keygen -y -f "$HOME/.ssh/anti_matrix_key" > /dev/null
+
+          # Verify the server host key before trusting it.
+          ssh-keyscan -H "$VPS_HOST" > "$HOME/.ssh/known_hosts"
+          test -s "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+          echo "SSH private key format validated."
+
+      - name: Test VPS SSH connection
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$VPS_USER" ]]; then
+            echo "VPS_USER secret is missing."
+            exit 1
+          fi
+
+          ssh \
+            -i "$HOME/.ssh/anti_matrix_key" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            "$VPS_USER@$VPS_HOST" \
+            'printf "VPS SSH authentication successful\n"'
 
       - name: Deploy application files
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
+        shell: bash
         run: |
+          set -euo pipefail
+
+          # Do not use --delete: preserve unrelated VPS files.
+          # Preserve server-specific configuration and local safety guard.
           rsync -az \
-            --exclude='.env' \
-            --exclude='.env.*' \
-            --exclude='.venv/' \
-            --exclude='app.py' \
-            --exclude='*.predeploy-*' \
-            --exclude='.git/' \
-            -e "ssh -i ~/.ssh/anti_matrix_key -o IdentitiesOnly=yes" \
+            --exclude='/.env' \
+            --exclude='/.env.*' \
+            --exclude='/.venv/' \
+            --exclude='/app.py' \
+            --exclude='/*.predeploy-*' \
+            --exclude='/.git/' \
+            --exclude='/.github/' \
+            --exclude='/.gitignore' \
+            -e "ssh -i $HOME/.ssh/anti_matrix_key -o IdentitiesOnly=yes -o BatchMode=yes" \
             ./ "$VPS_USER@$VPS_HOST:/var/www/anti-matrix/"
+
+          echo "Application files transferred."
 
       - name: Restart and verify service
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
+        shell: bash
         run: |
-          ssh -i ~/.ssh/anti_matrix_key -o IdentitiesOnly=yes \
-            "$VPS_USER@$VPS_HOST" '
-              set -e
-              sudo systemctl restart anti-matrix.service
-              sudo systemctl is-active --quiet anti-matrix.service
-              curl --fail --silent --show-error http://127.0.0.1:8017/api/health
-              curl --fail --silent --show-error -o /dev/null http://127.0.0.1:8017/
-            '
+          set -euo pipefail
+
+          ssh \
+            -i "$HOME/.ssh/anti_matrix_key" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+
+          cd /var/www/anti-matrix
+
+          # Confirm the local database-init safety guard still exists.
+          grep -q 'ALLOW_STARTUP_DB_INIT' app.py
+          grep -q 'Skipping automatic database initialization' app.py
+
+          # Never enable startup database initialization.
+          sudo systemctl restart anti-matrix.service
+          sudo systemctl is-active --quiet anti-matrix.service
+
+          # Allow the service a short period to start, then check endpoints.
+          for attempt in {1..15}; do
+            if curl --fail --silent --show-error \
+              http://127.0.0.1:8017/api/health > /dev/null; then
+              break
+            fi
+
+            if [ "$attempt" -eq 15 ]; then
+              echo "Health endpoint did not become ready."
+              sudo systemctl status anti-matrix.service --no-pager || true
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          curl --fail --silent --show-error \
+            -o /dev/null http://127.0.0.1:8017/
+
+          echo "Deployment and local endpoint checks succeeded."
+          REMOTE
+
+      - name: Clean up SSH key
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$HOME/.ssh/anti_matrix_key"
