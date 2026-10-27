@@ -1,0 +1,62 @@
+
+name: Deploy Anti-Matrix to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: anti-matrix-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy website
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          VPS_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_PRIVATE_KEY" > ~/.ssh/anti_matrix_key
+          chmod 600 ~/.ssh/anti_matrix_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy application files
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          rsync -az --delete \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='.venv/' \
+            --exclude='app.py' \
+            --exclude='*.predeploy-*' \
+            --exclude='.git/' \
+            -e "ssh -i ~/.ssh/anti_matrix_key -o IdentitiesOnly=yes" \
+            ./ "$VPS_USER@$VPS_HOST:/var/www/anti-matrix/"
+
+      - name: Restart and verify service
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -i ~/.ssh/anti_matrix_key -o IdentitiesOnly=yes \
+            "$VPS_USER@$VPS_HOST" '
+              set -e
+              sudo systemctl restart anti-matrix.service
+              sudo systemctl is-active --quiet anti-matrix.service
+              curl --fail --silent --show-error http://127.0.0.1:8017/api/health
+              curl --fail --silent --show-error -o /dev/null http://127.0.0.1:8017/
+            '
