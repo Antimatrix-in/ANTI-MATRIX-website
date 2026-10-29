@@ -38,7 +38,19 @@ def get_safe_redirect(target_url, default='/'):
         return default
 
 
-@auth_bp.route('/login', methods=['GET', 'POST'])
+@auth_bp.after_request
+def add_auth_cache_control(response):
+    """
+    Ensure browser and intermediate caches do not store auth responses or forms.
+    Prevents persistent 404/form state caching in browsers.
+    """
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+
+@auth_bp.route('/login', methods=['GET', 'POST'], strict_slashes=False)
 def login():
     raw_target = (
         request.args.get('next') or
@@ -173,7 +185,7 @@ def login():
     return render_template('auth/login.html', redirect_target=redirect_target, errors={})
 
 
-@auth_bp.route('/signup', methods=['GET', 'POST'])
+@auth_bp.route('/signup', methods=['GET', 'POST'], strict_slashes=False)
 def signup():
     raw_target = (
         request.args.get('next') or
@@ -259,7 +271,7 @@ def signup():
     return render_template('auth/signup.html', redirect_target=redirect_target, errors={})
 
 
-@auth_bp.route('/logout', methods=['GET', 'POST'])
+@auth_bp.route('/logout', methods=['GET', 'POST'], strict_slashes=False)
 def logout():
     if current_user.is_authenticated:
         logout_user()
@@ -270,8 +282,8 @@ def logout():
 # Google OAuth 2.0 Authentication Routes
 # ============================================================================
 
-@auth_bp.route('/auth/google')
-@auth_bp.route('/login/google')
+@auth_bp.route('/auth/google', strict_slashes=False)
+@auth_bp.route('/login/google', strict_slashes=False)
 def google_login():
     """Initiate Google OAuth 2.0 authorization redirect."""
     if current_user.is_authenticated:
@@ -354,8 +366,8 @@ def google_callback():
 # GitHub OAuth 2.0 Authentication Routes
 # ============================================================================
 
-@auth_bp.route('/auth/github')
-@auth_bp.route('/login/github')
+@auth_bp.route('/auth/github', strict_slashes=False)
+@auth_bp.route('/login/github', strict_slashes=False)
 def github_login():
     """Initiate GitHub OAuth authorization redirect."""
     if current_user.is_authenticated:

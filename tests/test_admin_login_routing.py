@@ -179,3 +179,24 @@ class AdminLoginRoutingTestCase(unittest.TestCase):
         self._login('admin@test.com', 'AdminPass123!')
         resp = self.client.get('/admin/', follow_redirects=True)
         self.assertEqual(resp.status_code, 200)
+
+    def test_login_trailing_slash_returns_200_ok(self):
+        """GET /login/ with trailing slash returns HTTP 200 instead of 404."""
+        resp = self.client.get('/login/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'Log In', resp.data)
+
+    def test_signup_trailing_slash_returns_200_ok(self):
+        """GET /signup/ with trailing slash returns HTTP 200 instead of 404."""
+        resp = self.client.get('/signup/')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_auth_routes_set_no_cache_headers(self):
+        """Auth responses must include anti-caching headers to prevent browser-cached 404 or auth state."""
+        resp_login = self.client.get('/login')
+        self.assertIn('no-cache', resp_login.headers.get('Cache-Control', ''))
+        self.assertIn('no-store', resp_login.headers.get('Cache-Control', ''))
+
+        resp_login_slash = self.client.get('/login/')
+        self.assertIn('no-cache', resp_login_slash.headers.get('Cache-Control', ''))
+        self.assertIn('no-store', resp_login_slash.headers.get('Cache-Control', ''))
