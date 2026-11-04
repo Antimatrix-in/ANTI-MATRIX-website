@@ -135,135 +135,157 @@
         Everything you need to bring your vision to life.
       </h2>
       <div class="divider center"></div>
-      <p style="font-size: 1.1rem; color: #475569; max-width: 680px; margin: 0 auto;">
-        From intuitive web platforms to thoughtful intelligence, we pour our heart and craft into every detail.
-      </p>
+      <p style="font-size: 1.1rem; color: #475569; max-width: 680px; margin: 0 auto;">From intuitive web platforms to thoughtful intelligence, we pour our heart and craft into every detail.</p>
     </div>
     
     <div class="services-grid">
       {# Service 1 #}
-      <div class="card service-card animate-fade-up delay-1" style="padding: 0; overflow: hidden; border: 1px solid var(--color-border); transition: transform 0.25s, box-shadow 0.25s;">
-        <img src="{{ url_for('static', filename='images/home_svc_web.jpg') }}"
-             alt="Web development – laptop showing clean dashboard UI"
-             style="width:100%; height:180px; object-fit:cover; display:block;">
-        <div style="padding: var(--space-xl);">
-          <div class="icon-box">{{ icon('code-2', size=24) }}</div>
-          <h3 style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 700; color: #0f172a;">Web Experiences &amp; Platforms</h3>
-          <p style="color: #475569; margin-bottom: 1.25rem;">Fast, fluid, and beautifully natural web applications that welcome your visitors, earn their trust, and scale effortlessly as you grow.</p>
+      <div class="card service-card animate-fade-up delay-1">
+        <div class="service-card-media">
+          <img src="{{ url_for('static', filename='images/home_svc_web.jpg') }}"
+               alt="Web Experiences & Platforms – clean web dashboard on laptop"
+               loading="lazy">
+        </div>
+        <div class="service-card-body">
+          <div class="service-card-icon">{{ icon('code-2', size=18) }}</div>
+          <h3 class="service-card-title">Web Experiences &amp; Platforms</h3>
+          <p class="service-card-desc">Fast, fluid, and beautifully natural web applications that welcome your visitors, earn their trust, and scale effortlessly as you grow.</p>
           <ul class="service-capabilities">
             <li>Handcrafted React &amp; Next.js Experiences</li>
             <li>Living, Responsive Micro-Interactions</li>
             <li>Welcoming E-Commerce &amp; Member Portals</li>
-            <li>Built to Scale Gracefully Every Single Day</li>
+            <li>Built to Scale Gracefully Every Day</li>
           </ul>
-          <a href="{{ url_for('main.services') }}" class="btn btn-ghost" style="padding:0; color:var(--color-primary-light); font-weight:700; font-size:0.875rem; display:inline-flex; align-items:center; gap:0.375rem; background:none;">
-            See How We Build {{ icon('arrow-right', size=14) }}
-          </a>
+          <div class="service-card-footer">
+            <a href="{{ url_for('main.services') }}" class="service-card-link">
+              See How We Build {{ icon('arrow-right', size=13) }}
+            </a>
+          </div>
         </div>
       </div>
 
       {# Service 2 #}
-      <div class="card service-card animate-fade-up delay-2" style="padding: 0; overflow: hidden; border: 1px solid var(--color-border); transition: transform 0.25s, box-shadow 0.25s;">
-        <img src="{{ url_for('static', filename='images/home_svc_mobile.jpg') }}"
-             alt="Mobile app development – two smartphones with emerald green dashboards"
-             style="width:100%; height:180px; object-fit:cover; display:block;">
-        <div style="padding: var(--space-xl);">
-          <div class="icon-box">{{ icon('smartphone', size=24) }}</div>
-          <h3 style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 700; color: #0f172a;">Mobile Applications</h3>
-          <p style="color: #475569; margin-bottom: 1.25rem;">Delightful, responsive apps for iOS and Android that people genuinely look forward to opening and using every single day.</p>
+      <div class="card service-card animate-fade-up delay-2">
+        <div class="service-card-media">
+          <img src="{{ url_for('static', filename='images/home_svc_mobile.jpg') }}"
+               alt="Mobile Applications – smartphone dashboards"
+               loading="lazy">
+        </div>
+        <div class="service-card-body">
+          <div class="service-card-icon">{{ icon('smartphone', size=18) }}</div>
+          <h3 class="service-card-title">Mobile Applications</h3>
+          <p class="service-card-desc">Delightful, responsive apps for iOS and Android that people genuinely look forward to opening and using every single day.</p>
           <ul class="service-capabilities">
             <li>Natural, Fluid Polish on Every Device</li>
             <li>Works Wonderfully Anywhere, Even Offline</li>
             <li>Thoughtful Haptics &amp; Device Integrations</li>
             <li>Guiding You Safely to App Store Success</li>
           </ul>
-          <a href="{{ url_for('main.services') }}" class="btn btn-ghost" style="padding:0; color:var(--color-primary-light); font-weight:700; font-size:0.875rem; display:inline-flex; align-items:center; gap:0.375rem; background:none;">
-            See How We Build {{ icon('arrow-right', size=14) }}
-          </a>
+          <div class="service-card-footer">
+            <a href="{{ url_for('main.services') }}" class="service-card-link">
+              See How We Build {{ icon('arrow-right', size=13) }}
+            </a>
+          </div>
         </div>
       </div>
 
       {# Service 3 #}
-      <div class="card service-card animate-fade-up delay-3" style="padding: 0; overflow: hidden; border: 1px solid var(--color-border); transition: transform 0.25s, box-shadow 0.25s;">
-        <img src="{{ url_for('static', filename='images/home_svc_ai.jpg') }}"
-             alt="AI and Machine Learning – glowing neural network brain visualization"
-             style="width:100%; height:180px; object-fit:cover; display:block;">
-        <div style="padding: var(--space-xl);">
-          <div class="icon-box">{{ icon('brain', size=24) }}</div>
-          <h3 style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 700; color: #0f172a;">Applied AI &amp; Smart Automation</h3>
-          <p style="color: #475569; margin-bottom: 1.25rem;">Thoughtful intelligence and machine learning designed to remove friction, illuminate insights, and supercharge your team.</p>
+      <div class="card service-card animate-fade-up delay-3">
+        <div class="service-card-media">
+          <img src="{{ url_for('static', filename='images/home_svc_ai.jpg') }}"
+               alt="Applied AI & Smart Automation – neural network visualization"
+               loading="lazy">
+        </div>
+        <div class="service-card-body">
+          <div class="service-card-icon">{{ icon('brain', size=18) }}</div>
+          <h3 class="service-card-title">Applied AI &amp; Smart Automation</h3>
+          <p class="service-card-desc">Thoughtful intelligence and machine learning designed to remove friction, illuminate insights, and supercharge your team.</p>
           <ul class="service-capabilities">
             <li>Warm, Helpful AI Companions &amp; Knowledge Bases</li>
             <li>Clear Insights from Your Real-World Data</li>
             <li>Computer Vision That Solves Daily Problems</li>
             <li>Respecting User Privacy at Every Turn</li>
           </ul>
-          <a href="{{ url_for('main.services') }}" class="btn btn-ghost" style="padding:0; color:var(--color-primary-light); font-weight:700; font-size:0.875rem; display:inline-flex; align-items:center; gap:0.375rem; background:none;">
-            See How We Build {{ icon('arrow-right', size=14) }}
-          </a>
+          <div class="service-card-footer">
+            <a href="{{ url_for('main.services') }}" class="service-card-link">
+              See How We Build {{ icon('arrow-right', size=13) }}
+            </a>
+          </div>
         </div>
       </div>
 
       {# Service 4 #}
-      <div class="card service-card animate-fade-up delay-1" style="padding: 0; overflow: hidden; border: 1px solid var(--color-border); transition: transform 0.25s, box-shadow 0.25s;">
-        <img src="{{ url_for('static', filename='images/home_svc_marketing.jpg') }}"
-             alt="Digital marketing – laptop with analytics dashboard and growth chart icons"
-             style="width:100%; height:180px; object-fit:cover; display:block;">
-        <div style="padding: var(--space-xl);">
-          <div class="icon-box">{{ icon('trending-up', size=24) }}</div>
-          <h3 style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 700; color: #0f172a;">Brand Growth &amp; Storytelling</h3>
-          <p style="color: #475569; margin-bottom: 1.25rem;">Authentic digital presence, organic discoverability, and storytelling that connects your purpose with the people who need it.</p>
+      <div class="card service-card animate-fade-up delay-1">
+        <div class="service-card-media">
+          <img src="{{ url_for('static', filename='images/home_svc_marketing.jpg') }}"
+               alt="Brand Growth & Storytelling – laptop with analytics and growth"
+               loading="lazy">
+        </div>
+        <div class="service-card-body">
+          <div class="service-card-icon">{{ icon('trending-up', size=18) }}</div>
+          <h3 class="service-card-title">Brand Growth &amp; Storytelling</h3>
+          <p class="service-card-desc">Authentic digital presence, organic discoverability, and storytelling that connects your purpose with the people who need it.</p>
           <ul class="service-capabilities">
             <li>Connecting with People Who Truly Care</li>
             <li>Experiences Shaped to Spark Genuine Action</li>
             <li>Honest Insights with Complete Transparency</li>
             <li>Nurturing a Thriving, Loyal Community</li>
           </ul>
-          <a href="{{ url_for('main.services') }}" class="btn btn-ghost" style="padding:0; color:var(--color-primary-light); font-weight:700; font-size:0.875rem; display:inline-flex; align-items:center; gap:0.375rem; background:none;">
-            See How We Build {{ icon('arrow-right', size=14) }}
-          </a>
+          <div class="service-card-footer">
+            <a href="{{ url_for('main.services') }}" class="service-card-link">
+              See How We Build {{ icon('arrow-right', size=13) }}
+            </a>
+          </div>
         </div>
       </div>
 
       {# Service 5 #}
-      <div class="card service-card animate-fade-up delay-2" style="padding: 0; overflow: hidden; border: 1px solid var(--color-border); transition: transform 0.25s, box-shadow 0.25s;">
-        <img src="{{ url_for('static', filename='images/service_cloud_devops.jpg') }}"
-             alt="Cloud and DevOps – server infrastructure and monitoring dashboards"
-             style="width:100%; height:180px; object-fit:cover; display:block;">
-        <div style="padding: var(--space-xl);">
-          <div class="icon-box">{{ icon('shield', size=24) }}</div>
-          <h3 style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 700; color: #0f172a;">Cloud Foundations &amp; DevOps</h3>
-          <p style="color: #475569; margin-bottom: 1.25rem;">Calm, resilient cloud architecture with seamless deployments, so your team can build with total peace of mind.</p>
+      <div class="card service-card animate-fade-up delay-2">
+        <div class="service-card-media">
+          <img src="{{ url_for('static', filename='images/service_cloud_devops.jpg') }}"
+               alt="Cloud Foundations & DevOps – cloud infrastructure and engineer"
+               loading="lazy">
+        </div>
+        <div class="service-card-body">
+          <div class="service-card-icon">{{ icon('shield', size=18) }}</div>
+          <h3 class="service-card-title">Cloud Foundations &amp; DevOps</h3>
+          <p class="service-card-desc">Calm, resilient cloud architecture with seamless deployments, so your team can build with total peace of mind.</p>
           <ul class="service-capabilities">
             <li>Dependable Cloud Foundations (AWS, GCP, Azure)</li>
             <li>Continuous Updates That Release Without a Glitch</li>
             <li>Vigilant Security That Guards What Matters</li>
             <li>24/7 Quiet Peace of Mind for Your Team</li>
           </ul>
-          <a href="{{ url_for('main.services') }}" class="btn btn-ghost" style="padding:0; color:var(--color-primary-light); font-weight:700; font-size:0.875rem; display:inline-flex; align-items:center; gap:0.375rem; background:none;">
-            See How We Build {{ icon('arrow-right', size=14) }}
-          </a>
+          <div class="service-card-footer">
+            <a href="{{ url_for('main.services') }}" class="service-card-link">
+              See How We Build {{ icon('arrow-right', size=13) }}
+            </a>
+          </div>
         </div>
       </div>
 
       {# Service 6 #}
-      <div class="card service-card animate-fade-up delay-3" style="padding: 0; overflow: hidden; border: 1px solid var(--color-border); transition: transform 0.25s, box-shadow 0.25s;">
-        <img src="{{ url_for('static', filename='images/service_ui_ux.jpg') }}"
-             alt="UI/UX Design – Figma wireframes on screen with design mood board"
-             style="width:100%; height:180px; object-fit:cover; display:block;">
-        <div style="padding: var(--space-xl);">
-          <div class="icon-box">{{ icon('globe', size=24) }}</div>
-          <h3 style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 700; color: #0f172a;">Human-Centered UI/UX Design</h3>
-          <p style="color: #475569; margin-bottom: 1.25rem;">Warm, accessible, and deeply intuitive design that feels effortless to use and creates emotional resonance.</p>
+      <div class="card service-card animate-fade-up delay-3">
+        <div class="service-card-media">
+          <img src="{{ url_for('static', filename='images/service_ui_ux.jpg') }}"
+               alt="Human-Centered UI/UX Design – Figma wireframes and board"
+               loading="lazy">
+        </div>
+        <div class="service-card-body">
+          <div class="service-card-icon">{{ icon('globe', size=18) }}</div>
+          <h3 class="service-card-title">Human-Centered UI/UX Design</h3>
+          <p class="service-card-desc">Warm, accessible, and deeply intuitive design that feels effortless to use and creates emotional resonance.</p>
           <ul class="service-capabilities">
-            <li>Deep Listening to Your Users’ Real Needs</li>
+            <li>Deep Listening to Your Users' Real Needs</li>
             <li>Harmonious Design Systems Built to Last</li>
             <li>Heartfelt Micro-Animations That Bring Joy</li>
             <li>Crafted to Welcome Everyone, Everywhere</li>
           </ul>
-          <a href="{{ url_for('main.services') }}" class="btn btn-ghost" style="padding:0; color:var(--color-primary-light); font-weight:700; font-size:0.875rem; display:inline-flex; align-items:center; gap:0.375rem; background:none;">
-            See How We Build {{ icon('arrow-right', size=14) }}
-          </a>
+          <div class="service-card-footer">
+            <a href="{{ url_for('main.services') }}" class="service-card-link">
+              See How We Build {{ icon('arrow-right', size=13) }}
+            </a>
+          </div>
         </div>
       </div>
     </div>
