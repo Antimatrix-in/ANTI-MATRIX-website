@@ -105,9 +105,7 @@ def services():
 
 @main_bp.route('/pricing')
 def pricing():
-    if current_user.is_authenticated:
-        return render_template('pages/pricing.html')
-    return render_template('pages/pricing_locked.html')
+    return redirect(url_for('main.services'), code=301)
 
 
 @main_bp.route('/careers')
