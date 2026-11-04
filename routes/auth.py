@@ -93,79 +93,117 @@ def login():
                 return jsonify({'status': 'error', 'errors': errors}), 400
             for field, err in errors.items():
                 flash(err, 'error')
-            return render_template('auth/login.html', errors=errors, email=identifier, redirect_target=redirect_target)
+            return render_template('auth/login.html', errors=errors, email=identifier, redirect_target=redirect_target), 400
 
         authenticated_user = None
 
-        # 1. Check if identifier is an Employee ID (e.g. AM4827)
-        emp_match = Employee.query.filter(Employee.employee_id.ilike(identifier)).first()
-        if emp_match:
-            is_valid = emp_match.check_password(password) or (
-                emp_match.onboarding_credential is not None and emp_match.onboarding_credential.verify_password(password)
-            )
-            if is_valid:
-                # Valid Employee ID & Password -> Sync or create User account for candidate
-                cand_email = (emp_match.candidate_email or '').lower().strip()
-                user = User.query.filter(User.email.ilike(cand_email)).first() if cand_email else None
-                if not user and cand_email:
-                    user = User(
-                        name=emp_match.candidate_name or f"Employee {emp_match.employee_id}",
-                        email=cand_email,
-                        role='member'
-                    )
-                    user.set_password(password)
-                    db.session.add(user)
-                    db.session.commit()
-                elif user and getattr(user, 'role', '') != 'admin':
-                    # Only sync password for non-admin candidate accounts
-                    user.set_password(password)
-                    db.session.commit()
-                authenticated_user = user
-            else:
-                errors['password'] = 'Invalid email or password'
-                if is_json:
-                    return jsonify({'status': 'error', 'errors': errors}), 401
-                flash('Invalid email or password', 'error')
-                return render_template('auth/login.html', errors=errors, email=identifier, redirect_target=redirect_target)
+        is_email = bool(EMAIL_REGEX.match(identifier))
+        is_emp_id = bool(re.match(r'^AM[A-Za-z0-9]+$', identifier, re.IGNORECASE))
 
-        # 2. Check if identifier is an Email Address
-        elif EMAIL_REGEX.match(identifier):
-            user = User.query.filter(User.email.ilike(identifier)).first()
-            emp_by_email = Employee.query.join(JobApplication).filter(JobApplication.email.ilike(identifier)).first()
+        if is_email:
+            # 1. Primary Authentication: Look up registered User by email
+            try:
+                user = User.query.filter(User.email.ilike(identifier)).first()
+                if user and user.check_password(password):
+                    authenticated_user = user
+            except Exception as u_err:
+                current_app.logger.error(f"Error querying User by email: {u_err}")
+                db.session.rollback()
 
-            if user and user.check_password(password):
-                authenticated_user = user
-            elif emp_by_email and (emp_by_email.check_password(password) or (
-                emp_by_email.onboarding_credential is not None and emp_by_email.onboarding_credential.verify_password(password)
-            )):
-                if not user:
-                    user = User(
-                        name=emp_by_email.candidate_name or identifier.split('@')[0].capitalize(),
-                        email=identifier.lower(),
-                        role='member'
+            # 2. Fallback Authentication: Candidate with Employee / Application record
+            if not authenticated_user:
+                try:
+                    emp_by_email = Employee.query.join(JobApplication).filter(JobApplication.email.ilike(identifier)).first()
+                    if emp_by_email:
+                        is_valid = emp_by_email.check_password(password) or (
+                            hasattr(emp_by_email, 'onboarding_credential') and
+                            emp_by_email.onboarding_credential is not None and
+                            emp_by_email.onboarding_credential.verify_password(password)
+                        )
+                        if is_valid:
+                            cand_name = getattr(emp_by_email, 'candidate_name', None) or identifier.split('@')[0].capitalize()
+                            cand_email = identifier.lower().strip()
+                            try:
+                                u = User.query.filter(User.email.ilike(cand_email)).first()
+                                if not u:
+                                    u = User(
+                                        name=cand_name,
+                                        email=cand_email,
+                                        role='member'
+                                    )
+                                    u.set_password(password)
+                                    db.session.add(u)
+                                    db.session.commit()
+                                elif getattr(u, 'role', '') != 'admin':
+                                    u.set_password(password)
+                                    db.session.commit()
+                                authenticated_user = u
+                            except Exception as sync_err:
+                                current_app.logger.warning(f"Note on syncing user for employee: {sync_err}")
+                                db.session.rollback()
+                except Exception as emp_err:
+                    current_app.logger.warning(f"Employee candidate lookup fallback skipped: {emp_err}")
+                    db.session.rollback()
+
+        elif is_emp_id:
+            # Look up candidate by unique Employee ID (e.g. AM4827)
+            try:
+                emp_match = Employee.query.filter(Employee.employee_id.ilike(identifier)).first()
+                if emp_match:
+                    is_valid = emp_match.check_password(password) or (
+                        hasattr(emp_match, 'onboarding_credential') and
+                        emp_match.onboarding_credential is not None and
+                        emp_match.onboarding_credential.verify_password(password)
                     )
-                    user.set_password(password)
-                    db.session.add(user)
-                    db.session.commit()
-                elif getattr(user, 'role', '') != 'admin':
-                    user.set_password(password)
-                    db.session.commit()
-                authenticated_user = user
-            else:
-                errors['password'] = 'Invalid email or password'
-                if is_json:
-                    return jsonify({'status': 'error', 'errors': errors}), 401
-                flash('Invalid email or password', 'error')
-                return render_template('auth/login.html', errors=errors, email=identifier, redirect_target=redirect_target)
+                    if is_valid:
+                        cand_email = (getattr(emp_match, 'candidate_email', None) or '').lower().strip()
+                        cand_name = getattr(emp_match, 'candidate_name', None) or f"Employee {emp_match.employee_id}"
+                        try:
+                            u = User.query.filter(User.email.ilike(cand_email)).first() if cand_email else None
+                            if not u and cand_email:
+                                u = User(
+                                    name=cand_name,
+                                    email=cand_email,
+                                    role='member'
+                                )
+                                u.set_password(password)
+                                db.session.add(u)
+                                db.session.commit()
+                            elif u and getattr(u, 'role', '') != 'admin':
+                                u.set_password(password)
+                                db.session.commit()
+                            authenticated_user = u
+                        except Exception as sync_err:
+                            current_app.logger.warning(f"Note on syncing user for employee ID: {sync_err}")
+                            db.session.rollback()
+            except Exception as emp_id_err:
+                current_app.logger.warning(f"Employee ID lookup failed: {emp_id_err}")
+                db.session.rollback()
 
         else:
             errors['email'] = 'Enter a valid email address or Employee ID (e.g. AM4827)'
             if is_json:
                 return jsonify({'status': 'error', 'errors': errors}), 400
             flash('Enter a valid email address or Employee ID (e.g. AM4827)', 'error')
-            return render_template('auth/login.html', errors=errors, email=identifier, redirect_target=redirect_target)
+            return render_template('auth/login.html', errors=errors, email=identifier, redirect_target=redirect_target), 400
+
+        if not authenticated_user:
+            errors['password'] = 'Invalid email or password'
+            if is_json:
+                return jsonify({'status': 'error', 'errors': errors}), 401
+            flash('Invalid email or password', 'error')
+            return render_template('auth/login.html', errors=errors, email=identifier, redirect_target=redirect_target), 401
 
         login_user(authenticated_user, remember=remember)
+
+        # Update last_login timestamp safely
+        try:
+            if hasattr(authenticated_user, 'last_login'):
+                from datetime import datetime, timezone
+                authenticated_user.last_login = datetime.now(timezone.utc)
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
 
         # Direct admin users to Admin Dashboard if no specific internal redirect was requested
         final_redirect = redirect_target
@@ -173,11 +211,21 @@ def login():
             final_redirect = url_for('admin.dashboard')
 
         if is_json:
+            user_data = {}
+            try:
+                user_data = authenticated_user.to_dict()
+            except Exception:
+                user_data = {
+                    'id': getattr(authenticated_user, 'id', None),
+                    'name': getattr(authenticated_user, 'name', ''),
+                    'email': getattr(authenticated_user, 'email', ''),
+                    'role': getattr(authenticated_user, 'role', 'member')
+                }
             return jsonify({
                 'status': 'success',
                 'message': 'Welcome back!',
                 'redirect': final_redirect,
-                'user': authenticated_user.to_dict()
+                'user': user_data
             })
 
         return redirect(final_redirect)

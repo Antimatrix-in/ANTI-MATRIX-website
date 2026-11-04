@@ -94,9 +94,26 @@ document.addEventListener('DOMContentLoaded', () => {
           body: JSON.stringify({ email, password, remember, redirect: redirectTarget })
         });
 
-        const data = await res.json();
+        let data = null;
+        try {
+          data = await res.json();
+        } catch (jsonErr) {
+          // If response is not valid JSON (e.g. server error HTML), do NOT submit the form and navigate to 404
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign In';
+          const passErrSpan = document.getElementById('login-password-err');
+          const passInput = document.getElementById('login-password');
+          if (passErrSpan && passInput) {
+            passInput.classList.add('error');
+            passErrSpan.textContent = 'Unable to complete sign in. Please try again.';
+            passErrSpan.style.display = 'block';
+          } else {
+            alert('Unable to complete sign in. Please try again.');
+          }
+          return;
+        }
 
-        if (res.ok && data.status === 'success') {
+        if (res.ok && data && data.status === 'success') {
           // Display success state matching Login.jsx
           if (loginSuccessCard) {
             loginForm.style.display = 'none';
@@ -110,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Sign In';
-          if (data.errors) {
+          if (data && data.errors) {
             Object.keys(data.errors).forEach((field) => {
               const input = document.getElementById(`login-${field}`);
               const errSpan = document.getElementById(`login-${field}-err`);
@@ -121,10 +138,20 @@ document.addEventListener('DOMContentLoaded', () => {
               }
             });
           } else {
-            alert(data.message || 'Login failed. Please try again.');
+            const passErrSpan = document.getElementById('login-password-err');
+            const passInput = document.getElementById('login-password');
+            const msg = (data && data.message) || 'Invalid email or password';
+            if (passErrSpan && passInput) {
+              passInput.classList.add('error');
+              passErrSpan.textContent = msg;
+              passErrSpan.style.display = 'block';
+            } else {
+              alert(msg);
+            }
           }
         }
       } catch (err) {
+        // Only if network fetch itself failed before receiving response
         loginForm.submit();
       }
     });

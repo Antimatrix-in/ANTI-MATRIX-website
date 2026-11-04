@@ -92,7 +92,12 @@ def dashboard():
     new_applications = JobApplication.query.filter(
         JobApplication.status.in_(['New', 'APPLIED', 'applied'])
     ).count()
-    total_employees = Employee.query.count()
+    try:
+        total_employees = Employee.query.count()
+    except Exception as emp_err:
+        current_app.logger.warning(f"Note on total_employees count: {emp_err}")
+        db.session.rollback()
+        total_employees = 0
 
     total_inquiries = ContactInquiry.query.count()
     unread_inquiries = ContactInquiry.query.filter_by(is_processed=False).count()
@@ -2412,7 +2417,12 @@ def money_management():
     total_jobs = JobPosting.query.count()
     total_applications = JobApplication.query.count()
     new_applications = JobApplication.query.filter_by(status='New').count()
-    total_employees = Employee.query.count()
+    try:
+        total_employees = Employee.query.count()
+    except Exception as emp_err:
+        current_app.logger.warning(f"Note on total_employees count: {emp_err}")
+        db.session.rollback()
+        total_employees = 0
 
     today_date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 
@@ -2538,7 +2548,12 @@ def add_money_transaction():
     total_jobs = JobPosting.query.count()
     total_applications = JobApplication.query.count()
     new_applications = JobApplication.query.filter_by(status='New').count()
-    total_employees = Employee.query.count()
+    try:
+        total_employees = Employee.query.count()
+    except Exception as emp_err:
+        current_app.logger.warning(f"Note on total_employees count: {emp_err}")
+        db.session.rollback()
+        total_employees = 0
     today_date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 
     return render_template(
@@ -2652,7 +2667,12 @@ def edit_money_transaction(txn_id):
     total_jobs = JobPosting.query.count()
     total_applications = JobApplication.query.count()
     new_applications = JobApplication.query.filter_by(status='New').count()
-    total_employees = Employee.query.count()
+    try:
+        total_employees = Employee.query.count()
+    except Exception as emp_err:
+        current_app.logger.warning(f"Note on total_employees count: {emp_err}")
+        db.session.rollback()
+        total_employees = 0
 
     is_custom_category = (
         txn.category not in STANDARD_INCOME_CATEGORIES and 
