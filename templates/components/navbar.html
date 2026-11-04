@@ -9,36 +9,42 @@
     {# Desktop navigation links #}
     <ul class="nav-links" role="list">
       <li>
-        <a href="{{ url_for('main.home') }}" class="{{ 'active' if request.path == '/' else '' }}" style="display: inline-flex; align-items: center; gap: 4px;">
+        <a href="{{ url_for('main.home') }}" class="{{ 'active' if request.path == '/' else '' }}"
+          style="display: inline-flex; align-items: center; gap: 4px;">
           Home
         </a>
       </li>
       <li>
-        <a href="{{ url_for('main.about') }}" class="{{ 'active' if request.path.startswith('/about') else '' }}" style="display: inline-flex; align-items: center; gap: 4px;">
+        <a href="{{ url_for('main.about') }}" class="{{ 'active' if request.path.startswith('/about') else '' }}"
+          style="display: inline-flex; align-items: center; gap: 4px;">
           About
         </a>
       </li>
       <li>
-        <a href="{{ url_for('main.services') }}" class="{{ 'active' if request.path.startswith('/services') else '' }}" style="display: inline-flex; align-items: center; gap: 4px;">
+        <a href="{{ url_for('main.services') }}" class="{{ 'active' if request.path.startswith('/services') else '' }}"
+          style="display: inline-flex; align-items: center; gap: 4px;">
           Services
         </a>
       </li>
       <li>
-        <a href="{{ url_for('main.pricing') }}" class="{{ 'active' if request.path.startswith('/pricing') else '' }}" style="display: inline-flex; align-items: center; gap: 4px;">
+        <a href="{{ url_for('main.pricing') }}" class="{{ 'active' if request.path.startswith('/pricing') else '' }}"
+          style="display: inline-flex; align-items: center; gap: 4px;">
           Pricing
           {% if not current_user.is_authenticated %}
-            {{ icon('lock', size=12, color='var(--color-primary-light)') }}
+          {{ icon('lock', size=12, color='var(--color-primary-light)') }}
           {% endif %}
         </a>
       </li>
       <li>
-        <a href="{{ url_for('main.careers') }}" class="{{ 'active' if request.path.startswith('/careers') else '' }}" style="display: inline-flex; align-items: center; gap: 4px;">
+        <a href="{{ url_for('main.careers') }}" class="{{ 'active' if request.path.startswith('/careers') else '' }}"
+          style="display: inline-flex; align-items: center; gap: 4px;">
           Careers
         </a>
       </li>
       <li>
-        <a href="{{ url_for('main.contact') }}" class="{{ 'active' if request.path.startswith('/contact') else '' }}" style="display: inline-flex; align-items: center; gap: 4px;">
-          Contact
+        <a href="{{ url_for('main.contact') }}" class="{{ 'active' if request.path.startswith('/contact') else '' }}"
+          style="display: inline-flex; align-items: center; gap: 4px;">
+          Support
         </a>
       </li>
     </ul>
@@ -46,136 +52,116 @@
     {# Desktop actions #}
     <div class="nav-actions">
       {% if current_user.is_authenticated %}
-        <div style="position: relative;" id="profile-dropdown-wrapper">
-          
-          {# Clean Minimalist Profile Trigger (Avatar + Chevron, No Name) #}
-          <button
-            id="profile-dropdown-btn"
-            onclick="toggleProfileDropdown()"
-            style="display: inline-flex; align-items: center; gap: 6px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 9999px; padding: 0.25rem 0.55rem 0.25rem 0.3rem; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);"
-            onmouseover="this.style.background='#f8fafc'; this.style.borderColor='#94a3b8';"
-            onmouseout="this.style.background='#ffffff'; this.style.borderColor='#cbd5e1';"
-            aria-haspopup="true"
-            aria-expanded="false"
-            aria-label="User Profile menu"
-          >
-            {# Avatar Image or Minimalist Initial #}
-            {% if current_user.profile_picture %}
-              <img src="{{ current_user.profile_picture }}" alt="{{ current_user.name }}" style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid #e2e8f0; flex-shrink: 0;" />
-            {% else %}
-              <span style="width: 28px; height: 28px; border-radius: 50%; background: #0f172a; border: 1px solid #0f172a; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 700; font-size: 0.8rem; flex-shrink: 0;">
-                {{ current_user.name[0].upper() }}
-              </span>
+      <div style="position: relative;" id="profile-dropdown-wrapper">
+
+        {# Clean Minimalist Profile Trigger (Avatar + Chevron, No Name) #}
+        <button id="profile-dropdown-btn" onclick="toggleProfileDropdown()"
+          style="display: inline-flex; align-items: center; gap: 6px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 9999px; padding: 0.25rem 0.55rem 0.25rem 0.3rem; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);"
+          onmouseover="this.style.background='#f8fafc'; this.style.borderColor='#94a3b8';"
+          onmouseout="this.style.background='#ffffff'; this.style.borderColor='#cbd5e1';" aria-haspopup="true"
+          aria-expanded="false" aria-label="User Profile menu">
+          {# Avatar Image or Minimalist Initial #}
+          {% if current_user.profile_picture %}
+          <img src="{{ current_user.profile_picture }}" alt="{{ current_user.name }}"
+            style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid #e2e8f0; flex-shrink: 0;" />
+          {% else %}
+          <span
+            style="width: 28px; height: 28px; border-radius: 50%; background: #0f172a; border: 1px solid #0f172a; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 700; font-size: 0.8rem; flex-shrink: 0;">
+            {{ current_user.name[0].upper() }}
+          </span>
+          {% endif %}
+          <svg id="profile-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.5" style="transition: transform 0.2s; color: #64748b;">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+
+        {# Professional Executive Profile Dropdown Panel #}
+        <div id="profile-dropdown-panel"
+          style="display: none; position: absolute; top: calc(100% + 8px); right: 0; min-width: 210px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.06); z-index: 9999; overflow: hidden;"
+          role="menu">
+          {# Dropdown Navigation Links #}
+          <div style="padding: 0.35rem 0;">
+            {# 1. My Profile #}
+            <a href="{{ url_for('main.profile') }}" role="menuitem"
+              style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #0f172a; text-decoration: none; transition: background 0.15s;"
+              onmouseover="this.style.background='#f8fafc'; this.style.color='#059669';"
+              onmouseout="this.style.background='transparent'; this.style.color='#0f172a';">
+              {{ icon('user', size=15, color='#059669') }}
+              <span>My Profile</span>
+            </a>
+
+            {# 2. My Applications (hidden for admin) #}
+            {% if current_user.role != 'admin' %}
+            <a href="{{ url_for('main.my_applications') }}" role="menuitem"
+              style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #0f172a; text-decoration: none; transition: background 0.15s;"
+              onmouseover="this.style.background='#f8fafc'; this.style.color='#059669';"
+              onmouseout="this.style.background='transparent'; this.style.color='#0f172a';">
+              {{ icon('briefcase', size=15, color='#64748b') }}
+              <span>My Applications</span>
+            </a>
             {% endif %}
-            <svg id="profile-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transition: transform 0.2s; color: #64748b;">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </button>
 
-          {# Professional Executive Profile Dropdown Panel #}
-          <div
-            id="profile-dropdown-panel"
-            style="display: none; position: absolute; top: calc(100% + 8px); right: 0; min-width: 210px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.06); z-index: 9999; overflow: hidden;"
-            role="menu"
-          >
-            {# Dropdown Navigation Links #}
-            <div style="padding: 0.35rem 0;">
-              {# 1. My Profile #}
-              <a href="{{ url_for('main.profile') }}"
-                 role="menuitem"
-                 style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #0f172a; text-decoration: none; transition: background 0.15s;"
-                 onmouseover="this.style.background='#f8fafc'; this.style.color='#059669';"
-                 onmouseout="this.style.background='transparent'; this.style.color='#0f172a';">
-                {{ icon('user', size=15, color='#059669') }}
-                <span>My Profile</span>
-              </a>
+            {# Admin Navigation Links #}
+            {% if current_user.role == 'admin' %}
+            <div style="height: 1px; background: #e2e8f0; margin: 0.35rem 0;"></div>
 
-              {# 2. My Applications (hidden for admin) #}
-              {% if current_user.role != 'admin' %}
-              <a href="{{ url_for('main.my_applications') }}"
-                 role="menuitem"
-                 style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #0f172a; text-decoration: none; transition: background 0.15s;"
-                 onmouseover="this.style.background='#f8fafc'; this.style.color='#059669';"
-                 onmouseout="this.style.background='transparent'; this.style.color='#0f172a';">
-                {{ icon('briefcase', size=15, color='#64748b') }}
-                <span>My Applications</span>
-              </a>
-              {% endif %}
+            <a href="{{ url_for('admin.dashboard') }}" role="menuitem"
+              style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #059669; text-decoration: none; transition: background 0.15s;"
+              onmouseover="this.style.background='#f8fafc';" onmouseout="this.style.background='transparent';">
+              {{ icon('shield', size=15, color='#059669') }}
+              <span>Admin Dashboard</span>
+            </a>
+            <a href="{{ url_for('admin.jobs') }}" role="menuitem"
+              style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #0f172a; text-decoration: none; transition: background 0.15s;"
+              onmouseover="this.style.background='#f8fafc'; this.style.color='#059669';"
+              onmouseout="this.style.background='transparent'; this.style.color='#0f172a';">
+              {{ icon('briefcase', size=15, color='#64748b') }}
+              <span>Job Postings</span>
+            </a>
+            <a href="{{ url_for('admin.applications') }}" role="menuitem"
+              style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #0f172a; text-decoration: none; transition: background 0.15s;"
+              onmouseover="this.style.background='#f8fafc'; this.style.color='#059669';"
+              onmouseout="this.style.background='transparent'; this.style.color='#0f172a';">
+              {{ icon('users', size=15, color='#64748b') }}
+              <span>Candidate Applications</span>
+            </a>
+            <a href="{{ url_for('admin.employees') }}" role="menuitem"
+              style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #0f172a; text-decoration: none; transition: background 0.15s;"
+              onmouseover="this.style.background='#f8fafc'; this.style.color='#059669';"
+              onmouseout="this.style.background='transparent'; this.style.color='#0f172a';">
+              {{ icon('user-check', size=15, color='#64748b') }}
+              <span>Employees</span>
+            </a>
+            <a href="{{ url_for('admin.money_management') }}" role="menuitem"
+              style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #059669; text-decoration: none; transition: background 0.15s;"
+              onmouseover="this.style.background='#f8fafc';" onmouseout="this.style.background='transparent';">
+              {{ icon('wallet', size=15, color='#059669') }}
+              <span>Money Management</span>
+            </a>
+            {% endif %}
 
-              {# Admin Navigation Links #}
-              {% if current_user.role == 'admin' %}
-                <div style="height: 1px; background: #e2e8f0; margin: 0.35rem 0;"></div>
-                
-                <a href="{{ url_for('admin.dashboard') }}"
-                   role="menuitem"
-                   style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #059669; text-decoration: none; transition: background 0.15s;"
-                   onmouseover="this.style.background='#f8fafc';"
-                   onmouseout="this.style.background='transparent';">
-                  {{ icon('shield', size=15, color='#059669') }}
-                  <span>Admin Dashboard</span>
-                </a>
-                <a href="{{ url_for('admin.jobs') }}"
-                   role="menuitem"
-                   style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #0f172a; text-decoration: none; transition: background 0.15s;"
-                   onmouseover="this.style.background='#f8fafc'; this.style.color='#059669';"
-                   onmouseout="this.style.background='transparent'; this.style.color='#0f172a';">
-                  {{ icon('briefcase', size=15, color='#64748b') }}
-                  <span>Job Postings</span>
-                </a>
-                <a href="{{ url_for('admin.applications') }}"
-                   role="menuitem"
-                   style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #0f172a; text-decoration: none; transition: background 0.15s;"
-                   onmouseover="this.style.background='#f8fafc'; this.style.color='#059669';"
-                   onmouseout="this.style.background='transparent'; this.style.color='#0f172a';">
-                  {{ icon('users', size=15, color='#64748b') }}
-                  <span>Candidate Applications</span>
-                </a>
-                <a href="{{ url_for('admin.employees') }}"
-                   role="menuitem"
-                   style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #0f172a; text-decoration: none; transition: background 0.15s;"
-                   onmouseover="this.style.background='#f8fafc'; this.style.color='#059669';"
-                   onmouseout="this.style.background='transparent'; this.style.color='#0f172a';">
-                  {{ icon('user-check', size=15, color='#64748b') }}
-                  <span>Employees</span>
-                </a>
-                <a href="{{ url_for('admin.money_management') }}"
-                   role="menuitem"
-                   style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #059669; text-decoration: none; transition: background 0.15s;"
-                   onmouseover="this.style.background='#f8fafc';"
-                   onmouseout="this.style.background='transparent';">
-                  {{ icon('wallet', size=15, color='#059669') }}
-                  <span>Money Management</span>
-                </a>
-              {% endif %}
-              
-              <div style="height: 1px; background: #e2e8f0; margin: 0.35rem 0;"></div>
-              
-              {# 3. Log Out #}
-              <a href="{{ url_for('auth.logout') }}"
-                 role="menuitem"
-                 style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #dc2626; text-decoration: none; transition: background 0.15s;"
-                 onmouseover="this.style.background='#fef2f2';"
-                 onmouseout="this.style.background='transparent';">
-                {{ icon('log-out', size=15, color='#dc2626') }}
-                <span>Log Out</span>
-              </a>
-            </div>
+            <div style="height: 1px; background: #e2e8f0; margin: 0.35rem 0;"></div>
+
+            {# 3. Log Out #}
+            <a href="{{ url_for('auth.logout') }}" role="menuitem"
+              style="display: flex; align-items: center; gap: 10px; padding: 0.65rem 1.1rem; font-size: 0.875rem; font-weight: 500; color: #dc2626; text-decoration: none; transition: background 0.15s;"
+              onmouseover="this.style.background='#fef2f2';" onmouseout="this.style.background='transparent';">
+              {{ icon('log-out', size=15, color='#dc2626') }}
+              <span>Log Out</span>
+            </a>
           </div>
         </div>
+      </div>
       {% else %}
-        <a href="{{ url_for('auth.login') }}" class="btn btn-nav-login btn-sm">Log In</a>
-        <a href="{{ url_for('auth.signup') }}" class="btn btn-primary btn-sm">Get Started</a>
+      <a href="{{ url_for('auth.login') }}" class="btn btn-nav-login btn-sm">Log In</a>
+      <a href="{{ url_for('auth.signup') }}" class="btn btn-primary btn-sm">Get Started</a>
       {% endif %}
     </div>
 
     {# Mobile toggle #}
-    <button
-      id="nav-toggle-btn"
-      class="nav-toggle"
-      aria-expanded="false"
-      aria-controls="mobile-nav"
-      aria-label="Open menu"
-    >
+    <button id="nav-toggle-btn" class="nav-toggle" aria-expanded="false" aria-controls="mobile-nav"
+      aria-label="Open menu">
       <span class="icon-menu">{{ icon('menu', size=22) }}</span>
       <span class="icon-close" style="display:none;">{{ icon('x', size=22) }}</span>
     </button>
@@ -186,71 +172,84 @@
 <div id="mobile-nav" class="mobile-nav" aria-hidden="true">
   <a href="{{ url_for('main.home') }}" class="{{ 'active' if request.path == '/' else '' }}">Home</a>
   <a href="{{ url_for('main.about') }}" class="{{ 'active' if request.path.startswith('/about') else '' }}">About</a>
-  <a href="{{ url_for('main.services') }}" class="{{ 'active' if request.path.startswith('/services') else '' }}">Services</a>
+  <a href="{{ url_for('main.services') }}"
+    class="{{ 'active' if request.path.startswith('/services') else '' }}">Services</a>
   <a href="{{ url_for('main.pricing') }}" class="{{ 'active' if request.path.startswith('/pricing') else '' }}">
     Pricing
   </a>
-  <a href="{{ url_for('main.careers') }}" class="{{ 'active' if request.path.startswith('/careers') else '' }}">Careers</a>
-  <a href="{{ url_for('main.contact') }}" class="{{ 'active' if request.path.startswith('/contact') else '' }}">Contact</a>
+  <a href="{{ url_for('main.careers') }}"
+    class="{{ 'active' if request.path.startswith('/careers') else '' }}">Careers</a>
+  <a href="{{ url_for('main.contact') }}"
+    class="{{ 'active' if request.path.startswith('/contact') else '' }}">Contact</a>
   {% if current_user.is_authenticated %}
-    <div class="mobile-nav-divider"></div>
-    <a href="{{ url_for('main.profile') }}" class="{{ 'active' if request.path == '/profile' else '' }}" style="display: flex; align-items: center; gap: 8px; color: var(--color-primary-light);">
-      {{ icon('user', size=14) }} My Profile
-    </a>
-    <a href="{{ url_for('main.my_applications') }}" class="{{ 'active' if request.path.startswith('/my-applications') else '' }}" style="display: flex; align-items: center; gap: 8px;">
-      {{ icon('briefcase', size=14) }} My Applications
-    </a>
-    {% if current_user.role == 'admin' %}
-      <a href="{{ url_for('admin.dashboard') }}" class="{{ 'active' if request.path.startswith('/admin') else '' }}" style="display: flex; align-items: center; gap: 8px; color: var(--color-primary-light);">
-        {{ icon('shield', size=14) }} Admin Dashboard
-      </a>
-      <a href="{{ url_for('admin.money_management') }}" class="{{ 'active' if request.path.startswith('/admin/money-management') else '' }}" style="display: flex; align-items: center; gap: 8px; color: #10b981;">
-        {{ icon('wallet', size=14) }} Money Management
-      </a>
-      <a href="{{ url_for('admin.jobs') }}" class="{{ 'active' if request.path == '/admin/jobs' else '' }}" style="display: flex; align-items: center; gap: 8px;">
-        {{ icon('briefcase', size=14) }} Job Postings
-      </a>
-      <a href="{{ url_for('admin.applications') }}" class="{{ 'active' if request.path == '/admin/applications' else '' }}" style="display: flex; align-items: center; gap: 8px;">
-        {{ icon('users', size=14) }} Applications
-      </a>
-    {% endif %}
-  {% endif %}
-  
   <div class="mobile-nav-divider"></div>
-  
+  <a href="{{ url_for('main.profile') }}" class="{{ 'active' if request.path == '/profile' else '' }}"
+    style="display: flex; align-items: center; gap: 8px; color: var(--color-primary-light);">
+    {{ icon('user', size=14) }} My Profile
+  </a>
+  <a href="{{ url_for('main.my_applications') }}"
+    class="{{ 'active' if request.path.startswith('/my-applications') else '' }}"
+    style="display: flex; align-items: center; gap: 8px;">
+    {{ icon('briefcase', size=14) }} My Applications
+  </a>
+  {% if current_user.role == 'admin' %}
+  <a href="{{ url_for('admin.dashboard') }}" class="{{ 'active' if request.path.startswith('/admin') else '' }}"
+    style="display: flex; align-items: center; gap: 8px; color: var(--color-primary-light);">
+    {{ icon('shield', size=14) }} Admin Dashboard
+  </a>
+  <a href="{{ url_for('admin.money_management') }}"
+    class="{{ 'active' if request.path.startswith('/admin/money-management') else '' }}"
+    style="display: flex; align-items: center; gap: 8px; color: #10b981;">
+    {{ icon('wallet', size=14) }} Money Management
+  </a>
+  <a href="{{ url_for('admin.jobs') }}" class="{{ 'active' if request.path == '/admin/jobs' else '' }}"
+    style="display: flex; align-items: center; gap: 8px;">
+    {{ icon('briefcase', size=14) }} Job Postings
+  </a>
+  <a href="{{ url_for('admin.applications') }}" class="{{ 'active' if request.path == '/admin/applications' else '' }}"
+    style="display: flex; align-items: center; gap: 8px;">
+    {{ icon('users', size=14) }} Applications
+  </a>
+  {% endif %}
+  {% endif %}
+
+  <div class="mobile-nav-divider"></div>
+
   <div class="mobile-nav-actions">
     {% if current_user.is_authenticated %}
-      <a href="{{ url_for('auth.logout') }}" class="btn btn-outline btn-sm" style="justify-content: center; gap: 6px; color: #f87171; border-color: rgba(239, 68, 68, 0.3); width: 100%;">
-        {{ icon('log-out', size=14) }} Log Out
-      </a>
+    <a href="{{ url_for('auth.logout') }}" class="btn btn-outline btn-sm"
+      style="justify-content: center; gap: 6px; color: #f87171; border-color: rgba(239, 68, 68, 0.3); width: 100%;">
+      {{ icon('log-out', size=14) }} Log Out
+    </a>
     {% else %}
-      <a href="{{ url_for('auth.login') }}" class="btn btn-nav-login btn-sm" style="justify-content: center;">Log In</a>
-      <a href="{{ url_for('auth.signup') }}" class="btn btn-primary btn-sm" style="justify-content: center;">Get Started</a>
+    <a href="{{ url_for('auth.login') }}" class="btn btn-nav-login btn-sm" style="justify-content: center;">Log In</a>
+    <a href="{{ url_for('auth.signup') }}" class="btn btn-primary btn-sm" style="justify-content: center;">Get
+      Started</a>
     {% endif %}
   </div>
 </div>
 
 <script>
-function toggleProfileDropdown() {
-  var panel = document.getElementById('profile-dropdown-panel');
-  var btn   = document.getElementById('profile-dropdown-btn');
-  var chev  = document.getElementById('profile-chevron');
-  var open  = panel.style.display === 'block';
-  panel.style.display = open ? 'none' : 'block';
-  btn.setAttribute('aria-expanded', !open);
-  chev.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
-}
-
-// Close when clicking outside
-document.addEventListener('click', function(e) {
-  var wrapper = document.getElementById('profile-dropdown-wrapper');
-  if (wrapper && !wrapper.contains(e.target)) {
+  function toggleProfileDropdown() {
     var panel = document.getElementById('profile-dropdown-panel');
-    var btn   = document.getElementById('profile-dropdown-btn');
-    var chev  = document.getElementById('profile-chevron');
-    if (panel) panel.style.display = 'none';
-    if (btn)   btn.setAttribute('aria-expanded', 'false');
-    if (chev)  chev.style.transform = 'rotate(0deg)';
+    var btn = document.getElementById('profile-dropdown-btn');
+    var chev = document.getElementById('profile-chevron');
+    var open = panel.style.display === 'block';
+    panel.style.display = open ? 'none' : 'block';
+    btn.setAttribute('aria-expanded', !open);
+    chev.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
   }
-});
+
+  // Close when clicking outside
+  document.addEventListener('click', function (e) {
+    var wrapper = document.getElementById('profile-dropdown-wrapper');
+    if (wrapper && !wrapper.contains(e.target)) {
+      var panel = document.getElementById('profile-dropdown-panel');
+      var btn = document.getElementById('profile-dropdown-btn');
+      var chev = document.getElementById('profile-chevron');
+      if (panel) panel.style.display = 'none';
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+      if (chev) chev.style.transform = 'rotate(0deg)';
+    }
+  });
 </script>
