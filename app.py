@@ -362,6 +362,38 @@ def create_app(config_name=None):
                         conn.execute(text(f"ALTER TABLE payments ADD COLUMN gst_amount {float_type}"))
                     conn.commit()
 
+            # Ensure job_postings table has job_id, job_code, duration, updated_at columns
+            if 'job_postings' in inspector.get_table_names():
+                jp_cols = [c['name'] for c in inspector.get_columns('job_postings')]
+                with db.engine.connect() as conn:
+                    if 'job_id' not in jp_cols:
+                        conn.execute(text("ALTER TABLE job_postings ADD COLUMN job_id VARCHAR(20)"))
+                        try:
+                            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_job_postings_job_id ON job_postings (job_id)"))
+                        except Exception:
+                            pass
+                    if 'job_code' not in jp_cols:
+                        conn.execute(text("ALTER TABLE job_postings ADD COLUMN job_code VARCHAR(20)"))
+                        try:
+                            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_job_postings_job_code ON job_postings (job_code)"))
+                        except Exception:
+                            pass
+                    if 'duration' not in jp_cols:
+                        conn.execute(text("ALTER TABLE job_postings ADD COLUMN duration VARCHAR(50)"))
+                    if 'updated_at' not in jp_cols:
+                        type_str = "DATETIME" if dialect_is_sqlite else "TIMESTAMP"
+                        conn.execute(text(f"ALTER TABLE job_postings ADD COLUMN updated_at {type_str}"))
+                    try:
+                        if dialect_is_sqlite:
+                            conn.execute(text("UPDATE job_postings SET job_id = 'JB' || (1000 + id) WHERE job_id IS NULL"))
+                            conn.execute(text("UPDATE job_postings SET job_code = 'JB' || (1000 + id) WHERE job_code IS NULL"))
+                        else:
+                            conn.execute(text("UPDATE job_postings SET job_id = CONCAT('JB', 1000 + id) WHERE job_id IS NULL"))
+                            conn.execute(text("UPDATE job_postings SET job_code = CONCAT('JB', 1000 + id) WHERE job_code IS NULL"))
+                    except Exception:
+                        pass
+                    conn.commit()
+
             # Ensure contact_inquiries table has all required columns and sequence sync
             if 'contact_inquiries' in inspector.get_table_names():
                 ci_cols = [c['name'] for c in inspector.get_columns('contact_inquiries')]

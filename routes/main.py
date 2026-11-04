@@ -108,9 +108,67 @@ def pricing():
     return redirect(url_for('main.services'), code=301)
 
 
-@main_bp.route('/careers')
+_job_postings_migrated = False
+
+
+def _ensure_job_postings_schema():
+    """
+    Safely ensure job_postings table has job_id, job_code, duration, updated_at columns.
+    Prevents OperationalError / 500 when querying jobs on newly upgraded databases.
+    """
+    global _job_postings_migrated
+    if _job_postings_migrated:
+        return
+    try:
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        if 'job_postings' in inspector.get_table_names():
+            jp_cols = {c['name'] for c in inspector.get_columns('job_postings')}
+            dialect_is_sqlite = (db.engine.dialect.name == 'sqlite')
+            with db.engine.connect() as conn:
+                if 'job_id' not in jp_cols:
+                    conn.execute(text("ALTER TABLE job_postings ADD COLUMN job_id VARCHAR(20)"))
+                    try:
+                        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_job_postings_job_id ON job_postings (job_id)"))
+                    except Exception:
+                        pass
+                if 'job_code' not in jp_cols:
+                    conn.execute(text("ALTER TABLE job_postings ADD COLUMN job_code VARCHAR(20)"))
+                    try:
+                        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_job_postings_job_code ON job_postings (job_code)"))
+                    except Exception:
+                        pass
+                if 'duration' not in jp_cols:
+                    conn.execute(text("ALTER TABLE job_postings ADD COLUMN duration VARCHAR(50)"))
+                if 'updated_at' not in jp_cols:
+                    type_str = "DATETIME" if dialect_is_sqlite else "TIMESTAMP"
+                    conn.execute(text(f"ALTER TABLE job_postings ADD COLUMN updated_at {type_str}"))
+
+                # Backfill job_code and job_id for existing records if null
+                try:
+                    if dialect_is_sqlite:
+                        conn.execute(text("UPDATE job_postings SET job_id = 'JB' || (1000 + id) WHERE job_id IS NULL"))
+                        conn.execute(text("UPDATE job_postings SET job_code = 'JB' || (1000 + id) WHERE job_code IS NULL"))
+                    else:
+                        conn.execute(text("UPDATE job_postings SET job_id = CONCAT('JB', 1000 + id) WHERE job_id IS NULL"))
+                        conn.execute(text("UPDATE job_postings SET job_code = CONCAT('JB', 1000 + id) WHERE job_code IS NULL"))
+                except Exception:
+                    pass
+
+                conn.commit()
+        _job_postings_migrated = True
+    except Exception as err:
+        current_app.logger.warning(f"Note on job_postings auto-migration: {err}")
+
+
+@main_bp.route('/careers', strict_slashes=False)
 def careers():
-    jobs = JobPosting.query.filter_by(is_active=True).order_by(JobPosting.created_at.desc()).all()
+    _ensure_job_postings_schema()
+    try:
+        jobs = JobPosting.query.filter_by(is_active=True).order_by(JobPosting.created_at.desc()).all()
+    except Exception as e:
+        current_app.logger.error(f"Error querying active job postings: {e}", exc_info=True)
+        jobs = []
     return render_template('pages/careers.html', jobs=jobs)
 
 
