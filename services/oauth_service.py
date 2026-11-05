@@ -17,12 +17,15 @@ def init_oauth(app):
     """
     oauth.init_app(app)
 
-    # Register Google (OpenID Connect)
+    # Register Google (OpenID Connect with pre-configured endpoints for instant, zero-latency redirects)
     oauth.register(
         name='google',
         client_id=app.config.get('GOOGLE_CLIENT_ID') or 'placeholder-client-id',
         client_secret=app.config.get('GOOGLE_CLIENT_SECRET') or 'placeholder-client-secret',
-        server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+        authorize_url='https://accounts.google.com/o/oauth2/v2/auth',
+        access_token_url='https://oauth2.googleapis.com/token',
+        userinfo_endpoint='https://openidconnect.googleapis.com/v1/userinfo',
+        jwks_uri='https://www.googleapis.com/oauth2/v3/certs',
         client_kwargs={'scope': 'openid email profile'},
     )
 
@@ -59,10 +62,22 @@ def is_github_configured(app=None) -> bool:
 def get_google_redirect_uri() -> str:
     """
     Determine the authorized redirect URI for Google OAuth callback.
-    1. Highest priority: GOOGLE_REDIRECT_URI explicitly set in .env.
-    2. APP_URL set in .env.
-    3. Fall back to url_for external.
+    1. Highest priority: Dynamically match the request host if on antimatrix.co.in
+       or www.antimatrix.co.in to keep session cookies on the exact same origin and
+       prevent MismatchingStateError / cross-domain session drops.
+    2. Explicit GOOGLE_REDIRECT_URI in app config / .env.
+    3. APP_URL in app config / .env.
+    4. Fall back to url_for('auth.google_callback', _external=True).
     """
+    try:
+        from flask import request
+        if request and request.host:
+            host_clean = request.host.split(':')[0].lower()
+            if host_clean in ('antimatrix.co.in', 'www.antimatrix.co.in'):
+                return f"https://{host_clean}/auth/google/callback"
+    except Exception:
+        pass
+
     custom_uri = current_app.config.get('GOOGLE_REDIRECT_URI', '').strip()
     if custom_uri:
         return custom_uri

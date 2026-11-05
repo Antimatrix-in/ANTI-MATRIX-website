@@ -406,47 +406,29 @@ def google_callback():
         flash("An error occurred during sign-in. Please try again.", "error")
         return redirect(url_for('auth.login'))
 
-    redirect_target = get_safe_redirect(session.pop('oauth_next', None) or '/')
+    raw_next = session.pop('oauth_next', None)
+    redirect_target = get_safe_redirect(raw_next or '/')
+    if getattr(user, 'role', '') == 'admin' and (not raw_next or redirect_target == '/'):
+        redirect_target = url_for('admin.dashboard')
     return redirect(redirect_target)
 
 
 # ============================================================================
-# GitHub OAuth 2.0 Authentication Routes
+# GitHub OAuth 2.0 Authentication Routes (Deprecated - redirected gracefully)
 # ============================================================================
 
 @auth_bp.route('/auth/github', strict_slashes=False)
 @auth_bp.route('/login/github', strict_slashes=False)
 def github_login():
-    """Initiate GitHub OAuth authorization redirect."""
-    if current_user.is_authenticated:
-        return redirect(get_safe_redirect(request.args.get('next') or request.args.get('redirect')))
-
-    if not is_github_configured():
-        flash("GitHub Login is currently not configured. Please sign in with your email or contact support.", "warning")
-        return redirect(url_for('auth.login'))
-
-    target_url = get_safe_redirect(request.args.get('next') or request.args.get('redirect'))
-    session['oauth_next'] = target_url
-    redirect_uri = get_github_redirect_uri()
-
-    try:
-        return oauth.github.authorize_redirect(redirect_uri)
-    except Exception as e:
-        current_app.logger.error(f"Failed to initiate GitHub OAuth redirect: {str(e)}")
-        flash("Unable to initiate GitHub sign-in. Please try again or use email login.", "error")
-        return redirect(url_for('auth.login'))
+    """GitHub login is discontinued in favor of Google and Email authentication."""
+    flash("GitHub sign-in is not supported. Please sign in with Google or your email.", "info")
+    return redirect(url_for('auth.login'))
 
 
 @auth_bp.route('/auth/github/callback')
 def github_callback():
-    """Handle GitHub OAuth callback, retrieve verified profile/email, and create/link session."""
-    error = request.args.get('error')
-    if error:
-        if error in ('access_denied', 'user_cancelled_authorize'):
-            flash("GitHub sign-in was cancelled.", "info")
-        else:
-            flash("GitHub authorization was not completed. Please try again.", "error")
-        return redirect(url_for('auth.login'))
+    """Redirect legacy GitHub callback back to login page."""
+    return redirect(url_for('auth.login'))
 
     try:
         token = oauth.github.authorize_access_token()
