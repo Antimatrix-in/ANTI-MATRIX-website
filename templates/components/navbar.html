@@ -27,6 +27,12 @@
         </a>
       </li>
       <li>
+        <a href="{{ url_for('main.products') }}" class="{{ 'active' if request.path.startswith('/product') else '' }}"
+          style="display: inline-flex; align-items: center; gap: 4px;">
+          Products
+        </a>
+      </li>
+      <li>
         <a href="{{ url_for('main.careers') }}" class="{{ 'active' if request.path.startswith('/careers') else '' }}"
           style="display: inline-flex; align-items: center; gap: 4px;">
           Careers
@@ -165,6 +171,8 @@
   <a href="{{ url_for('main.about') }}" class="{{ 'active' if request.path.startswith('/about') else '' }}">About</a>
   <a href="{{ url_for('main.services') }}"
     class="{{ 'active' if request.path.startswith('/services') else '' }}">Services</a>
+  <a href="{{ url_for('main.products') }}"
+    class="{{ 'active' if request.path.startswith('/product') else '' }}">Products</a>
   <a href="{{ url_for('main.careers') }}"
     class="{{ 'active' if request.path.startswith('/careers') else '' }}">Careers</a>
   <a href="{{ url_for('main.contact') }}"

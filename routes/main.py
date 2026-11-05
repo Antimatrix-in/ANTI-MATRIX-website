@@ -103,6 +103,12 @@ def services():
     return render_template('pages/services.html')
 
 
+@main_bp.route('/product')
+@main_bp.route('/products')
+def products():
+    return render_template('pages/products.html')
+
+
 @main_bp.route('/pricing')
 def pricing():
     return redirect(url_for('main.services'), code=301)

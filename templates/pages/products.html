@@ -1,0 +1,633 @@
+{% extends 'base.html' %}
+{% from 'components/icons.html' import icon %}
+
+{% block title %}Products | Anti-Matrix – QMatrix, Biometrics, Billing & Enterprise Software{% endblock %}
+
+{% block content %}
+<style>
+  /* ── Products Page Styles ────────────────────────── */
+  .product-section {
+    padding: var(--space-4xl) 0;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.7);
+  }
+  .product-section:last-of-type {
+    border-bottom: none;
+  }
+  .product-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.15fr;
+    gap: var(--space-3xl);
+    align-items: center;
+  }
+  .product-grid.reverse {
+    grid-template-columns: 1.15fr 1fr;
+  }
+  .product-grid.reverse .product-media-col {
+    order: 1;
+  }
+  .product-grid.reverse .product-info-col {
+    order: 2;
+  }
+  .product-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-primary-dark);
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 0.35rem 0.85rem;
+    border-radius: 9999px;
+    margin-bottom: var(--space-md);
+  }
+  .product-title {
+    font-size: clamp(2rem, 3.2vw, 2.75rem);
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+    margin-bottom: 0.65rem;
+  }
+  .product-tagline {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #059669;
+    line-height: 1.5;
+    margin-bottom: var(--space-lg);
+  }
+  .product-desc {
+    font-size: 1.025rem;
+    color: #334155;
+    line-height: 1.75;
+    margin-bottom: var(--space-xl);
+  }
+  .product-features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.15rem;
+    margin-bottom: var(--space-xl);
+  }
+  .product-feature-item {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.15rem;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    transition: transform 0.25s ease, border-color 0.25s ease;
+  }
+  .product-feature-item:hover {
+    transform: translateY(-2px);
+    border-color: rgba(16, 185, 129, 0.4);
+    box-shadow: 0 6px 16px -2px rgba(5, 150, 105, 0.12);
+  }
+  .feature-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .feature-head svg {
+    color: #059669;
+    flex-shrink: 0;
+  }
+  .feature-detail {
+    font-size: 0.85rem;
+    color: #64748b;
+    line-height: 1.5;
+  }
+  .product-verticals-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding-top: var(--space-lg);
+    border-top: 1px solid #e2e8f0;
+    margin-bottom: var(--space-xl);
+  }
+  .product-verticals-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 0.5rem;
+  }
+  .product-media-card {
+    position: relative;
+    border-radius: var(--radius-2xl);
+    overflow: hidden;
+    box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(15, 23, 42, 0.05);
+    background: #0f172a;
+  }
+  .product-media-card img {
+    width: 100%;
+    height: 480px;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.6s ease;
+  }
+  .product-media-card:hover img {
+    transform: scale(1.04);
+  }
+  .product-media-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 55%, rgba(15, 23, 42, 0.85) 100%);
+    pointer-events: none;
+  }
+  .product-media-badge {
+    position: absolute;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    right: 1.5rem;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius-lg);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .quick-jump-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: var(--space-xl);
+  }
+  .quick-jump-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+    padding: 0.55rem 1.15rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  }
+  .quick-jump-pill:hover {
+    background: #f0fdf4;
+    border-color: #10b981;
+    color: #059669;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.15);
+  }
+  .matrix-table-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06);
+  }
+  .matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.925rem;
+    text-align: left;
+  }
+  .matrix-table th, .matrix-table td {
+    padding: 1.15rem 1.5rem;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .matrix-table th {
+    background: #f8fafc;
+    font-weight: 700;
+    color: #0f172a;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .matrix-table tr:last-child td {
+    border-bottom: none;
+  }
+  .matrix-table tr:hover td {
+    background: #f8fafc;
+  }
+
+  @media (max-width: 960px) {
+    .product-grid, .product-grid.reverse {
+      grid-template-columns: 1fr !important;
+      gap: var(--space-2xl) !important;
+    }
+    .product-grid.reverse .product-media-col {
+      order: 2 !important;
+    }
+    .product-grid.reverse .product-info-col {
+      order: 1 !important;
+    }
+    .product-media-card img {
+      height: 340px;
+    }
+  }
+</style>
+
+<!-- ── PAGE HERO ────────────────────────────────────────── -->
+<section class="page-hero">
+  <div class="container">
+    <div class="badge">{{ icon('package', size=13) }} Enterprise Products</div>
+    <h1>Engineered for Speed, Precision &amp; Continuous Scale</h1>
+    <p>Discover Anti-Matrix's flagship hardware and software platforms—built to eliminate queue chaos, automate workforce biometrics, and accelerate point-of-sale retail billing.</p>
+    
+    <div class="quick-jump-bar">
+      <a href="#qmatrix" class="quick-jump-pill">
+        {{ icon('users', size=14) }} QMatrix Queue System
+      </a>
+      <a href="#biometrics" class="quick-jump-pill">
+        {{ icon('shield-check', size=14) }} Biometric Matrix
+      </a>
+      <a href="#billing" class="quick-jump-pill">
+        {{ icon('receipt', size=14) }} Matrix Billing &amp; POS
+      </a>
+      <a href="#erp" class="quick-jump-pill">
+        {{ icon('database', size=14) }} Matrix ERP Business Suite
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ── PRODUCT 1: QMATRIX ────────────────────────────────── -->
+<section id="qmatrix" class="product-section" style="background: var(--color-bg);">
+  <div class="container">
+    <div class="product-grid">
+      <div class="product-info-col reveal">
+        <div class="product-badge">
+          {{ icon('clock', size=14) }} Smart Customer Flow &amp; Queue Platform
+        </div>
+        <h2 class="product-title">QMatrix™</h2>
+        <div class="product-tagline">Eliminate lines. Delight visitors. Orchestrate staff efficiency.</div>
+        <p class="product-desc">
+          QMatrix transforms chaotic physical lines into an intelligent, seamless visitor journey. From self-service touch kiosks to synchronized multi-screen digital signage and live WhatsApp queue tracking, QMatrix guarantees smooth customer flow and zero congestion.
+        </p>
+
+        <div class="product-features-grid">
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('check-circle', size=16) }} Touchless Token Kiosks</div>
+            <div class="feature-detail">Interactive touch screens with high-speed thermal ticket printing and mobile QR code generation.</div>
+          </div>
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('monitor', size=16) }} Digital Signage &amp; Audio</div>
+            <div class="feature-detail">Real-time counter calling displays with customizable multilingual voice announcements.</div>
+          </div>
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('smartphone', size=16) }} Live WhatsApp Alerts</div>
+            <div class="feature-detail">Visitors track their live wait status and counter token progress directly on their phones.</div>
+          </div>
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('bar-chart-3', size=16) }} Real-Time SLA Heatmaps</div>
+            <div class="feature-detail">Deep footfall analytics, counter turnaround metrics, and predictive rush-hour forecasting.</div>
+          </div>
+        </div>
+
+        <div class="product-verticals-bar">
+          <span class="product-verticals-label">Deployments:</span>
+          <span class="tech-pill">Hospitals &amp; Clinics</span>
+          <span class="tech-pill">Banks &amp; NBFCs</span>
+          <span class="tech-pill">Government Centers</span>
+          <span class="tech-pill">Universities</span>
+          <span class="tech-pill">Retail Support</span>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
+          <a href="{{ url_for('main.contact', subject='New Project Inquiry') }}" class="btn btn-primary">
+            Request QMatrix Demo {{ icon('arrow-right', size=16) }}
+          </a>
+          <a href="tel:+919159514326" class="btn btn-outline">
+            {{ icon('phone', size=15) }} Talk to an Engineer
+          </a>
+        </div>
+      </div>
+
+      <div class="product-media-col reveal">
+        <div class="product-media-card">
+          <img src="{{ url_for('static', filename='images/service_enterprise_software.jpg') }}" 
+               alt="QMatrix Enterprise Queue Management System Dashboard and Console"
+               loading="lazy">
+          <div class="product-media-overlay"></div>
+          <div class="product-media-badge">
+            <div>
+              <div style="font-weight: 700; font-size: 0.95rem;">QMatrix Enterprise Engine v4.2</div>
+              <div style="font-size: 0.775rem; color: #a7f3d0;">Cloud &amp; On-Premises Hybrid Ready</div>
+            </div>
+            <span style="font-family: monospace; font-size: 0.75rem; background: rgba(16, 185, 129, 0.25); border: 1px solid #10b981; padding: 0.2rem 0.6rem; border-radius: 6px; color: #34d399;">99.99% UPTIME</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── PRODUCT 2: BIOMETRIC MATRIX ────────────────────────── -->
+<section id="biometrics" class="product-section" style="background: var(--color-bg-alt);">
+  <div class="container">
+    <div class="product-grid reverse">
+      <div class="product-info-col reveal">
+        <div class="product-badge">
+          {{ icon('shield-check', size=14) }} AI Biometrics, Attendance &amp; Access Control
+        </div>
+        <h2 class="product-title">Biometric Matrix™</h2>
+        <div class="product-tagline">Sub-second identification. Zero buddy punching. Automated payroll sync.</div>
+        <p class="product-desc">
+          Combine high-precision AI facial recognition with industrial optical fingerprint scanning and physical door access controllers. Biometric Matrix prevents time fraud, automates rotational shifts, and syncs attendance directly with payroll systems in real time.
+        </p>
+
+        <div class="product-features-grid">
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('user-check', size=16) }} AI Facial Recognition</div>
+            <div class="feature-detail">0.3-second facial verification with live anti-spoofing to prevent photo and screen spoofing.</div>
+          </div>
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('fingerprint', size=16) }} Optical &amp; RFID Support</div>
+            <div class="feature-detail">Scratch-resistant biometric optical sensors combined with contactless 13.56MHz RFID cards.</div>
+          </div>
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('calendar', size=16) }} Shift &amp; Overtime Engine</div>
+            <div class="feature-detail">Automate multi-shift rotation, grace periods, auto-half day rules, and overtime calculations.</div>
+          </div>
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('lock', size=16) }} Access Control Relays</div>
+            <div class="feature-detail">Direct integration with electromagnetic door locks, turnstiles, and emergency fire alarms.</div>
+          </div>
+        </div>
+
+        <div class="product-verticals-bar">
+          <span class="product-verticals-label">Deployments:</span>
+          <span class="tech-pill">Corporate Tech Parks</span>
+          <span class="tech-pill">Manufacturing Plants</span>
+          <span class="tech-pill">Warehouses</span>
+          <span class="tech-pill">Schools &amp; Colleges</span>
+          <span class="tech-pill">Healthcare Units</span>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
+          <a href="{{ url_for('main.contact', subject='New Project Inquiry') }}" class="btn btn-primary">
+            Get Device &amp; Software Quote {{ icon('arrow-right', size=16) }}
+          </a>
+          <a href="{{ url_for('main.contact') }}" class="btn btn-outline">
+            {{ icon('file-text', size=15) }} Hardware Datasheet
+          </a>
+        </div>
+      </div>
+
+      <div class="product-media-col reveal">
+        <div class="product-media-card">
+          <img src="{{ url_for('static', filename='images/service_digital_transformation.jpg') }}" 
+               alt="Biometric Matrix Attendance and Physical Access Control System"
+               loading="lazy">
+          <div class="product-media-overlay"></div>
+          <div class="product-media-badge">
+            <div>
+              <div style="font-weight: 700; font-size: 0.95rem;">Biometric Matrix Cloud Sync</div>
+              <div style="font-size: 0.775rem; color: #a7f3d0;">100K Offline Log Memory &amp; Auto-Sync</div>
+            </div>
+            <span style="font-family: monospace; font-size: 0.75rem; background: rgba(16, 185, 129, 0.25); border: 1px solid #10b981; padding: 0.2rem 0.6rem; border-radius: 6px; color: #34d399;">ISO 27001</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── PRODUCT 3: MATRIX BILLING & POS ──────────────────── -->
+<section id="billing" class="product-section" style="background: var(--color-bg);">
+  <div class="container">
+    <div class="product-grid">
+      <div class="product-info-col reveal">
+        <div class="product-badge">
+          {{ icon('receipt', size=14) }} High-Speed Retail POS &amp; Cloud Billing
+        </div>
+        <h2 class="product-title">Matrix Billing &amp; POS™</h2>
+        <div class="product-tagline">2-second checkout. Complete GST compliance. 100% offline-ready.</div>
+        <p class="product-desc">
+          Lightning-fast point of sale and cloud billing platform designed for retail supermarkets, restaurants, boutiques, and wholesale traders. Keeps billing active without internet interruptions, prints thermal receipts in seconds, and automates your entire GST filing.
+        </p>
+
+        <div class="product-features-grid">
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('zap', size=16) }} 2-Second Checkout</div>
+            <div class="feature-detail">Rapid barcode scanning, touch quick-keys, item variants, and split payment modes.</div>
+          </div>
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('wifi-off', size=16) }} Offline-First Architecture</div>
+            <div class="feature-detail">Billing never halts during internet drops; records automatically sync back when reconnected.</div>
+          </div>
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('file-spreadsheet', size=16) }} Automated GST &amp; E-Way</div>
+            <div class="feature-detail">One-click GSTR-1 &amp; GSTR-3B tax reports, HSN code auto-lookup, and compliant e-invoicing.</div>
+          </div>
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('boxes', size=16) }} Real-Time Inventory Control</div>
+            <div class="feature-detail">Live multi-warehouse tracking, batch/expiry alerts, reorder thresholds, and vendor bills.</div>
+          </div>
+        </div>
+
+        <div class="product-verticals-bar">
+          <span class="product-verticals-label">Deployments:</span>
+          <span class="tech-pill">Supermarkets &amp; Groceries</span>
+          <span class="tech-pill">Restaurants &amp; Cafes</span>
+          <span class="tech-pill">Fashion &amp; Apparel</span>
+          <span class="tech-pill">Pharmacies</span>
+          <span class="tech-pill">Wholesale Distributors</span>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
+          <a href="{{ url_for('main.contact', subject='New Project Inquiry') }}" class="btn btn-primary">
+            Start Free POS Trial {{ icon('arrow-right', size=16) }}
+          </a>
+          <a href="{{ url_for('main.contact') }}" class="btn btn-outline">
+            {{ icon('download', size=15) }} Product Brochure
+          </a>
+        </div>
+      </div>
+
+      <div class="product-media-col reveal">
+        <div class="product-media-card">
+          <img src="{{ url_for('static', filename='images/service_web_dev.jpg') }}" 
+               alt="Matrix POS & Billing System on Touch Terminal and Laptop"
+               loading="lazy">
+          <div class="product-media-overlay"></div>
+          <div class="product-media-badge">
+            <div>
+              <div style="font-weight: 700; font-size: 0.95rem;">Matrix Retail POS Engine</div>
+              <div style="font-size: 0.775rem; color: #a7f3d0;">Thermal &amp; WhatsApp Digital Receipts</div>
+            </div>
+            <span style="font-family: monospace; font-size: 0.75rem; background: rgba(16, 185, 129, 0.25); border: 1px solid #10b981; padding: 0.2rem 0.6rem; border-radius: 6px; color: #34d399;">GST VERIFIED</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── PRODUCT 4: MATRIX ERP BUSINESS SUITE ──────────────── -->
+<section id="erp" class="product-section" style="background: var(--color-bg-alt);">
+  <div class="container">
+    <div class="product-grid reverse">
+      <div class="product-info-col reveal">
+        <div class="product-badge">
+          {{ icon('database', size=14) }} Unified Enterprise Resource Planning
+        </div>
+        <h2 class="product-title">Matrix ERP Suite™</h2>
+        <div class="product-tagline">Single console for finance, procurement, warehouse &amp; CRM.</div>
+        <p class="product-desc">
+          Stop managing disjointed spreadsheets. Matrix ERP unites multi-branch accounting, vendor procurement chains, warehouse inventory, and customer pipelines in one secure, real-time cloud suite built for growing organizations.
+        </p>
+
+        <div class="product-features-grid">
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('dollar-sign', size=16) }} Multi-Branch Finance</div>
+            <div class="feature-detail">Real-time P&amp;L balance sheets, automated ledger reconciliation, and cash-flow dashboards.</div>
+          </div>
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('truck', size=16) }} Supply Chain &amp; Procurement</div>
+            <div class="feature-detail">Purchase orders, supplier scorecards, goods receipt notes (GRN), and approval workflows.</div>
+          </div>
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('heart-handshake', size=16) }} Integrated CRM</div>
+            <div class="feature-detail">Track client leads, generate instant quotation PDFs, and automate client renewal lifecycles.</div>
+          </div>
+          <div class="product-feature-item">
+            <div class="feature-head">{{ icon('shield', size=16) }} Role-Based Governance</div>
+            <div class="feature-detail">Granular employee permissions, automated daily cloud backups, and comprehensive audit logs.</div>
+          </div>
+        </div>
+
+        <div class="product-verticals-bar">
+          <span class="product-verticals-label">Deployments:</span>
+          <span class="tech-pill">Manufacturing Units</span>
+          <span class="tech-pill">Wholesale Importers</span>
+          <span class="tech-pill">Logistics Hubs</span>
+          <span class="tech-pill">Multi-Branch Retail Chains</span>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
+          <a href="{{ url_for('main.contact', subject='New Project Inquiry') }}" class="btn btn-primary">
+            Schedule ERP Consultation {{ icon('arrow-right', size=16) }}
+          </a>
+          <a href="{{ url_for('main.contact') }}" class="btn btn-outline">
+            {{ icon('layers', size=15) }} Custom Module Architecture
+          </a>
+        </div>
+      </div>
+
+      <div class="product-media-col reveal">
+        <div class="product-media-card">
+          <img src="{{ url_for('static', filename='images/service_cloud_devops.jpg') }}" 
+               alt="Matrix ERP Multi-Branch Cloud Infrastructure"
+               loading="lazy">
+          <div class="product-media-overlay"></div>
+          <div class="product-media-badge">
+            <div>
+              <div style="font-weight: 700; font-size: 0.95rem;">Matrix Core ERP v5.0</div>
+              <div style="font-size: 0.775rem; color: #a7f3d0;">End-to-End Enterprise Operations</div>
+            </div>
+            <span style="font-family: monospace; font-size: 0.75rem; background: rgba(16, 185, 129, 0.25); border: 1px solid #10b981; padding: 0.2rem 0.6rem; border-radius: 6px; color: #34d399;">MULTI-BRANCH</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CAPABILITY COMPARISON MATRIX ─────────────────────── -->
+<section class="section reveal" style="background: var(--color-bg);">
+  <div class="container">
+    <div class="section-header centered">
+      <div class="badge">{{ icon('check-square', size=12) }} Platform Capabilities</div>
+      <h2>Enterprise Product Specifications</h2>
+      <div class="divider center"></div>
+      <p>All Anti-Matrix products are built with modern security protocols, modular APIs, and full deployment flexibility.</p>
+    </div>
+
+    <div class="matrix-table-card">
+      <table class="matrix-table">
+        <thead>
+          <tr>
+            <th>Product Platform</th>
+            <th>Deployment Options</th>
+            <th>Offline Resilience</th>
+            <th>Hardware Ecosystem</th>
+            <th>API &amp; Integration</th>
+            <th>Security &amp; Compliance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>QMatrix™</strong></td>
+            <td>Cloud, On-Premises, Hybrid</td>
+            <td>Local Server Buffer (Zero downtime)</td>
+            <td>Touch Kiosks, Thermal Printers, Digital Signage</td>
+            <td>REST APIs, Webhooks, WhatsApp API</td>
+            <td>Role-Based Access, TLS 1.3</td>
+          </tr>
+          <tr>
+            <td><strong>Biometric Matrix™</strong></td>
+            <td>Cloud-managed Edge Devices</td>
+            <td>100K Offline Log Memory</td>
+            <td>AI Face Cameras, Optical Fingerprint, RFID, Relays</td>
+            <td>Push SDK, HRMS Direct Sync</td>
+            <td>Anti-Spoofing Liveness, ISO 27001</td>
+          </tr>
+          <tr>
+            <td><strong>Matrix Billing &amp; POS™</strong></td>
+            <td>Cloud &amp; Desktop Client</td>
+            <td>100% Offline-First Billing</td>
+            <td>Barcode Scanners, Thermal Printers, Cash Drawers</td>
+            <td>GST E-Invoicing API, UPI QR Integrations</td>
+            <td>Tax Encrypted Logs, Audit Trail</td>
+          </tr>
+          <tr>
+            <td><strong>Matrix ERP Suite™</strong></td>
+            <td>Private Cloud &amp; Dedicated VPS</td>
+            <td>Cached Local Operations</td>
+            <td>Cross-Device Browser &amp; Mobile App</td>
+            <td>Full ERP REST API, Custom Connectors</td>
+            <td>256-bit AES Encryption, Automated Backups</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── PRODUCT INQUIRY & DEMO CTA ───────────────────────── -->
+<section class="section reveal" style="background: var(--color-bg-alt);">
+  <div class="container">
+    <div class="card" style="padding: var(--space-3xl); text-align: center; border: 1.5px solid rgba(16, 185, 129, 0.3); background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(240,253,244,0.7) 100%);">
+      <div class="badge" style="margin: 0 auto var(--space-md);">
+        {{ icon('zap', size=13) }} Custom Product Demo
+      </div>
+      <h2 style="font-size: clamp(1.85rem, 2.8vw, 2.6rem); color: #0f172a; margin-bottom: var(--space-md); font-weight: 800;">
+        Ready to see our products customized for your business?
+      </h2>
+      <p style="font-size: 1.1rem; color: #475569; max-width: 650px; margin: 0 auto var(--space-2xl); line-height: 1.75;">
+        Get in touch with our product engineers for a personalized live demonstration, hardware walkthrough, and architectural scoping tailored to your operations.
+      </p>
+      <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem;">
+        <a href="{{ url_for('main.contact', subject='New Project Inquiry') }}" class="btn btn-primary btn-lg">
+          Book a Live Product Walkthrough {{ icon('arrow-right', size=16) }}
+        </a>
+        <a href="tel:+919159514326" class="btn btn-outline btn-lg">
+          {{ icon('phone', size=16) }} Call Sales (+91 91595 14326)
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
