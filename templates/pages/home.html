@@ -140,15 +140,31 @@
     
     <div class="services-grid">
       {# Service 1 #}
-      <div class="card service-card animate-fade-up delay-1">
+      <div class="service-card animate-fade-up delay-1" tabindex="0">
         <div class="service-card-media">
-          <img src="{{ url_for('static', filename='images/home_svc_web.jpg') }}"
-               alt="Web Experiences & Platforms – clean web dashboard on laptop"
+          <img src="{{ url_for('static', filename='images/service_web_dev.jpg') }}"
+               alt="Web Experiences &amp; Platforms"
                loading="lazy">
+          <div class="service-card-scrim"></div>
         </div>
-        <div class="service-card-body">
-          <div class="service-card-icon">{{ icon('code-2', size=18) }}</div>
-          <h3 class="service-card-title">Web Experiences &amp; Platforms</h3>
+
+        <div class="service-card-peek">
+          <div class="service-card-peek-top">
+            <span class="service-card-icon">{{ icon('code-2', size=18) }}</span>
+            <span class="service-card-tag">Engineering</span>
+          </div>
+          <h3 class="service-card-peek-title">Web Experiences &amp; Platforms</h3>
+          <div class="service-card-hint">
+            <span>Hover to explore</span>
+            {{ icon('chevron-up', size=14) }}
+          </div>
+        </div>
+
+        <div class="service-card-overlay">
+          <div class="service-card-overlay-header">
+            <div class="service-card-icon">{{ icon('code-2', size=20) }}</div>
+            <h3 class="service-card-overlay-title">Web Experiences &amp; Platforms</h3>
+          </div>
           <p class="service-card-desc">Fast, fluid, and beautifully natural web applications that welcome your visitors, earn their trust, and scale effortlessly as you grow.</p>
           <ul class="service-capabilities">
             <li>Handcrafted React &amp; Next.js Experiences</li>
@@ -157,23 +173,40 @@
             <li>Built to Scale Gracefully Every Day</li>
           </ul>
           <div class="service-card-footer">
-            <a href="{{ url_for('main.services') }}" class="service-card-link">
-              See How We Build {{ icon('arrow-right', size=13) }}
+            <a href="{{ url_for('main.services') }}" class="service-card-link-btn">
+              <span>See How We Build</span>
+              {{ icon('arrow-right', size=14) }}
             </a>
           </div>
         </div>
       </div>
 
       {# Service 2 #}
-      <div class="card service-card animate-fade-up delay-2">
+      <div class="service-card animate-fade-up delay-2" tabindex="0">
         <div class="service-card-media">
-          <img src="{{ url_for('static', filename='images/home_svc_mobile.jpg') }}"
-               alt="Mobile Applications – smartphone dashboards"
+          <img src="{{ url_for('static', filename='images/service_mobile_dev.jpg') }}"
+               alt="Mobile Applications"
                loading="lazy">
+          <div class="service-card-scrim"></div>
         </div>
-        <div class="service-card-body">
-          <div class="service-card-icon">{{ icon('smartphone', size=18) }}</div>
-          <h3 class="service-card-title">Mobile Applications</h3>
+
+        <div class="service-card-peek">
+          <div class="service-card-peek-top">
+            <span class="service-card-icon">{{ icon('smartphone', size=18) }}</span>
+            <span class="service-card-tag">Mobile App</span>
+          </div>
+          <h3 class="service-card-peek-title">Mobile Applications</h3>
+          <div class="service-card-hint">
+            <span>Hover to explore</span>
+            {{ icon('chevron-up', size=14) }}
+          </div>
+        </div>
+
+        <div class="service-card-overlay">
+          <div class="service-card-overlay-header">
+            <div class="service-card-icon">{{ icon('smartphone', size=20) }}</div>
+            <h3 class="service-card-overlay-title">Mobile Applications</h3>
+          </div>
           <p class="service-card-desc">Delightful, responsive apps for iOS and Android that people genuinely look forward to opening and using every single day.</p>
           <ul class="service-capabilities">
             <li>Natural, Fluid Polish on Every Device</li>
@@ -182,23 +215,40 @@
             <li>Guiding You Safely to App Store Success</li>
           </ul>
           <div class="service-card-footer">
-            <a href="{{ url_for('main.services') }}" class="service-card-link">
-              See How We Build {{ icon('arrow-right', size=13) }}
+            <a href="{{ url_for('main.services') }}" class="service-card-link-btn">
+              <span>See How We Build</span>
+              {{ icon('arrow-right', size=14) }}
             </a>
           </div>
         </div>
       </div>
 
       {# Service 3 #}
-      <div class="card service-card animate-fade-up delay-3">
+      <div class="service-card animate-fade-up delay-3" tabindex="0">
         <div class="service-card-media">
-          <img src="{{ url_for('static', filename='images/home_svc_ai.jpg') }}"
-               alt="Applied AI & Smart Automation – neural network visualization"
+          <img src="{{ url_for('static', filename='images/service_ai_ml.jpg') }}"
+               alt="Applied AI &amp; Smart Automation"
                loading="lazy">
+          <div class="service-card-scrim"></div>
         </div>
-        <div class="service-card-body">
-          <div class="service-card-icon">{{ icon('brain', size=18) }}</div>
-          <h3 class="service-card-title">Applied AI &amp; Smart Automation</h3>
+
+        <div class="service-card-peek">
+          <div class="service-card-peek-top">
+            <span class="service-card-icon">{{ icon('brain', size=18) }}</span>
+            <span class="service-card-tag">Intelligence</span>
+          </div>
+          <h3 class="service-card-peek-title">Applied AI &amp; Smart Automation</h3>
+          <div class="service-card-hint">
+            <span>Hover to explore</span>
+            {{ icon('chevron-up', size=14) }}
+          </div>
+        </div>
+
+        <div class="service-card-overlay">
+          <div class="service-card-overlay-header">
+            <div class="service-card-icon">{{ icon('brain', size=20) }}</div>
+            <h3 class="service-card-overlay-title">Applied AI &amp; Smart Automation</h3>
+          </div>
           <p class="service-card-desc">Thoughtful intelligence and machine learning designed to remove friction, illuminate insights, and supercharge your team.</p>
           <ul class="service-capabilities">
             <li>Warm, Helpful AI Companions &amp; Knowledge Bases</li>
@@ -207,23 +257,40 @@
             <li>Respecting User Privacy at Every Turn</li>
           </ul>
           <div class="service-card-footer">
-            <a href="{{ url_for('main.services') }}" class="service-card-link">
-              See How We Build {{ icon('arrow-right', size=13) }}
+            <a href="{{ url_for('main.services') }}" class="service-card-link-btn">
+              <span>See How We Build</span>
+              {{ icon('arrow-right', size=14) }}
             </a>
           </div>
         </div>
       </div>
 
       {# Service 4 #}
-      <div class="card service-card animate-fade-up delay-1">
+      <div class="service-card animate-fade-up delay-1" tabindex="0">
         <div class="service-card-media">
-          <img src="{{ url_for('static', filename='images/home_svc_marketing.jpg') }}"
-               alt="Brand Growth & Storytelling – laptop with analytics and growth"
+          <img src="{{ url_for('static', filename='images/service_digital_marketing.jpg') }}"
+               alt="Brand Growth &amp; Storytelling"
                loading="lazy">
+          <div class="service-card-scrim"></div>
         </div>
-        <div class="service-card-body">
-          <div class="service-card-icon">{{ icon('trending-up', size=18) }}</div>
-          <h3 class="service-card-title">Brand Growth &amp; Storytelling</h3>
+
+        <div class="service-card-peek">
+          <div class="service-card-peek-top">
+            <span class="service-card-icon">{{ icon('trending-up', size=18) }}</span>
+            <span class="service-card-tag">Growth</span>
+          </div>
+          <h3 class="service-card-peek-title">Brand Growth &amp; Storytelling</h3>
+          <div class="service-card-hint">
+            <span>Hover to explore</span>
+            {{ icon('chevron-up', size=14) }}
+          </div>
+        </div>
+
+        <div class="service-card-overlay">
+          <div class="service-card-overlay-header">
+            <div class="service-card-icon">{{ icon('trending-up', size=20) }}</div>
+            <h3 class="service-card-overlay-title">Brand Growth &amp; Storytelling</h3>
+          </div>
           <p class="service-card-desc">Authentic digital presence, organic discoverability, and storytelling that connects your purpose with the people who need it.</p>
           <ul class="service-capabilities">
             <li>Connecting with People Who Truly Care</li>
@@ -232,23 +299,40 @@
             <li>Nurturing a Thriving, Loyal Community</li>
           </ul>
           <div class="service-card-footer">
-            <a href="{{ url_for('main.services') }}" class="service-card-link">
-              See How We Build {{ icon('arrow-right', size=13) }}
+            <a href="{{ url_for('main.services') }}" class="service-card-link-btn">
+              <span>See How We Build</span>
+              {{ icon('arrow-right', size=14) }}
             </a>
           </div>
         </div>
       </div>
 
       {# Service 5 #}
-      <div class="card service-card animate-fade-up delay-2">
+      <div class="service-card animate-fade-up delay-2" tabindex="0">
         <div class="service-card-media">
           <img src="{{ url_for('static', filename='images/service_cloud_devops.jpg') }}"
-               alt="Cloud Foundations & DevOps – cloud infrastructure and engineer"
+               alt="Cloud Foundations &amp; DevOps"
                loading="lazy">
+          <div class="service-card-scrim"></div>
         </div>
-        <div class="service-card-body">
-          <div class="service-card-icon">{{ icon('shield', size=18) }}</div>
-          <h3 class="service-card-title">Cloud Foundations &amp; DevOps</h3>
+
+        <div class="service-card-peek">
+          <div class="service-card-peek-top">
+            <span class="service-card-icon">{{ icon('shield', size=18) }}</span>
+            <span class="service-card-tag">Infrastructure</span>
+          </div>
+          <h3 class="service-card-peek-title">Cloud Foundations &amp; DevOps</h3>
+          <div class="service-card-hint">
+            <span>Hover to explore</span>
+            {{ icon('chevron-up', size=14) }}
+          </div>
+        </div>
+
+        <div class="service-card-overlay">
+          <div class="service-card-overlay-header">
+            <div class="service-card-icon">{{ icon('shield', size=20) }}</div>
+            <h3 class="service-card-overlay-title">Cloud Foundations &amp; DevOps</h3>
+          </div>
           <p class="service-card-desc">Calm, resilient cloud architecture with seamless deployments, so your team can build with total peace of mind.</p>
           <ul class="service-capabilities">
             <li>Dependable Cloud Foundations (AWS, GCP, Azure)</li>
@@ -257,23 +341,40 @@
             <li>24/7 Quiet Peace of Mind for Your Team</li>
           </ul>
           <div class="service-card-footer">
-            <a href="{{ url_for('main.services') }}" class="service-card-link">
-              See How We Build {{ icon('arrow-right', size=13) }}
+            <a href="{{ url_for('main.services') }}" class="service-card-link-btn">
+              <span>See How We Build</span>
+              {{ icon('arrow-right', size=14) }}
             </a>
           </div>
         </div>
       </div>
 
       {# Service 6 #}
-      <div class="card service-card animate-fade-up delay-3">
+      <div class="service-card animate-fade-up delay-3" tabindex="0">
         <div class="service-card-media">
           <img src="{{ url_for('static', filename='images/service_ui_ux.jpg') }}"
-               alt="Human-Centered UI/UX Design – Figma wireframes and board"
+               alt="Human-Centered UI/UX Design"
                loading="lazy">
+          <div class="service-card-scrim"></div>
         </div>
-        <div class="service-card-body">
-          <div class="service-card-icon">{{ icon('globe', size=18) }}</div>
-          <h3 class="service-card-title">Human-Centered UI/UX Design</h3>
+
+        <div class="service-card-peek">
+          <div class="service-card-peek-top">
+            <span class="service-card-icon">{{ icon('globe', size=18) }}</span>
+            <span class="service-card-tag">Experience</span>
+          </div>
+          <h3 class="service-card-peek-title">Human-Centered UI/UX Design</h3>
+          <div class="service-card-hint">
+            <span>Hover to explore</span>
+            {{ icon('chevron-up', size=14) }}
+          </div>
+        </div>
+
+        <div class="service-card-overlay">
+          <div class="service-card-overlay-header">
+            <div class="service-card-icon">{{ icon('globe', size=20) }}</div>
+            <h3 class="service-card-overlay-title">Human-Centered UI/UX Design</h3>
+          </div>
           <p class="service-card-desc">Warm, accessible, and deeply intuitive design that feels effortless to use and creates emotional resonance.</p>
           <ul class="service-capabilities">
             <li>Deep Listening to Your Users' Real Needs</li>
@@ -282,20 +383,36 @@
             <li>Crafted to Welcome Everyone, Everywhere</li>
           </ul>
           <div class="service-card-footer">
-            <a href="{{ url_for('main.services') }}" class="service-card-link">
-              See How We Build {{ icon('arrow-right', size=13) }}
+            <a href="{{ url_for('main.services') }}" class="service-card-link-btn">
+              <span>See How We Build</span>
+              {{ icon('arrow-right', size=14) }}
             </a>
           </div>
         </div>
       </div>
-    </div>
-
-    <div style="text-align: center; margin-top: var(--space-2xl);">
+    </div><div style="text-align: center; margin-top: var(--space-2xl);">
       <a href="{{ url_for('main.services') }}" class="btn btn-primary btn-lg">
         Explore All Capabilities {{ icon('arrow-right', size=17) }}
       </a>
     </div>
   </div>
+<script>
+  // Mobile / Touch toggle support for service cards
+  document.addEventListener('DOMContentLoaded', function () {
+    const cards = document.querySelectorAll('.service-card');
+    cards.forEach(function (card) {
+      card.addEventListener('click', function (e) {
+        if (e.target.closest('a')) return;
+        if (window.matchMedia('(hover: none)').matches) {
+          const wasActive = card.classList.contains('active');
+          cards.forEach(function (c) { c.classList.remove('active'); });
+          if (!wasActive) card.classList.add('active');
+        }
+      });
+    });
+  });
+</script>
+
 </section>
 
 <!-- ── WHY CHOOSE US (WARM & MOTIVATING) ────────────────── -->
