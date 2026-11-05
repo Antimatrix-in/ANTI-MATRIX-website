@@ -247,7 +247,7 @@
     
     <div class="quick-jump-bar">
       <a href="#qmatrix" class="quick-jump-pill">
-        {{ icon('users', size=14) }} QMatrix Queue System
+        {{ icon('graduation-cap', size=14) }} QMatrix Learning Platform
       </a>
       <a href="#biometrics" class="quick-jump-pill">
         {{ icon('shield-check', size=14) }} Biometric Matrix
@@ -267,65 +267,111 @@
   <div class="container">
     <div class="product-grid">
       <div class="product-info-col reveal">
-        <div class="product-badge">
-          {{ icon('clock', size=14) }} Smart Customer Flow &amp; Queue Platform
+        <div class="product-badge" style="background: rgba(249, 115, 22, 0.12); border-color: rgba(249, 115, 22, 0.35); color: #ea580c;">
+          {{ icon('graduation-cap', size=14) }} AI-Powered Learning &amp; Placement Preparation Platform
         </div>
         <h2 class="product-title">QMatrix™</h2>
-        <div class="product-tagline">Eliminate lines. Delight visitors. Orchestrate staff efficiency.</div>
+        <div class="product-tagline" style="color: #ea580c;">Learn smarter. Build skills. Get career-ready.</div>
         <p class="product-desc">
-          QMatrix transforms chaotic physical lines into an intelligent, seamless visitor journey. From self-service touch kiosks to synchronized multi-screen digital signage and live WhatsApp queue tracking, QMatrix guarantees smooth customer flow and zero congestion.
+          QMatrix is an integrated learning and placement preparation platform that helps students develop industry-relevant skills through structured courses, coding practice, assessments, and AI-powered career tools.
         </p>
+        
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: var(--space-lg); font-size: 0.85rem; font-weight: 700; color: #475569;">
+          <span style="background: #f1f5f9; padding: 0.25rem 0.65rem; border-radius: 6px; border: 1px solid #e2e8f0;">Structured Learning</span>
+          <span style="background: #f1f5f9; padding: 0.25rem 0.65rem; border-radius: 6px; border: 1px solid #e2e8f0;">Coding Practice</span>
+          <span style="background: #f1f5f9; padding: 0.25rem 0.65rem; border-radius: 6px; border: 1px solid #e2e8f0;">Aptitude Tests</span>
+          <span style="background: #f1f5f9; padding: 0.25rem 0.65rem; border-radius: 6px; border: 1px solid #e2e8f0;">AI Career Preparation</span>
+        </div>
 
         <div class="product-features-grid">
           <div class="product-feature-item">
-            <div class="feature-head">{{ icon('check-circle', size=16) }} Touchless Token Kiosks</div>
-            <div class="feature-detail">Interactive touch screens with high-speed thermal ticket printing and mobile QR code generation.</div>
+            <div class="feature-head">
+              {{ icon('book-open', size=16) }} Structured Learning
+            </div>
+            <div class="feature-detail">Access organized courses, learning materials, video lessons, and trackable learning paths.</div>
           </div>
           <div class="product-feature-item">
-            <div class="feature-head">{{ icon('monitor', size=16) }} Digital Signage &amp; Audio</div>
-            <div class="feature-detail">Real-time counter calling displays with customizable multilingual voice announcements.</div>
+            <div class="feature-head">
+              {{ icon('code', size=16) }} Coding &amp; Dev Practice
+            </div>
+            <div class="feature-detail">Solve programming challenges, write code, and strengthen practical development skills.</div>
           </div>
           <div class="product-feature-item">
-            <div class="feature-head">{{ icon('smartphone', size=16) }} Live WhatsApp Alerts</div>
-            <div class="feature-detail">Visitors track their live wait status and counter token progress directly on their phones.</div>
+            <div class="feature-head">
+              {{ icon('check-circle', size=16) }} Aptitude &amp; Assessments
+            </div>
+            <div class="feature-detail">Improve quantitative, logical, and verbal reasoning through timed tests and assessments.</div>
           </div>
           <div class="product-feature-item">
-            <div class="feature-head">{{ icon('bar-chart-3', size=16) }} Real-Time SLA Heatmaps</div>
-            <div class="feature-detail">Deep footfall analytics, counter turnaround metrics, and predictive rush-hour forecasting.</div>
+            <div class="feature-head">
+              {{ icon('sparkles', size=16) }} AI-Powered Career Tools
+            </div>
+            <div class="feature-detail">Evaluate resumes, check ATS compatibility, and prepare for technical interviews with AI.</div>
+          </div>
+          <div class="product-feature-item">
+            <div class="feature-head">
+              {{ icon('message-square', size=16) }} Communication Practice
+            </div>
+            <div class="feature-detail">Improve speaking, pronunciation, workplace writing, and interview confidence.</div>
+          </div>
+          <div class="product-feature-item">
+            <div class="feature-head">
+              {{ icon('briefcase', size=16) }} Placement &amp; Career Support
+            </div>
+            <div class="feature-detail">Explore internships, prepare for recruitment, and monitor career readiness.</div>
           </div>
         </div>
 
         <div class="product-verticals-bar">
-          <span class="product-verticals-label">Deployments:</span>
-          <span class="tech-pill">Hospitals &amp; Clinics</span>
-          <span class="tech-pill">Banks &amp; NBFCs</span>
-          <span class="tech-pill">Government Centers</span>
-          <span class="tech-pill">Universities</span>
-          <span class="tech-pill">Retail Support</span>
+          <span class="product-verticals-label">Built for:</span>
+          <span class="tech-pill">Students</span>
+          <span class="tech-pill">Faculty</span>
+          <span class="tech-pill">Colleges</span>
+          <span class="tech-pill">Educational Institutions</span>
+        </div>
+
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: var(--radius-lg); padding: 1.15rem 1.25rem; margin-bottom: var(--space-xl);">
+          <div style="font-weight: 700; color: #0f172a; font-size: 0.95rem; margin-bottom: 0.25rem;">Turn learning into career opportunities.</div>
+          <div style="font-size: 0.875rem; color: #64748b; line-height: 1.5;">Give students the tools to learn, practice, evaluate, and prepare for the professional world.</div>
         </div>
 
         <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
-          <a href="{{ url_for('main.contact', subject='New Project Inquiry') }}" class="btn btn-primary">
-            Request QMatrix Demo {{ icon('arrow-right', size=16) }}
+          <a href="https://www.qmatrix.co.in/?utm_source=chatgpt.com" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: #ffffff; border-color: rgba(249, 115, 22, 0.45); box-shadow: 0 4px 14px rgba(249, 115, 22, 0.3);">
+            Explore QMatrix {{ icon('arrow-up-right', size=16) }}
           </a>
-          <a href="tel:+919159514326" class="btn btn-outline">
-            {{ icon('phone', size=15) }} Talk to an Engineer
+          <a href="{{ url_for('main.contact', subject='New Project Inquiry') }}" class="btn btn-outline">
+            {{ icon('calendar', size=15) }} Request a Demo
           </a>
         </div>
       </div>
 
       <div class="product-media-col reveal">
-        <div class="product-media-card">
-          <img src="{{ url_for('static', filename='images/service_enterprise_software.jpg') }}" 
-               alt="QMatrix Enterprise Queue Management System Dashboard and Console"
-               loading="lazy">
-          <div class="product-media-overlay"></div>
-          <div class="product-media-badge">
-            <div>
-              <div style="font-weight: 700; font-size: 0.95rem;">QMatrix Enterprise Engine v4.2</div>
-              <div style="font-size: 0.775rem; color: #a7f3d0;">Cloud &amp; On-Premises Hybrid Ready</div>
+        <div class="product-media-card" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%); display: flex; align-items: center; justify-content: center; min-height: 480px; padding: 2.5rem 1.5rem 5rem; position: relative;">
+          {# Ambient glow background behind logo #}
+          <div style="position: absolute; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle, rgba(249, 115, 22, 0.25) 0%, rgba(234, 88, 12, 0.12) 50%, transparent 70%); filter: blur(35px); pointer-events: none;"></div>
+          
+          <div style="position: relative; z-index: 2; width: 100%; max-width: 420px; background: #ffffff; border-radius: 20px; padding: 2.25rem 2rem; box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.2); text-align: center;">
+            <img src="{{ url_for('static', filename='images/qmatrix_logo.png') }}" 
+                 alt="QMatrix AI-Powered Learning & Placement Preparation Platform" 
+                 style="width: 100%; height: auto; max-height: 160px; object-fit: contain; display: block; margin: 0 auto;"
+                 loading="lazy">
+            <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-around; font-size: 0.775rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">
+              <span>AI Career Prep</span>
+              <span>•</span>
+              <span>Coding Labs</span>
+              <span>•</span>
+              <span>Assessments</span>
             </div>
-            <span style="font-family: monospace; font-size: 0.75rem; background: rgba(16, 185, 129, 0.25); border: 1px solid #10b981; padding: 0.2rem 0.6rem; border-radius: 6px; color: #34d399;">99.99% UPTIME</span>
+          </div>
+          
+          <div class="product-media-badge" style="z-index: 3;">
+            <div>
+              <div style="font-weight: 700; font-size: 0.95rem;">QMatrix™ Learning Ecosystem</div>
+              <div style="font-size: 0.775rem; color: #fdba74;">AI-Powered Career &amp; Placement Readiness</div>
+            </div>
+            <a href="https://www.qmatrix.co.in/?utm_source=chatgpt.com" target="_blank" rel="noopener noreferrer" style="font-family: monospace; font-size: 0.75rem; background: rgba(249, 115, 22, 0.25); border: 1px solid #f97316; padding: 0.3rem 0.75rem; border-radius: 6px; color: #fb923c; text-decoration: none; font-weight: 700;">
+              VISIT PLATFORM ↗
+            </a>
           </div>
         </div>
       </div>
@@ -570,11 +616,11 @@
         <tbody>
           <tr>
             <td><strong>QMatrix™</strong></td>
-            <td>Cloud, On-Premises, Hybrid</td>
-            <td>Local Server Buffer (Zero downtime)</td>
-            <td>Touch Kiosks, Thermal Printers, Digital Signage</td>
-            <td>REST APIs, Webhooks, WhatsApp API</td>
-            <td>Role-Based Access, TLS 1.3</td>
+            <td>Cloud SaaS &amp; Campus Portal</td>
+            <td>100% Offline-Safe Test Sync</td>
+            <td>Web Platform, Mobile App, Campus Labs</td>
+            <td>LMS APIs, College Portals, Single Sign-On (SSO)</td>
+            <td>AI Anti-Cheat, ISO 27001, TLS 1.3</td>
           </tr>
           <tr>
             <td><strong>Biometric Matrix™</strong></td>
