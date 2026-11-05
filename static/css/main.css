@@ -1364,21 +1364,84 @@ textarea.form-control {
   padding: 0.75rem 1.25rem;
   border-radius: 12px;
   background: linear-gradient(135deg, #a6fd3a 0%, #10b981 100%);
-  color: #000000;
+  color: #000000 !important;
   font-size: 0.875rem;
   font-weight: 700;
   letter-spacing: -0.01em;
   text-decoration: none;
   border: 1px solid rgba(166, 253, 58, 0.55);
   box-shadow: 0 4px 18px rgba(166, 253, 58, 0.35), 0 0 15px rgba(166, 253, 58, 0.2);
-  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1),
+              box-shadow 0.35s ease,
+              border-color 0.3s ease,
+              color 0.3s ease;
 }
 
-.service-card-link-btn:hover {
-  background: linear-gradient(135deg, #b8ff52 0%, #059669 100%);
-  box-shadow: 0 8px 25px rgba(166, 253, 58, 0.55), 0 0 25px rgba(166, 253, 58, 0.35);
+/* Accenture-Style Dark Sweep (Left to Right) */
+.service-card-link-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(105deg, #051c14 0%, #03120c 60%, #072e20 100%);
+  transform: translateX(-102%);
+  transition: transform 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: inherit;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Futuristic Light Sweep Sheen */
+.service-card-link-btn::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -80%;
+  width: 60%;
+  height: 200%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(166, 253, 58, 0.18) 30%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(166, 253, 58, 0.18) 70%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: rotate(25deg) translateX(-100%);
+  transition: transform 0.75s cubic-bezier(0.2, 0.8, 0.2, 1);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.service-card-link-btn:hover,
+.service-card-link-btn:focus,
+.service-card-link-btn:active {
+  color: #ffffff !important;
+  border-color: rgba(166, 253, 58, 0.8);
+  box-shadow: 0 10px 26px -4px rgba(166, 253, 58, 0.45),
+              0 0 20px rgba(166, 253, 58, 0.35);
   transform: translateY(-2px);
-  color: #000000;
+}
+
+.service-card-link-btn:hover::before,
+.service-card-link-btn:focus::before,
+.service-card-link-btn:active::before {
+  transform: translateX(0%);
+}
+
+.service-card-link-btn:hover::after,
+.service-card-link-btn:focus::after,
+.service-card-link-btn:active::after {
+  transform: rotate(25deg) translateX(380%);
+}
+
+.service-card-link-btn:active {
+  transform: translateY(0px) scale(0.98);
 }
 
 /* ============================================
