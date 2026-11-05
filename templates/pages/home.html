@@ -449,35 +449,21 @@
     {% set testimonials = [
       {
         'stars': 5,
-        'text': 'Anti-Matrix felt less like an external agency and more like our most devoted in-house team. They took a daunting legacy system and breathed fresh life into it in just 14 weeks. They didn\'t just deliver software — they gave our whole company a renewed sense of pride and momentum.',
-        'initials': 'SM',
-        'avatar_bg': '#059669',
-        'company': 'ScaleUp Finance',
-        'industry': 'Global FinTech Pioneers'
-      },
-      {
-        'stars': 5,
-        'text': 'What makes Anti-Matrix rare is their profound empathy. They spent days listening to our clinicians and patients before writing a single line of code. The AI companion they crafted cut patient wait times by 60%, but more than that, it brought warmth back to the clinical experience.',
-        'initials': 'LK',
-        'avatar_bg': '#0f172a',
-        'company': 'MedCore Health Networks',
-        'industry': 'Patient-First HealthTech'
-      },
-      {
-        'stars': 5,
-        'text': 'Working with Anti-Matrix was an absolute joy. They listened deeply, challenged us to think bigger, and built an online experience that sailed through our biggest holiday rush without a hitch. Our revenue grew 42%, but the genuine trust we built together is what we treasure most.',
-        'initials': 'RJ',
-        'avatar_bg': '#10b981',
-        'company': 'RetailNova Enterprise',
-        'industry': 'Modern Omnichannel Commerce'
+        'text': 'The Manpower Management System developed by Anti-Matrix has improved our daily operations at Team Work Manpower Services. It simplifies employee management and salary processing while using AI-powered automation to generate payslips for thousands of employees efficiently. This saves valuable time, reduces paperwork, minimizes manual errors, and makes payroll administration faster, easier, and more reliable.',
+        'author_name': 'Muneeswaran M',
+        'company': 'Team Work Manpower',
+        'industry': 'Team Work Manpower Services',
+        'logo': 'images/teamwork_manpower_logo.png'
       }
     ] %}
 
     <div class="testimonial-slider-container" id="testimonialSlider" role="region" aria-roledescription="carousel" aria-label="Client Testimonials" tabindex="0">
-      {# Previous Testimonial Arrow #}
+      {# Previous Testimonial Arrow (hidden when single testimonial) #}
+      {% if testimonials|length > 1 %}
       <button type="button" class="testimonial-nav-btn testimonial-prev-btn" id="testimonialPrevBtn" aria-label="Previous testimonial" title="Previous testimonial">
         {{ icon('chevron-left', size=20, stroke_width=2.5) }}
       </button>
+      {% endif %}
 
       {# Carousel Viewport & Sliding Track #}
       <div class="testimonial-slider-viewport" id="testimonialViewport">
@@ -494,12 +480,23 @@
                 "{{ t.text }}"
               </blockquote>
               <div class="testimonial-author">
+                {% if t.logo %}
+                <div class="testimonial-avatar" style="background: #ffffff; border: 1.5px solid #e2e8f0; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 3px; border-radius: 50%; width: 50px; height: 50px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);">
+                  <img src="{{ url_for('static', filename=t.logo) }}" alt="{{ t.company }} Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                {% else %}
                 <div class="testimonial-avatar" style="background: {{ t.avatar_bg }}; color: #ffffff; font-weight: 800;">
                   {{ t.initials }}
                 </div>
+                {% endif %}
                 <div>
+                  {% if t.author_name %}
+                  <div class="testimonial-author-name" style="font-weight: 700; color: #0f172a; font-size: 1.05rem; line-height: 1.25;">{{ t.author_name }}</div>
+                  <div class="testimonial-company" style="font-size: 0.875rem; color: #059669; font-weight: 600; margin-top: 2px;">{{ t.company }}</div>
+                  {% else %}
                   <div class="testimonial-company">{{ t.company }}</div>
                   <div class="testimonial-industry">{{ t.industry }}</div>
+                  {% endif %}
                 </div>
               </div>
             </div>
@@ -508,10 +505,12 @@
         </div>
       </div>
 
-      {# Next Testimonial Arrow #}
+      {# Next Testimonial Arrow (hidden when single testimonial) #}
+      {% if testimonials|length > 1 %}
       <button type="button" class="testimonial-nav-btn testimonial-next-btn" id="testimonialNextBtn" aria-label="Next testimonial" title="Next testimonial">
         {{ icon('chevron-right', size=20, stroke_width=2.5) }}
       </button>
+      {% endif %}
     </div>
   </div>
 </section>
