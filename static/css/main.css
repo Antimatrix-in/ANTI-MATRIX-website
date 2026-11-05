@@ -1363,21 +1363,22 @@ textarea.form-control {
   width: 100%;
   padding: 0.75rem 1.25rem;
   border-radius: 12px;
-  background: #10b981;
-  color: #ffffff;
-  font-size: 0.85rem;
-  font-weight: 600;
+  background: linear-gradient(135deg, #a6fd3a 0%, #10b981 100%);
+  color: #000000;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   text-decoration: none;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(166, 253, 58, 0.55);
+  box-shadow: 0 4px 18px rgba(166, 253, 58, 0.35), 0 0 15px rgba(166, 253, 58, 0.2);
   transition: all 0.25s ease;
 }
 
 .service-card-link-btn:hover {
-  background: #059669;
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+  background: linear-gradient(135deg, #b8ff52 0%, #059669 100%);
+  box-shadow: 0 8px 25px rgba(166, 253, 58, 0.55), 0 0 25px rgba(166, 253, 58, 0.35);
   transform: translateY(-2px);
-  color: #ffffff;
+  color: #000000;
 }
 
 /* ============================================
