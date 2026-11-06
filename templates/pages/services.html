@@ -1,169 +1,25 @@
 {% extends 'base.html' %}
 {% from 'components/icons.html' import icon %}
 
-{% block title %}Services | Anti-Matrix – Web, Mobile, AI, Cloud & Enterprise Engineering{% endblock %}
+{% block title %}Services | Anti-Matrix – Bespoke Web, Mobile, AI & Enterprise Engineering{% endblock %}
 
 {% block content %}
 <style>
-  /* ── Compact Services Flashcards Grid ──────────────────────── */
-  .services-flashcard-grid {
+  /* ── Capabilities Flashcards Grid Override ──────────────── */
+  .services-grid-page {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 1.75rem;
+    align-items: stretch;
   }
   
-  .service-flashcard {
-    background: #ffffff;
-    border: 1px solid rgba(226, 232, 240, 0.9);
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.05);
-    display: flex;
-    flex-direction: column;
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, border-color 0.3s ease;
-  }
-  
-  .service-flashcard:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 16px 36px -6px rgba(16, 185, 129, 0.16), 0 0 0 1px rgba(16, 185, 129, 0.35);
-    border-color: rgba(16, 185, 129, 0.4);
-  }
-  
-  .service-flashcard-media {
-    position: relative;
-    width: 100%;
-    height: 215px;
-    overflow: hidden;
-    background: #0f172a;
-  }
-  
-  .service-flashcard-media img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: center;
-    display: block;
-    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  
-  .service-flashcard:hover .service-flashcard-media img {
-    transform: scale(1.06);
-  }
-  
-  .service-flashcard-scrim {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg, transparent 40%, rgba(5, 11, 20, 0.8) 100%);
-    pointer-events: none;
-  }
-  
-  .service-flashcard-tag {
-    position: absolute;
-    bottom: 0.85rem;
-    left: 1rem;
-    font-family: var(--font-mono, monospace);
-    font-size: 0.725rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: #34d399;
-    background: rgba(5, 11, 20, 0.82);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(52, 211, 153, 0.35);
-    padding: 0.25rem 0.65rem;
-    border-radius: 6px;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-  
-  .service-flashcard-body {
-    padding: 1.25rem 1.35rem;
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    gap: 0.65rem;
-  }
-  
-  .service-flashcard-head {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-  }
-  
-  .service-flashcard-icon {
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    background: rgba(16, 185, 129, 0.1);
-    color: #059669;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  
-  .service-flashcard-title {
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: #0f172a;
-    line-height: 1.3;
-    margin: 0;
-  }
-  
-  .service-flashcard-desc {
-    font-size: 0.875rem;
-    color: #475569;
-    line-height: 1.55;
-    margin: 0;
-  }
-  
-  .service-flashcard-pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-top: auto;
-    padding-top: 0.4rem;
-  }
-  
-  .service-flashcard-pills .tech-pill {
-    font-size: 0.75rem;
-    padding: 0.2rem 0.55rem;
-  }
-  
-  .service-flashcard-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-top: 0.65rem;
-    border-top: 1px solid #f1f5f9;
-    margin-top: 0.35rem;
-  }
-  
-  .service-flashcard-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.825rem;
-    font-weight: 600;
-    color: #059669;
-    text-decoration: none;
-    transition: color 0.2s ease, transform 0.2s ease;
-  }
-  
-  .service-flashcard-btn:hover {
-    color: #047857;
-    transform: translateX(3px);
-  }
-  
-  @media (max-width: 860px) {
-    .services-flashcard-grid {
+  @media (max-width: 768px) {
+    .services-grid-page {
       grid-template-columns: 1fr;
       gap: 1.25rem;
     }
-    .service-flashcard-media {
-      height: 175px;
+    .service-card {
+      height: 480px;
     }
   }
 </style>
@@ -171,267 +27,275 @@
 <!-- Page Hero -->
 <section class="page-hero">
   <div class="container">
-    <div class="badge">{{ icon('code-2', size=11) }} Engineering Capabilities</div>
+    <div class="badge">{{ icon('code-2', size=11) }} Services &amp; Capabilities</div>
     <h1>Everything your digital product needs, under one roof</h1>
     <p>From architectural strategy to continuous scaling, we engineer bespoke technology platforms designed to accelerate your market leadership.</p>
   </div>
 </section>
 
-<!-- All Services: Compact Flashcards Grid -->
+<!-- All Capabilities: Interactive Glass Flashcards -->
 <section class="section" style="background: var(--color-bg);">
   <div class="container">
-    <div class="services-flashcard-grid">
+    <div class="services-grid-page">
       
-      {# Service 1: Web Development #}
-      <div class="service-flashcard reveal">
-        <div class="service-flashcard-media">
+      {# Service 1: Web Experiences & Platforms #}
+      <div class="service-card reveal" tabindex="0">
+        <div class="service-card-media">
           <img src="{{ url_for('static', filename='images/service_web_dev.jpg') }}" 
-               alt="Web Experiences & Platforms" 
+               alt="Web Experiences &amp; Platforms" 
                loading="lazy">
-          <div class="service-flashcard-scrim"></div>
-          <div class="service-flashcard-tag">
-            {{ icon('code-2', size=12) }} Web Platforms
-          </div>
+          <div class="service-card-scrim"></div>
         </div>
-        <div class="service-flashcard-body">
-          <div class="service-flashcard-head">
-            <div class="service-flashcard-icon">{{ icon('code-2', size=18) }}</div>
-            <h3 class="service-flashcard-title">Web Development</h3>
+
+        <div class="service-card-peek">
+          <h3 class="service-card-peek-title">Web Experiences &amp; Platforms</h3>
+        </div>
+
+        <div class="service-card-overlay">
+          <div class="service-card-overlay-header">
+            <h3 class="service-card-overlay-title">Web Experiences &amp; Platforms</h3>
           </div>
-          <p class="service-flashcard-desc">High-performance, scalable web applications engineered to drive business growth and deliver exceptional user experiences across all devices.</p>
-          <div class="service-flashcard-pills">
-            {% for t in ['React', 'Next.js', 'Node.js', 'Python', 'PostgreSQL', 'Redis'] %}
-              <span class="tech-pill">{{ t }}</span>
-            {% endfor %}
-          </div>
-          <div class="service-flashcard-footer">
-            <span style="font-size: 0.775rem; color: #94a3b8; font-family: var(--font-mono, monospace);">Full-Stack • SPA • SSR</span>
-            <a href="{{ url_for('main.contact', subject='Web Development') }}" class="service-flashcard-btn">
-              <span>Get Started</span>
+          <p class="service-card-desc">Fast, fluid, and beautifully natural web applications that welcome your visitors, earn their trust, and scale effortlessly as you grow.</p>
+          <ul class="service-capabilities">
+            <li>Handcrafted React &amp; Next.js Experiences</li>
+            <li>Living, Responsive Micro-Interactions</li>
+            <li>Welcoming E-Commerce &amp; Member Portals</li>
+            <li>Built to Scale Gracefully Every Day</li>
+          </ul>
+          <div class="service-card-footer">
+            <a href="{{ url_for('main.contact', subject='Web Development') }}" class="service-card-link-btn">
+              <span>See How We Build</span>
               {{ icon('arrow-right', size=14) }}
             </a>
           </div>
         </div>
       </div>
 
-      {# Service 2: Mobile App Development #}
-      <div class="service-flashcard reveal">
-        <div class="service-flashcard-media">
+      {# Service 2: Mobile Applications #}
+      <div class="service-card reveal" tabindex="0">
+        <div class="service-card-media">
           <img src="{{ url_for('static', filename='images/service_mobile_dev.jpg') }}" 
                alt="Mobile Applications" 
                loading="lazy">
-          <div class="service-flashcard-scrim"></div>
-          <div class="service-flashcard-tag">
-            {{ icon('smartphone', size=12) }} iOS &amp; Android
-          </div>
+          <div class="service-card-scrim"></div>
         </div>
-        <div class="service-flashcard-body">
-          <div class="service-flashcard-head">
-            <div class="service-flashcard-icon">{{ icon('smartphone', size=18) }}</div>
-            <h3 class="service-flashcard-title">Mobile App Development</h3>
+
+        <div class="service-card-peek">
+          <h3 class="service-card-peek-title">Mobile Applications</h3>
+        </div>
+
+        <div class="service-card-overlay">
+          <div class="service-card-overlay-header">
+            <h3 class="service-card-overlay-title">Mobile Applications</h3>
           </div>
-          <p class="service-flashcard-desc">Elegant, high-performing mobile apps built with modern cross-platform frameworks and native architectures that delight users daily.</p>
-          <div class="service-flashcard-pills">
-            {% for t in ['React Native', 'Flutter', 'Swift', 'Kotlin', 'Firebase'] %}
-              <span class="tech-pill">{{ t }}</span>
-            {% endfor %}
-          </div>
-          <div class="service-flashcard-footer">
-            <span style="font-size: 0.775rem; color: #94a3b8; font-family: var(--font-mono, monospace);">Native • Cross-Platform</span>
-            <a href="{{ url_for('main.contact', subject='Mobile App Development') }}" class="service-flashcard-btn">
-              <span>Get Started</span>
+          <p class="service-card-desc">Delightful, responsive apps for iOS and Android that people genuinely look forward to opening and using every single day.</p>
+          <ul class="service-capabilities">
+            <li>Natural, Fluid Polish on Every Device</li>
+            <li>Works Wonderfully Anywhere, Even Offline</li>
+            <li>Thoughtful Haptics &amp; Device Integrations</li>
+            <li>Guiding You Safely to App Store Success</li>
+          </ul>
+          <div class="service-card-footer">
+            <a href="{{ url_for('main.contact', subject='Mobile App Development') }}" class="service-card-link-btn">
+              <span>See How We Build</span>
               {{ icon('arrow-right', size=14) }}
             </a>
           </div>
         </div>
       </div>
 
-      {# Service 3: AI & Machine Learning #}
-      <div class="service-flashcard reveal">
-        <div class="service-flashcard-media">
+      {# Service 3: Applied AI & Smart Automation #}
+      <div class="service-card reveal" tabindex="0">
+        <div class="service-card-media">
           <img src="{{ url_for('static', filename='images/service_ai_ml.jpg') }}" 
-               alt="Applied AI & Smart Automation" 
+               alt="Applied AI &amp; Smart Automation" 
                loading="lazy">
-          <div class="service-flashcard-scrim"></div>
-          <div class="service-flashcard-tag">
-            {{ icon('sparkles', size=12) }} Applied Intelligence
-          </div>
+          <div class="service-card-scrim"></div>
         </div>
-        <div class="service-flashcard-body">
-          <div class="service-flashcard-head">
-            <div class="service-flashcard-icon">{{ icon('brain', size=18) }}</div>
-            <h3 class="service-flashcard-title">AI &amp; Machine Learning</h3>
+
+        <div class="service-card-peek">
+          <h3 class="service-card-peek-title">Applied AI &amp; Smart Automation</h3>
+        </div>
+
+        <div class="service-card-overlay">
+          <div class="service-card-overlay-header">
+            <h3 class="service-card-overlay-title">Applied AI &amp; Smart Automation</h3>
           </div>
-          <p class="service-flashcard-desc">Intelligent neural systems and LLMs that automate workflows, illuminate data insights, and create enduring competitive advantages.</p>
-          <div class="service-flashcard-pills">
-            {% for t in ['Python', 'PyTorch', 'TensorFlow', 'OpenAI', 'Hugging Face', 'FastAPI'] %}
-              <span class="tech-pill">{{ t }}</span>
-            {% endfor %}
-          </div>
-          <div class="service-flashcard-footer">
-            <span style="font-size: 0.775rem; color: #94a3b8; font-family: var(--font-mono, monospace);">LLMs • Vision • Analytics</span>
-            <a href="{{ url_for('main.contact', subject='AI & Machine Learning') }}" class="service-flashcard-btn">
-              <span>Get Started</span>
+          <p class="service-card-desc">Thoughtful intelligence and machine learning designed to remove friction, illuminate insights, and supercharge your team.</p>
+          <ul class="service-capabilities">
+            <li>Warm, Helpful AI Companions &amp; Knowledge Bases</li>
+            <li>Clear Insights from Your Real-World Data</li>
+            <li>Computer Vision That Solves Daily Problems</li>
+            <li>Respecting User Privacy at Every Turn</li>
+          </ul>
+          <div class="service-card-footer">
+            <a href="{{ url_for('main.contact', subject='AI & Machine Learning') }}" class="service-card-link-btn">
+              <span>See How We Build</span>
               {{ icon('arrow-right', size=14) }}
             </a>
           </div>
         </div>
       </div>
 
-      {# Service 4: Digital Marketing & Growth #}
-      <div class="service-flashcard reveal">
-        <div class="service-flashcard-media">
+      {# Service 4: Brand Growth & Storytelling #}
+      <div class="service-card reveal" tabindex="0">
+        <div class="service-card-media">
           <img src="{{ url_for('static', filename='images/service_digital_marketing.jpg') }}" 
-               alt="Digital Marketing & Growth" 
+               alt="Brand Growth &amp; Storytelling" 
                loading="lazy">
-          <div class="service-flashcard-scrim"></div>
-          <div class="service-flashcard-tag">
-            {{ icon('trending-up', size=12) }} Performance Growth
-          </div>
+          <div class="service-card-scrim"></div>
         </div>
-        <div class="service-flashcard-body">
-          <div class="service-flashcard-head">
-            <div class="service-flashcard-icon">{{ icon('trending-up', size=18) }}</div>
-            <h3 class="service-flashcard-title">Digital Marketing &amp; Growth</h3>
+
+        <div class="service-card-peek">
+          <h3 class="service-card-peek-title">Brand Growth &amp; Storytelling</h3>
+        </div>
+
+        <div class="service-card-overlay">
+          <div class="service-card-overlay-header">
+            <h3 class="service-card-overlay-title">Brand Growth &amp; Storytelling</h3>
           </div>
-          <p class="service-flashcard-desc">Data-driven performance campaigns and conversion funnels that build authority, attract qualified leads, and maximize your ROI.</p>
-          <div class="service-flashcard-pills">
-            {% for t in ['Google Analytics', 'HubSpot', 'Semrush', 'Mailchimp', 'Meta Ads'] %}
-              <span class="tech-pill">{{ t }}</span>
-            {% endfor %}
-          </div>
-          <div class="service-flashcard-footer">
-            <span style="font-size: 0.775rem; color: #94a3b8; font-family: var(--font-mono, monospace);">SEO • Funnels • Conversion</span>
-            <a href="{{ url_for('main.contact', subject='Digital Marketing') }}" class="service-flashcard-btn">
-              <span>Get Started</span>
+          <p class="service-card-desc">Authentic digital presence, organic discoverability, and storytelling that connects your purpose with the people who need it.</p>
+          <ul class="service-capabilities">
+            <li>Connecting with People Who Truly Care</li>
+            <li>Experiences Shaped to Spark Genuine Action</li>
+            <li>Honest Insights with Complete Transparency</li>
+            <li>Nurturing a Thriving, Loyal Community</li>
+          </ul>
+          <div class="service-card-footer">
+            <a href="{{ url_for('main.contact', subject='Digital Marketing') }}" class="service-card-link-btn">
+              <span>See How We Build</span>
               {{ icon('arrow-right', size=14) }}
             </a>
           </div>
         </div>
       </div>
 
-      {# Service 5: Cloud & DevOps #}
-      <div class="service-flashcard reveal">
-        <div class="service-flashcard-media">
+      {# Service 5: Cloud Foundations & DevOps #}
+      <div class="service-card reveal" tabindex="0">
+        <div class="service-card-media">
           <img src="{{ url_for('static', filename='images/service_cloud_devops.jpg') }}" 
-               alt="Cloud Foundations & DevOps" 
+               alt="Cloud Foundations &amp; DevOps" 
                loading="lazy">
-          <div class="service-flashcard-scrim"></div>
-          <div class="service-flashcard-tag">
-            {{ icon('shield', size=12) }} Infrastructure
-          </div>
+          <div class="service-card-scrim"></div>
         </div>
-        <div class="service-flashcard-body">
-          <div class="service-flashcard-head">
-            <div class="service-flashcard-icon">{{ icon('shield', size=18) }}</div>
-            <h3 class="service-flashcard-title">Cloud &amp; DevOps</h3>
+
+        <div class="service-card-peek">
+          <h3 class="service-card-peek-title">Cloud Foundations &amp; DevOps</h3>
+        </div>
+
+        <div class="service-card-overlay">
+          <div class="service-card-overlay-header">
+            <h3 class="service-card-overlay-title">Cloud Foundations &amp; DevOps</h3>
           </div>
-          <p class="service-flashcard-desc">Resilient multi-cloud architecture, containerized microservices, and automated CI/CD pipelines guaranteeing 99.99% uptime.</p>
-          <div class="service-flashcard-pills">
-            {% for t in ['AWS', 'GCP', 'Docker', 'Kubernetes', 'Terraform', 'CI/CD'] %}
-              <span class="tech-pill">{{ t }}</span>
-            {% endfor %}
-          </div>
-          <div class="service-flashcard-footer">
-            <span style="font-size: 0.775rem; color: #94a3b8; font-family: var(--font-mono, monospace);">Multi-Cloud • IaC • K8s</span>
-            <a href="{{ url_for('main.contact', subject='Cloud & DevOps') }}" class="service-flashcard-btn">
-              <span>Get Started</span>
+          <p class="service-card-desc">Calm, resilient cloud architecture with seamless deployments, so your team can build with total peace of mind.</p>
+          <ul class="service-capabilities">
+            <li>Dependable Cloud Foundations (AWS, GCP, Azure)</li>
+            <li>Continuous Updates That Release Without a Glitch</li>
+            <li>Vigilant Security That Guards What Matters</li>
+            <li>24/7 Quiet Peace of Mind for Your Team</li>
+          </ul>
+          <div class="service-card-footer">
+            <a href="{{ url_for('main.contact', subject='Cloud & DevOps') }}" class="service-card-link-btn">
+              <span>See How We Build</span>
               {{ icon('arrow-right', size=14) }}
             </a>
           </div>
         </div>
       </div>
 
-      {# Service 6: UI/UX Design #}
-      <div class="service-flashcard reveal">
-        <div class="service-flashcard-media">
+      {# Service 6: Human-Centered UI/UX Design #}
+      <div class="service-card reveal" tabindex="0">
+        <div class="service-card-media">
           <img src="{{ url_for('static', filename='images/service_ui_ux.jpg') }}" 
-               alt="UI/UX Design Systems" 
+               alt="Human-Centered UI/UX Design" 
                loading="lazy">
-          <div class="service-flashcard-scrim"></div>
-          <div class="service-flashcard-tag">
-            {{ icon('palette', size=12) }} Design Systems
-          </div>
+          <div class="service-card-scrim"></div>
         </div>
-        <div class="service-flashcard-body">
-          <div class="service-flashcard-head">
-            <div class="service-flashcard-icon">{{ icon('palette', size=18) }}</div>
-            <h3 class="service-flashcard-title">UI/UX Design</h3>
+
+        <div class="service-card-peek">
+          <h3 class="service-card-peek-title">Human-Centered UI/UX Design</h3>
+        </div>
+
+        <div class="service-card-overlay">
+          <div class="service-card-overlay-header">
+            <h3 class="service-card-overlay-title">Human-Centered UI/UX Design</h3>
           </div>
-          <p class="service-flashcard-desc">Human-centered design systems and interactive prototypes transforming complex workflows into intuitive, beautiful digital products.</p>
-          <div class="service-flashcard-pills">
-            {% for t in ['Figma', 'Design Tokens', 'Storybook', 'Wireframes', 'Prototyping'] %}
-              <span class="tech-pill">{{ t }}</span>
-            {% endfor %}
-          </div>
-          <div class="service-flashcard-footer">
-            <span style="font-size: 0.775rem; color: #94a3b8; font-family: var(--font-mono, monospace);">Figma • Design Tokens</span>
-            <a href="{{ url_for('main.contact', subject='UI/UX Design') }}" class="service-flashcard-btn">
-              <span>Get Started</span>
+          <p class="service-card-desc">Warm, accessible, and deeply intuitive design that feels effortless to use and creates emotional resonance.</p>
+          <ul class="service-capabilities">
+            <li>Deep Listening to Your Users' Real Needs</li>
+            <li>Harmonious Design Systems Built to Last</li>
+            <li>Heartfelt Micro-Animations That Bring Joy</li>
+            <li>Crafted to Welcome Everyone, Everywhere</li>
+          </ul>
+          <div class="service-card-footer">
+            <a href="{{ url_for('main.contact', subject='UI/UX Design') }}" class="service-card-link-btn">
+              <span>See How We Build</span>
               {{ icon('arrow-right', size=14) }}
             </a>
           </div>
         </div>
       </div>
 
-      {# Service 7: Enterprise Software #}
-      <div class="service-flashcard reveal">
-        <div class="service-flashcard-media">
+      {# Service 7: Enterprise Core & Systems #}
+      <div class="service-card reveal" tabindex="0">
+        <div class="service-card-media">
           <img src="{{ url_for('static', filename='images/service_enterprise_software.jpg') }}" 
-               alt="Enterprise Software & ERP" 
+               alt="Enterprise Core &amp; Systems" 
                loading="lazy">
-          <div class="service-flashcard-scrim"></div>
-          <div class="service-flashcard-tag">
-            {{ icon('server', size=12) }} Enterprise Core
-          </div>
+          <div class="service-card-scrim"></div>
         </div>
-        <div class="service-flashcard-body">
-          <div class="service-flashcard-head">
-            <div class="service-flashcard-icon">{{ icon('server', size=18) }}</div>
-            <h3 class="service-flashcard-title">Enterprise Software</h3>
+
+        <div class="service-card-peek">
+          <h3 class="service-card-peek-title">Enterprise Core &amp; Systems</h3>
+        </div>
+
+        <div class="service-card-overlay">
+          <div class="service-card-overlay-header">
+            <h3 class="service-card-overlay-title">Enterprise Core &amp; Systems</h3>
           </div>
-          <p class="service-flashcard-desc">Custom enterprise ERPs, CRMs, and distributed data systems designed to replace fragmented legacy tools with unified modern power.</p>
-          <div class="service-flashcard-pills">
-            {% for t in ['React', 'Node.js', 'Python', 'PostgreSQL', 'Microservices'] %}
-              <span class="tech-pill">{{ t }}</span>
-            {% endfor %}
-          </div>
-          <div class="service-flashcard-footer">
-            <span style="font-size: 0.775rem; color: #94a3b8; font-family: var(--font-mono, monospace);">ERP • CRM • Microservices</span>
-            <a href="{{ url_for('main.contact', subject='Enterprise Software') }}" class="service-flashcard-btn">
-              <span>Get Started</span>
+          <p class="service-card-desc">Custom enterprise ERPs, CRMs, and distributed workflows designed to replace fragmented legacy tools with unified stability.</p>
+          <ul class="service-capabilities">
+            <li>Unified Enterprise Architecture &amp; Custom ERPs</li>
+            <li>Resilient Distributed Data Pipelines</li>
+            <li>High-Volume Custom CRMs &amp; Internal Tooling</li>
+            <li>Bank-Grade Security &amp; Role-Based Governance</li>
+          </ul>
+          <div class="service-card-footer">
+            <a href="{{ url_for('main.contact', subject='Enterprise Software') }}" class="service-card-link-btn">
+              <span>See How We Build</span>
               {{ icon('arrow-right', size=14) }}
             </a>
           </div>
         </div>
       </div>
 
-      {# Service 8: Digital Transformation #}
-      <div class="service-flashcard reveal">
-        <div class="service-flashcard-media">
+      {# Service 8: Digital Evolution & Modernization #}
+      <div class="service-card reveal" tabindex="0">
+        <div class="service-card-media">
           <img src="{{ url_for('static', filename='images/service_digital_transformation.jpg') }}" 
-               alt="Digital Transformation" 
+               alt="Digital Evolution &amp; Modernization" 
                loading="lazy">
-          <div class="service-flashcard-scrim"></div>
-          <div class="service-flashcard-tag">
-            {{ icon('globe', size=12) }} Modernization
-          </div>
+          <div class="service-card-scrim"></div>
         </div>
-        <div class="service-flashcard-body">
-          <div class="service-flashcard-head">
-            <div class="service-flashcard-icon">{{ icon('globe', size=18) }}</div>
-            <h3 class="service-flashcard-title">Digital Transformation</h3>
+
+        <div class="service-card-peek">
+          <h3 class="service-card-peek-title">Digital Evolution &amp; Modernization</h3>
+        </div>
+
+        <div class="service-card-overlay">
+          <div class="service-card-overlay-header">
+            <h3 class="service-card-overlay-title">Digital Evolution &amp; Modernization</h3>
           </div>
-          <p class="service-flashcard-desc">End-to-end modernization strategy migrating legacy enterprise silos into agile, cloud-native operational ecosystems.</p>
-          <div class="service-flashcard-pills">
-            {% for t in ['Strategy', 'Agile', 'Cloud Migration', 'API Gateway', 'Automation'] %}
-              <span class="tech-pill">{{ t }}</span>
-            {% endfor %}
-          </div>
-          <div class="service-flashcard-footer">
-            <span style="font-size: 0.775rem; color: #94a3b8; font-family: var(--font-mono, monospace);">Migration • Cloud-Native</span>
-            <a href="{{ url_for('main.contact', subject='Digital Transformation') }}" class="service-flashcard-btn">
-              <span>Get Started</span>
+          <p class="service-card-desc">End-to-end modernization strategy transforming legacy systems and organizational processes into agile, cloud-native operational ecosystems.</p>
+          <ul class="service-capabilities">
+            <li>Comprehensive Architecture Discovery &amp; Audits</li>
+            <li>Cloud-Native Legacy System Migration</li>
+            <li>Agile Workflow &amp; Operational Re-engineering</li>
+            <li>Continuous Technical Enablement &amp; Training</li>
+          </ul>
+          <div class="service-card-footer">
+            <a href="{{ url_for('main.contact', subject='Digital Transformation') }}" class="service-card-link-btn">
+              <span>See How We Build</span>
               {{ icon('arrow-right', size=14) }}
             </a>
           </div>
@@ -489,4 +353,19 @@
     </div>
   </div>
 </section>
+
+<script>
+  // Mobile / Touch toggle support for service cards
+  document.addEventListener('DOMContentLoaded', function () {
+    const cards = document.querySelectorAll('.service-card');
+    cards.forEach(function (card) {
+      card.addEventListener('click', function (e) {
+        if (e.target.closest('a, button')) return;
+        const wasActive = card.classList.contains('active');
+        cards.forEach(c => c.classList.remove('active'));
+        if (!wasActive) card.classList.add('active');
+      });
+    });
+  });
+</script>
 {% endblock %}
