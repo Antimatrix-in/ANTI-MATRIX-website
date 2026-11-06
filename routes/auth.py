@@ -365,22 +365,71 @@ def google_callback():
             flash("Google authorization was not completed. Please try again.", "error")
         return redirect(url_for('auth.login'))
 
-    try:
-        token = oauth.google.authorize_access_token()
-    except Exception as e:
-        current_app.logger.warning(f"Google OAuth token exchange failed: {str(e)}")
-        flash("Unable to sign you in with Google. Please try again.", "error")
+    code = request.args.get('code')
+    if not code:
+        flash("No authorization code received from Google. Please try again.", "error")
         return redirect(url_for('auth.login'))
 
-    # Extract user profile from OpenID token or userinfo endpoint
-    user_info = token.get('userinfo')
-    if not user_info:
+    token = None
+    user_info = None
+
+    # Step 1: Attempt standard Authlib token exchange
+    try:
+        token = oauth.google.authorize_access_token()
+        if token:
+            user_info = token.get('userinfo')
+            if not user_info:
+                try:
+                    user_info = oauth.google.userinfo(token=token)
+                except Exception as ui_err:
+                    current_app.logger.warning(f"Failed to fetch userinfo via Authlib: {str(ui_err)}")
+    except Exception as authlib_err:
+        current_app.logger.warning(
+            f"Authlib token exchange failed ({type(authlib_err).__name__}: {authlib_err}). Attempting direct code exchange fallback..."
+        )
+
+    # Step 2: Fallback direct server-to-server exchange with Google (resilient to session/state drops)
+    if not user_info and code:
         try:
-            user_info = oauth.google.userinfo()
-        except Exception as e:
-            current_app.logger.warning(f"Failed to fetch Google userinfo: {str(e)}")
-            flash("Unable to retrieve your Google profile. Please try again.", "error")
-            return redirect(url_for('auth.login'))
+            import requests
+            client_id = current_app.config.get('GOOGLE_CLIENT_ID')
+            client_secret = current_app.config.get('GOOGLE_CLIENT_SECRET')
+            redirect_uri = get_google_redirect_uri()
+
+            token_resp = requests.post(
+                'https://oauth2.googleapis.com/token',
+                data={
+                    'code': code,
+                    'client_id': client_id,
+                    'client_secret': client_secret,
+                    'redirect_uri': redirect_uri,
+                    'grant_type': 'authorization_code'
+                },
+                headers={'Accept': 'application/json'},
+                timeout=12
+            )
+
+            if token_resp.status_code == 200:
+                token_data = token_resp.json()
+                access_token = token_data.get('access_token')
+                if access_token:
+                    uinfo_resp = requests.get(
+                        'https://www.googleapis.com/oauth2/v3/userinfo',
+                        headers={'Authorization': f"Bearer {access_token}"},
+                        timeout=10
+                    )
+                    if uinfo_resp.status_code == 200:
+                        user_info = uinfo_resp.json()
+            else:
+                current_app.logger.error(
+                    f"Direct Google token exchange returned status {token_resp.status_code}: {token_resp.text}"
+                )
+        except Exception as fallback_err:
+            current_app.logger.error(f"Direct token exchange fallback error: {str(fallback_err)}")
+
+    if not user_info:
+        flash("Unable to complete Google sign-in. Please try again or use your email and password.", "error")
+        return redirect(url_for('auth.login'))
 
     email = user_info.get('email')
     if not email:
