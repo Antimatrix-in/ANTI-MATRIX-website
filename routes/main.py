@@ -1475,6 +1475,7 @@ def contact():
                 success=False
             )
 
+        saved_successfully = False
         try:
             inquiry = ContactInquiry(
                 name=name,
@@ -1486,10 +1487,123 @@ def contact():
             )
             db.session.add(inquiry)
             db.session.commit()
+            saved_successfully = True
             current_app.logger.info(f"[Contact] New inquiry #{inquiry.id} received from {email} ({name}) - {subject}")
-        except Exception as e:
+        except Exception as primary_err:
             db.session.rollback()
-            current_app.logger.error(f"[Contact] Error saving contact inquiry: {e}", exc_info=True)
+            current_app.logger.warning(f"[Contact] Primary insert failed: {primary_err}. Initiating resilient recovery...")
+
+            # Tier 2: Auto-heal missing table/columns or out-of-sync PostgreSQL sequence
+            try:
+                from sqlalchemy import inspect as sa_inspect, text as sa_text
+                inspector = sa_inspect(db.engine)
+                table_names = inspector.get_table_names()
+                
+                if 'contact_inquiries' not in table_names:
+                    db.create_all()
+                else:
+                    existing_cols = [c['name'] for c in inspector.get_columns('contact_inquiries')]
+                    with db.engine.connect() as conn:
+                        if 'phone' not in existing_cols:
+                            try:
+                                conn.execute(sa_text("ALTER TABLE contact_inquiries ADD COLUMN phone VARCHAR(40)"))
+                                conn.commit()
+                            except Exception:
+                                conn.rollback()
+                        if 'is_processed' not in existing_cols:
+                            try:
+                                conn.execute(sa_text("ALTER TABLE contact_inquiries ADD COLUMN is_processed BOOLEAN DEFAULT FALSE"))
+                                conn.commit()
+                            except Exception:
+                                conn.rollback()
+                        if db.engine.dialect.name != 'sqlite':
+                            try:
+                                conn.execute(sa_text("""
+                                    DO $$
+                                    DECLARE
+                                        seq_name text;
+                                        max_id bigint;
+                                    BEGIN
+                                        seq_name := pg_get_serial_sequence('contact_inquiries', 'id');
+                                        IF seq_name IS NOT NULL THEN
+                                            SELECT COALESCE(MAX(id), 0) + 1 INTO max_id FROM contact_inquiries;
+                                            PERFORM setval(seq_name, max_id, false);
+                                        END IF;
+                                    END $$;
+                                """))
+                                conn.commit()
+                            except Exception:
+                                conn.rollback()
+
+                # Retry ORM insert after schema auto-heal
+                inquiry = ContactInquiry(
+                    name=name,
+                    email=email,
+                    phone=phone if phone else None,
+                    subject=subject,
+                    message=message,
+                    is_processed=False
+                )
+                db.session.add(inquiry)
+                db.session.commit()
+                saved_successfully = True
+                current_app.logger.info(f"[Contact] Auto-healed and saved inquiry #{inquiry.id} from {email}")
+            except Exception as heal_err:
+                db.session.rollback()
+                current_app.logger.warning(f"[Contact] Post-heal insert failed: {heal_err}. Trying explicit ID insert...")
+
+            # Tier 3: Explicit ID insert (handles sequence collision/identity desync in PostgreSQL)
+            if not saved_successfully:
+                try:
+                    max_id = db.session.query(db.func.max(ContactInquiry.id)).scalar() or 0
+                    inquiry = ContactInquiry(
+                        id=max_id + 1,
+                        name=name,
+                        email=email,
+                        phone=phone if phone else None,
+                        subject=subject,
+                        message=message,
+                        is_processed=False
+                    )
+                    db.session.add(inquiry)
+                    db.session.commit()
+                    saved_successfully = True
+                    current_app.logger.info(f"[Contact] Saved inquiry #{inquiry.id} with explicit ID assignment")
+                except Exception as explicit_err:
+                    db.session.rollback()
+                    current_app.logger.warning(f"[Contact] Explicit ID insert failed: {explicit_err}. Trying raw SQL fallback...")
+
+            # Tier 4: Dynamic parameterized raw SQL matching only columns that actually exist
+            if not saved_successfully:
+                try:
+                    from sqlalchemy import inspect as sa_inspect, text as sa_text
+                    inspector = sa_inspect(db.engine)
+                    existing_cols = set(c['name'] for c in inspector.get_columns('contact_inquiries')) if 'contact_inquiries' in inspector.get_table_names() else set()
+                    
+                    insert_fields = {
+                        'name': name[:120],
+                        'email': email[:120],
+                        'subject': subject[:120],
+                        'message': message
+                    }
+                    if 'phone' in existing_cols and phone:
+                        insert_fields['phone'] = phone[:40]
+                    if 'is_processed' in existing_cols:
+                        insert_fields['is_processed'] = False
+                    if 'created_at' in existing_cols:
+                        insert_fields['created_at'] = datetime.now(timezone.utc)
+
+                    cols_str = ', '.join(insert_fields.keys())
+                    vals_str = ', '.join([f":{k}" for k in insert_fields.keys()])
+                    with db.engine.connect() as conn:
+                        conn.execute(sa_text(f"INSERT INTO contact_inquiries ({cols_str}) VALUES ({vals_str})"), insert_fields)
+                        conn.commit()
+                    saved_successfully = True
+                    current_app.logger.info(f"[Contact] Saved inquiry via dynamic SQL fallback from {email}")
+                except Exception as raw_sql_err:
+                    current_app.logger.error(f"[Contact] Fatal error saving inquiry: {raw_sql_err}", exc_info=True)
+
+        if not saved_successfully:
             if is_ajax:
                 return jsonify({
                     'status': 'error',

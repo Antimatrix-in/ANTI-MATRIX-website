@@ -399,21 +399,40 @@ def create_app(config_name=None):
                 ci_cols = [c['name'] for c in inspector.get_columns('contact_inquiries')]
                 with db.engine.connect() as conn:
                     if 'is_processed' not in ci_cols:
-                        conn.execute(text("ALTER TABLE contact_inquiries ADD COLUMN is_processed BOOLEAN DEFAULT FALSE"))
+                        try:
+                            conn.execute(text("ALTER TABLE contact_inquiries ADD COLUMN is_processed BOOLEAN DEFAULT FALSE"))
+                            conn.commit()
+                        except Exception as e:
+                            conn.rollback()
+                            logger.warning(f"Note on adding is_processed to contact_inquiries: {e}")
+
                     if 'phone' not in ci_cols:
-                        conn.execute(text("ALTER TABLE contact_inquiries ADD COLUMN phone VARCHAR(40)"))
+                        try:
+                            conn.execute(text("ALTER TABLE contact_inquiries ADD COLUMN phone VARCHAR(40)"))
+                            conn.commit()
+                        except Exception as e:
+                            conn.rollback()
+                            logger.warning(f"Note on adding phone to contact_inquiries: {e}")
+
                     if not dialect_is_sqlite:
                         try:
                             conn.execute(text("""
-                                SELECT setval(
-                                    pg_get_serial_sequence('contact_inquiries', 'id'),
-                                    COALESCE((SELECT MAX(id) FROM contact_inquiries), 1),
-                                    (SELECT MAX(id) IS NOT NULL FROM contact_inquiries)
-                                )
+                                DO $$
+                                DECLARE
+                                    seq_name text;
+                                    max_id bigint;
+                                BEGIN
+                                    seq_name := pg_get_serial_sequence('contact_inquiries', 'id');
+                                    IF seq_name IS NOT NULL THEN
+                                        SELECT COALESCE(MAX(id), 0) + 1 INTO max_id FROM contact_inquiries;
+                                        PERFORM setval(seq_name, max_id, false);
+                                    END IF;
+                                END $$;
                             """))
+                            conn.commit()
                         except Exception as e:
+                            conn.rollback()
                             logger.warning(f"Note on sequence sync for contact_inquiries: {e}")
-                    conn.commit()
         except Exception as e:
             app.logger.warning(f"Database auto-migration note: {str(e)}")
 
