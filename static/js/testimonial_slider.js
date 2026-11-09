@@ -32,9 +32,9 @@
       }
     });
 
-    var AUTOPLAY_INTERVAL = 3500; // 3.5 seconds
-    var TRANSITION_DURATION = 500; // 500ms
-    var TRANSITION_EASE = 'cubic-bezier(0.25, 1, 0.5, 1)';
+    var AUTOPLAY_INTERVAL = 3000; // Exactly 3 seconds
+    var TRANSITION_DURATION = 600; // 600ms smooth gliding transition
+    var TRANSITION_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
     var currentIndex = 1; // 1-based index because slide 0 is clone of last
     var isAnimating = false;
