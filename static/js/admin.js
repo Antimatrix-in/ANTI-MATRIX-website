@@ -9,7 +9,13 @@ document.addEventListener('DOMContentLoaded', () => {
       alert.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
       alert.style.opacity = '0';
       alert.style.transform = 'translateY(-10px)';
-      setTimeout(() => alert.remove(), 400);
+      setTimeout(() => {
+        const container = alert.closest('.flash-messages-container');
+        alert.remove();
+        if (container && container.querySelectorAll('.flash-alert').length === 0) {
+          container.remove();
+        }
+      }, 400);
     }, 6000);
   });
 

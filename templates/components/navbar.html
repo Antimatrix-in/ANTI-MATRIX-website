@@ -51,32 +51,34 @@
       {% if current_user.is_authenticated %}
       <div style="position: relative;" id="profile-dropdown-wrapper">
 
-        {# Clean Minimalist Profile Trigger (Avatar + Chevron, No Name) #}
+        {# Clean Minimalist Profile Trigger (Pure Circular Avatar, No White Pill, No Standalone Chevron) #}
         <button id="profile-dropdown-btn" onclick="toggleProfileDropdown()"
-          style="display: inline-flex; align-items: center; gap: 6px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 9999px; padding: 0.25rem 0.55rem 0.25rem 0.3rem; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);"
-          onmouseover="this.style.background='#f8fafc'; this.style.borderColor='#94a3b8';"
-          onmouseout="this.style.background='#ffffff'; this.style.borderColor='#cbd5e1';" aria-haspopup="true"
+          style="display: inline-flex; align-items: center; justify-content: center; background: transparent; border: none; padding: 0; cursor: pointer; border-radius: 50%; transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease; outline: none;"
+          onmouseover="this.style.transform='scale(1.08)';"
+          onmouseout="this.style.transform='scale(1)';"
+          aria-haspopup="true"
           aria-expanded="false" aria-label="User Profile menu">
           {# Avatar Image or Minimalist Initial #}
           {% if current_user.profile_picture %}
           <img src="{{ current_user.profile_picture }}" alt="{{ current_user.name }}"
-            style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid #e2e8f0; flex-shrink: 0;" />
+            style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(166, 253, 58, 0.75); box-shadow: 0 0 12px rgba(16, 185, 129, 0.35); display: block;" />
           {% else %}
           <span
-            style="width: 28px; height: 28px; border-radius: 50%; background: #0f172a; border: 1px solid #0f172a; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 700; font-size: 0.8rem; flex-shrink: 0;">
+            style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #059669 0%, #10b981 100%); border: 2px solid rgba(166, 253, 58, 0.75); display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 700; font-size: 0.9rem; box-shadow: 0 0 12px rgba(16, 185, 129, 0.35);">
             {{ current_user.name[0].upper() }}
           </span>
           {% endif %}
-          <svg id="profile-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2.5" style="transition: transform 0.2s; color: #64748b;">
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
         </button>
 
         {# Professional Executive Profile Dropdown Panel #}
         <div id="profile-dropdown-panel"
-          style="display: none; position: absolute; top: calc(100% + 8px); right: 0; min-width: 210px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.06); z-index: 9999; overflow: hidden;"
+          style="display: none; position: absolute; top: calc(100% + 10px); right: 0; min-width: 220px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.08); z-index: 9999; overflow: hidden;"
           role="menu">
+          {# User Header #}
+          <div style="padding: 0.75rem 1rem; border-bottom: 1px solid #f1f5f9; background: #f8fafc;">
+            <div style="font-weight: 600; font-size: 0.85rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ current_user.name }}</div>
+            <div style="font-size: 0.75rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ current_user.email }}</div>
+          </div>
           {# Dropdown Navigation Links #}
           <div style="padding: 0.35rem 0;">
             {# 1. My Profile #}
@@ -230,10 +232,11 @@
     var panel = document.getElementById('profile-dropdown-panel');
     var btn = document.getElementById('profile-dropdown-btn');
     var chev = document.getElementById('profile-chevron');
+    if (!panel) return;
     var open = panel.style.display === 'block';
     panel.style.display = open ? 'none' : 'block';
-    btn.setAttribute('aria-expanded', !open);
-    chev.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
+    if (btn) btn.setAttribute('aria-expanded', !open);
+    if (chev) chev.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
   }
 
   // Close when clicking outside
