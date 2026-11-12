@@ -9,7 +9,8 @@ from services.oauth_service import (
     is_github_configured,
     get_google_redirect_uri,
     get_github_redirect_uri,
-    find_or_create_oauth_user
+    find_or_create_oauth_user,
+    sync_users_sequence
 )
 
 auth_bp = Blueprint('auth', __name__)
@@ -291,19 +292,32 @@ def signup():
             return render_template('auth/signup.html', errors=errors, name=name, email=email, redirect_target=redirect_target)
 
         # Check existing user
-        user = User.query.filter_by(email=email.lower()).first()
+        user = User.query.filter_by(email=email.lower().strip()).first()
         if user:
             user.name = name
             user.set_password(password)
+            db.session.commit()
         else:
+            sync_users_sequence()
             user = User(
                 name=name,
-                email=email.lower()
+                email=email.lower().strip()
             )
             user.set_password(password)
             db.session.add(user)
+            try:
+                db.session.commit()
+            except Exception as signup_err:
+                db.session.rollback()
+                sync_users_sequence()
+                user = User(
+                    name=name,
+                    email=email.lower().strip()
+                )
+                user.set_password(password)
+                db.session.add(user)
+                db.session.commit()
 
-        db.session.commit()
         login_user(user)
 
         if is_json:
@@ -380,6 +394,11 @@ def google_callback():
             user_info = token.get('userinfo')
             if not user_info:
                 try:
+                    user_info = oauth.google.parse_id_token(token)
+                except Exception:
+                    pass
+            if not user_info:
+                try:
                     user_info = oauth.google.userinfo(token=token)
                 except Exception as ui_err:
                     current_app.logger.warning(f"Failed to fetch userinfo via Authlib: {str(ui_err)}")
@@ -388,42 +407,76 @@ def google_callback():
             f"Authlib token exchange failed ({type(authlib_err).__name__}: {authlib_err}). Attempting direct code exchange fallback..."
         )
 
-    # Step 2: Fallback direct server-to-server exchange with Google (resilient to session/state drops)
+    # Step 2: Fallback direct server-to-server exchange with Google (resilient to session/state drops & host differences)
     if not user_info and code:
         try:
             import requests
             client_id = current_app.config.get('GOOGLE_CLIENT_ID')
             client_secret = current_app.config.get('GOOGLE_CLIENT_SECRET')
-            redirect_uri = get_google_redirect_uri()
+            
+            candidate_uris = []
+            primary_uri = get_google_redirect_uri()
+            if primary_uri:
+                candidate_uris.append(primary_uri)
 
-            token_resp = requests.post(
-                'https://oauth2.googleapis.com/token',
-                data={
-                    'code': code,
-                    'client_id': client_id,
-                    'client_secret': client_secret,
-                    'redirect_uri': redirect_uri,
-                    'grant_type': 'authorization_code'
-                },
-                headers={'Accept': 'application/json'},
-                timeout=12
-            )
+            # Dynamic URI matching incoming request
+            try:
+                host_clean = request.host.split(':')[0].lower()
+                scheme = 'https' if request.is_secure or request.headers.get('X-Forwarded-Proto') == 'https' else request.scheme
+                dyn_uri = f"{scheme}://{request.host}/auth/google/callback"
+                if dyn_uri not in candidate_uris:
+                    candidate_uris.append(dyn_uri)
+            except Exception:
+                pass
 
-            if token_resp.status_code == 200:
-                token_data = token_resp.json()
-                access_token = token_data.get('access_token')
-                if access_token:
-                    uinfo_resp = requests.get(
-                        'https://www.googleapis.com/oauth2/v3/userinfo',
-                        headers={'Authorization': f"Bearer {access_token}"},
-                        timeout=10
-                    )
-                    if uinfo_resp.status_code == 200:
-                        user_info = uinfo_resp.json()
-            else:
-                current_app.logger.error(
-                    f"Direct Google token exchange returned status {token_resp.status_code}: {token_resp.text}"
+            # Standard canonical variants
+            for base in ('https://www.antimatrix.co.in/auth/google/callback', 'https://antimatrix.co.in/auth/google/callback'):
+                if base not in candidate_uris:
+                    candidate_uris.append(base)
+
+            for cand_uri in candidate_uris:
+                token_resp = requests.post(
+                    'https://oauth2.googleapis.com/token',
+                    data={
+                        'code': code,
+                        'client_id': client_id,
+                        'client_secret': client_secret,
+                        'redirect_uri': cand_uri,
+                        'grant_type': 'authorization_code'
+                    },
+                    headers={'Accept': 'application/json'},
+                    timeout=12
                 )
+
+                if token_resp.status_code == 200:
+                    token_data = token_resp.json()
+                    access_token = token_data.get('access_token')
+                    id_token = token_data.get('id_token')
+                    if access_token:
+                        uinfo_resp = requests.get(
+                            'https://www.googleapis.com/oauth2/v3/userinfo',
+                            headers={'Authorization': f"Bearer {access_token}"},
+                            timeout=10
+                        )
+                        if uinfo_resp.status_code == 200:
+                            user_info = uinfo_resp.json()
+                            break
+                    if not user_info and id_token:
+                        tinfo_resp = requests.get(
+                            f'https://oauth2.googleapis.com/tokeninfo?id_token={id_token}',
+                            timeout=10
+                        )
+                        if tinfo_resp.status_code == 200:
+                            user_info = tinfo_resp.json()
+                            break
+                elif 'redirect_uri_mismatch' in token_resp.text:
+                    current_app.logger.info(f"Direct token exchange redirect_uri_mismatch for {cand_uri}, trying next...")
+                    continue
+                else:
+                    current_app.logger.warning(
+                        f"Direct Google token exchange returned status {token_resp.status_code}: {token_resp.text}"
+                    )
+                    break
         except Exception as fallback_err:
             current_app.logger.error(f"Direct token exchange fallback error: {str(fallback_err)}")
 
@@ -449,7 +502,7 @@ def google_callback():
             picture=picture
         )
         login_user(user, remember=True)
-        flash(f"Welcome back, {user.name}!", "success")
+        flash(f"Welcome to Anti-Matrix, {user.name}!", "success")
     except Exception as e:
         current_app.logger.error(f"Error saving Google OAuth user: {str(e)}")
         flash("An error occurred during sign-in. Please try again.", "error")

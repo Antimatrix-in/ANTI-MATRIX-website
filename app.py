@@ -347,6 +347,23 @@ def create_app(config_name=None):
                     if 'last_login' not in user_cols:
                         type_str = "DATETIME" if dialect_is_sqlite else "TIMESTAMP"
                         conn.execute(text(f"ALTER TABLE users ADD COLUMN last_login {type_str}"))
+                    if not dialect_is_sqlite:
+                        try:
+                            conn.execute(text("""
+                                DO $$
+                                DECLARE
+                                    seq_name text;
+                                    max_id bigint;
+                                BEGIN
+                                    seq_name := pg_get_serial_sequence('users', 'id');
+                                    IF seq_name IS NOT NULL THEN
+                                        SELECT COALESCE(MAX(id), 0) + 1 INTO max_id FROM users;
+                                        PERFORM setval(seq_name, max_id, false);
+                                    END IF;
+                                END $$;
+                            """))
+                        except Exception as e:
+                            logger.warning(f"Note on sequence sync for users: {e}")
                     conn.commit()
 
             # Ensure payments table has base_amount, gst_rate, gst_amount

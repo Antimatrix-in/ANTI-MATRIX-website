@@ -312,7 +312,10 @@ class Config:
     # Session & Security
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
-    SESSION_COOKIE_DOMAIN = os.environ.get('SESSION_COOKIE_DOMAIN', None)
+    _configured_domain = os.environ.get('SESSION_COOKIE_DOMAIN')
+    if not _configured_domain and 'antimatrix.co.in' in os.environ.get('APP_URL', ''):
+        _configured_domain = '.antimatrix.co.in'
+    SESSION_COOKIE_DOMAIN = _configured_domain
     WTF_CSRF_ENABLED = True
     WTF_CSRF_TIME_LIMIT = None
 
@@ -387,7 +390,7 @@ class ProductionConfig(Config):
     """Production configuration."""
     DEBUG = False
     SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'True').lower() in ('true', '1')
-    SESSION_COOKIE_DOMAIN = os.environ.get('SESSION_COOKIE_DOMAIN', None)
+    SESSION_COOKIE_DOMAIN = Config.SESSION_COOKIE_DOMAIN
     PAYMENT_TEST_MODE = os.environ.get('PAYMENT_TEST_MODE', 'false').lower() in ('true', '1', 'yes')
     
     # In production, pool sizing is added for PostgreSQL
