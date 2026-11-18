@@ -153,10 +153,7 @@
         </div>
       </div>
       {% else %}
-      {% if request.path != '/careers' and request.path != '/careers/' %}
-      <a href="{{ url_for('auth.login') }}" class="btn btn-nav-login btn-sm">Log In</a>
-      {% endif %}
-      <a href="{{ url_for('auth.signup') }}" class="btn btn-primary btn-sm">Get Started</a>
+      <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-sm">Get Started</a>
       {% endif %}
     </div>
 
@@ -222,10 +219,7 @@
       {{ icon('log-out', size=14) }} Log Out
     </a>
     {% else %}
-    {% if request.path != '/careers' and request.path != '/careers/' %}
-    <a href="{{ url_for('auth.login') }}" class="btn btn-nav-login btn-sm" style="justify-content: center; width: 100%;">Log In</a>
-    {% endif %}
-    <a href="{{ url_for('auth.signup') }}" class="btn btn-primary btn-sm" style="justify-content: center; width: 100%;">Get Started</a>
+    <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-sm" style="justify-content: center; width: 100%;">Get Started</a>
     {% endif %}
   </div>
 </div>
