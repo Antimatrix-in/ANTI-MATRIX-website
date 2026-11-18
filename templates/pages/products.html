@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% from 'components/icons.html' import icon %}
 
-{% block title %}Products | Anti-Matrix – QMatrix, Biometrics, Billing & Enterprise Software{% endblock %}
+{% block title %}Products | Anti-Matrix – QMatrix, Biometrics & Point of Sale (POS){% endblock %}
 
 {% block content %}
 <style>
@@ -255,9 +255,6 @@
       <a href="#billing" class="quick-jump-pill">
         {{ icon('receipt', size=14) }} Matrix Billing &amp; POS
       </a>
-      <a href="#erp" class="quick-jump-pill">
-        {{ icon('database', size=14) }} Matrix ERP Business Suite
-      </a>
     </div>
   </div>
 </section>
@@ -499,78 +496,8 @@
   </div>
 </section>
 
-<!-- ── PRODUCT 4: MATRIX ERP BUSINESS SUITE ──────────────── -->
-<section id="erp" class="product-section" style="background: var(--color-bg-alt);">
-  <div class="container">
-    <div class="product-grid reverse">
-      <div class="product-info-col reveal">
-        <div class="product-badge">
-          {{ icon('database', size=14) }} Unified Enterprise Resource Planning
-        </div>
-        <h2 class="product-title">Matrix ERP Suite™</h2>
-        <div class="product-tagline">Single console for finance, procurement, warehouse &amp; CRM.</div>
-        <p class="product-desc">
-          Stop managing disjointed spreadsheets. Matrix ERP unites multi-branch accounting, vendor procurement chains, warehouse inventory, and customer pipelines in one secure, real-time cloud suite built for growing organizations.
-        </p>
-
-        <div class="product-features-grid">
-          <div class="product-feature-item">
-            <div class="feature-head">{{ icon('dollar-sign', size=16) }} Multi-Branch Finance</div>
-            <div class="feature-detail">Real-time P&amp;L balance sheets, automated ledger reconciliation, and cash-flow dashboards.</div>
-          </div>
-          <div class="product-feature-item">
-            <div class="feature-head">{{ icon('truck', size=16) }} Supply Chain &amp; Procurement</div>
-            <div class="feature-detail">Purchase orders, supplier scorecards, goods receipt notes (GRN), and approval workflows.</div>
-          </div>
-          <div class="product-feature-item">
-            <div class="feature-head">{{ icon('heart-handshake', size=16) }} Integrated CRM</div>
-            <div class="feature-detail">Track client leads, generate instant quotation PDFs, and automate client renewal lifecycles.</div>
-          </div>
-          <div class="product-feature-item">
-            <div class="feature-head">{{ icon('shield', size=16) }} Role-Based Governance</div>
-            <div class="feature-detail">Granular employee permissions, automated daily cloud backups, and comprehensive audit logs.</div>
-          </div>
-        </div>
-
-        <div class="product-verticals-bar">
-          <span class="product-verticals-label">Deployments:</span>
-          <span class="tech-pill">Manufacturing Units</span>
-          <span class="tech-pill">Wholesale Importers</span>
-          <span class="tech-pill">Logistics Hubs</span>
-          <span class="tech-pill">Multi-Branch Retail Chains</span>
-        </div>
-
-        <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
-          <a href="{{ url_for('main.contact', subject='New Project Inquiry') }}" class="btn btn-primary">
-            Schedule ERP Consultation {{ icon('arrow-right', size=16) }}
-          </a>
-          <a href="{{ url_for('main.contact') }}" class="btn btn-outline">
-            {{ icon('layers', size=15) }} Custom Module Architecture
-          </a>
-        </div>
-      </div>
-
-      <div class="product-media-col reveal">
-        <div class="product-media-card">
-          <img src="{{ url_for('static', filename='images/service_cloud_devops.jpg') }}" 
-               alt="Matrix ERP Multi-Branch Cloud Infrastructure"
-               loading="lazy">
-          <div class="product-media-overlay"></div>
-          <div class="product-media-badge">
-            <div>
-              <div style="font-weight: 700; font-size: 0.95rem;">Matrix Core ERP v5.0</div>
-              <div style="font-size: 0.775rem; color: #a7f3d0;">End-to-End Enterprise Operations</div>
-            </div>
-            <span style="font-family: monospace; font-size: 0.75rem; background: rgba(16, 185, 129, 0.25); border: 1px solid #10b981; padding: 0.2rem 0.6rem; border-radius: 6px; color: #34d399;">MULTI-BRANCH</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
 <!-- ── CAPABILITY COMPARISON MATRIX ─────────────────────── -->
-<section class="section reveal" style="background: var(--color-bg);">
+<section class="section reveal" style="background: var(--color-bg-alt);">
   <div class="container">
     <div class="section-header centered">
       <div class="badge">{{ icon('check-square', size=12) }} Platform Capabilities</div>
@@ -616,14 +543,6 @@
             <td>GST E-Invoicing API, UPI QR Integrations</td>
             <td>Tax Encrypted Logs, Audit Trail</td>
           </tr>
-          <tr>
-            <td><strong>Matrix ERP Suite™</strong></td>
-            <td>Private Cloud &amp; Dedicated VPS</td>
-            <td>Cached Local Operations</td>
-            <td>Cross-Device Browser &amp; Mobile App</td>
-            <td>Full ERP REST API, Custom Connectors</td>
-            <td>256-bit AES Encryption, Automated Backups</td>
-          </tr>
         </tbody>
       </table>
     </div>
@@ -631,7 +550,7 @@
 </section>
 
 <!-- ── PRODUCT INQUIRY & DEMO CTA ───────────────────────── -->
-<section class="section reveal" style="background: var(--color-bg-alt);">
+<section class="section reveal" style="background: var(--color-bg);">
   <div class="container">
     <div class="card" style="padding: var(--space-3xl); text-align: center; border: 1.5px solid rgba(16, 185, 129, 0.3); background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(240,253,244,0.7) 100%);">
       <div class="badge" style="margin: 0 auto var(--space-md);">
