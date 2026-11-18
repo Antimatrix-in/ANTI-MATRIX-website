@@ -6,15 +6,15 @@
 
 {% block content %}
 <div class="auth-page">
-  <div class="auth-card animate-fade-up">
-    {# Back link #}
-    <a href="{{ url_for('main.home') }}" class="back-link">
-      {{ icon('arrow-left', size=15) }} Back to Anti-Matrix
-    </a>
+  {# Clean Top Return Link #}
+  <a href="{{ url_for('main.home') }}" class="auth-top-back-link">
+    {{ icon('arrow-left', size=14) }} Back to Anti-Matrix
+  </a>
 
-    {# Logo #}
-    <div style="text-align: center; margin-bottom: var(--space-xl);">
-      {{ render_logo(light=false, size='lg', to=url_for('main.home'), stacked=true) }}
+  <div class="auth-card animate-fade-up">
+    {# Brand Logo Header - Prominently Centered at Top #}
+    <div style="text-align: center; margin-bottom: 1.25rem;">
+      {{ render_logo(light=false, size='md', to=url_for('main.home'), stacked=true) }}
     </div>
 
     {# Success Card (hidden initially, toggled by auth.js on success) #}

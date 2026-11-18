@@ -5,16 +5,16 @@
 {% block title %}Create Account | Anti-Matrix{% endblock %}
 
 {% block content %}
-<div class="auth-page" style="align-items: flex-start; padding-top: calc(var(--nav-height) + 2rem);">
-  <div class="auth-card animate-fade-up" style="max-width: 520px;">
-    {# Back link #}
-    <a href="{{ url_for('main.home') }}" class="back-link">
-      {{ icon('arrow-left', size=15) }} Back to Anti-Matrix
-    </a>
+<div class="auth-page">
+  {# Clean Top Return Link #}
+  <a href="{{ url_for('main.home') }}" class="auth-top-back-link">
+    {{ icon('arrow-left', size=14) }} Back to Anti-Matrix
+  </a>
 
-    {# Logo #}
-    <div style="text-align: center; margin-bottom: var(--space-xl);">
-      {{ render_logo(light=false, size='lg', to=url_for('main.home'), stacked=true) }}
+  <div class="auth-card animate-fade-up">
+    {# Brand Logo Header - Prominently Centered at Top #}
+    <div style="text-align: center; margin-bottom: 1.25rem;">
+      {{ render_logo(light=false, size='md', to=url_for('main.home'), stacked=true) }}
     </div>
 
     {# Success Card (hidden initially, toggled by auth.js on success) #}
@@ -35,26 +35,6 @@
     <div id="signup-header">
       <h2>Create your account</h2>
       <p class="auth-subtitle">Join Anti-Matrix and start building something great</p>
-    </div>
-
-    {# Benefits Box #}
-    <div id="signup-benefits" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); padding: var(--space-lg); margin-bottom: var(--space-xl); display: flex; flex-direction: column; gap: 0.5rem;">
-      <div style="display: flex; align-items: center; gap: 0.5rem;">
-        {{ icon('check-circle-2', size=14, color='var(--color-primary-light)') }}
-        <span style="font-size: 0.875rem; color: var(--color-text-muted);">Free consultation with our experts</span>
-      </div>
-      <div style="display: flex; align-items: center; gap: 0.5rem;">
-        {{ icon('check-circle-2', size=14, color='var(--color-primary-light)') }}
-        <span style="font-size: 0.875rem; color: var(--color-text-muted);">Access to client dashboard & services</span>
-      </div>
-      <div style="display: flex; align-items: center; gap: 0.5rem;">
-        {{ icon('check-circle-2', size=14, color='var(--color-primary-light)') }}
-        <span style="font-size: 0.875rem; color: var(--color-text-muted);">Priority support & updates</span>
-      </div>
-      <div style="display: flex; align-items: center; gap: 0.5rem;">
-        {{ icon('check-circle-2', size=14, color='var(--color-primary-light)') }}
-        <span style="font-size: 0.875rem; color: var(--color-text-muted);">Dedicated account manager</span>
-      </div>
     </div>
 
     {# Signup Form #}
