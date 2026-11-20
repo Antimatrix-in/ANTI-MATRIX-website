@@ -29,6 +29,26 @@ from routes.auth import get_safe_redirect
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 
+@admin_bp.before_request
+def _ensure_admin_schemas_on_request():
+    """
+    Self-healing runtime schema validation for admin modules.
+    Ensures missing tables/columns (partners, email_template_mappings, partner_id)
+    are created and initialized automatically without requiring server-level app.py overwrites.
+    """
+    try:
+        from services.email_template_service import ensure_email_template_schema
+        ensure_email_template_schema()
+    except Exception as e:
+        current_app.logger.warning(f"[AdminSchemaCheck] Email template schema healing note: {e}")
+
+    try:
+        from services.money_service import ensure_money_management_schema
+        ensure_money_management_schema()
+    except Exception as e:
+        current_app.logger.warning(f"[AdminSchemaCheck] Money management schema healing note: {e}")
+
+
 @admin_bp.context_processor
 def inject_admin_inquiry_counts():
     try:
@@ -124,7 +144,7 @@ def dashboard():
     )
 
 
-@admin_bp.route('/jobs')
+@admin_bp.route('/jobs', strict_slashes=False)
 @admin_required
 def jobs():
     status_filter = request.args.get('status', 'all').lower()
@@ -426,7 +446,9 @@ def delete_job(job_id):
 # MONEY MANAGEMENT & REVENUE DASHBOARD
 # ==============================================================================
 
-@admin_bp.route('/money-management')
+@admin_bp.route('/money-management', methods=['GET'], strict_slashes=False)
+@admin_bp.route('/money_management', methods=['GET'], strict_slashes=False)
+@admin_bp.route('/money', methods=['GET'], strict_slashes=False)
 @admin_required
 def money_management():
     """
@@ -434,10 +456,16 @@ def money_management():
     Displays Google Pay-style chronological transactions, summaries, and filters.
     """
     from services.money_service import (
+        ensure_money_management_schema,
         get_financial_summary, filter_transactions, get_partner_earnings_summary,
         STANDARD_INCOME_CATEGORIES, STANDARD_EXPENSE_CATEGORIES, PAYMENT_METHODS,
         format_inr
     )
+
+    try:
+        ensure_money_management_schema()
+    except Exception as e:
+        current_app.logger.warning(f"Note on money schema initialization: {e}")
 
     type_filter = (request.args.get('type') or 'all').strip().lower()
     env_filter = (request.args.get('env') or 'all').strip().lower()
@@ -449,51 +477,100 @@ def money_management():
     sort_by = (request.args.get('sort') or 'newest').strip().lower()
 
     # Dynamic partner earnings summary for descending bar chart
-    partner_summary = get_partner_earnings_summary(
-        date_filter=date_filter,
-        start_date=start_date,
-        end_date=end_date
-    )
+    try:
+        partner_summary = get_partner_earnings_summary(
+            date_filter=date_filter,
+            start_date=start_date,
+            end_date=end_date
+        )
+    except Exception as e:
+        current_app.logger.error(f"[MoneyManagement] Partner summary error: {e}", exc_info=True)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        partner_summary = {'partners': [], 'total_partner_earnings': 0, 'total_partner_count': 0, 'max_earnings': 0, 'date_filter_label': 'All Time'}
 
     # Dynamic backend summary calculations (database-driven)
-    summary = get_financial_summary(
-        env_filter=env_filter,
-        date_filter=date_filter,
-        start_date=start_date,
-        end_date=end_date,
-        category_filter=category_filter,
-        search_query=search_query
-    )
+    try:
+        summary = get_financial_summary(
+            env_filter=env_filter,
+            date_filter=date_filter,
+            start_date=start_date,
+            end_date=end_date,
+            category_filter=category_filter,
+            search_query=search_query
+        )
+    except Exception as e:
+        current_app.logger.error(f"[MoneyManagement] Financial summary error: {e}", exc_info=True)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        summary = {
+            'total_income': 0, 'total_expense': 0, 'net_balance': 0, 'total_tax': 0,
+            'cashfree_income': 0, 'manual_income': 0, 'transaction_count': 0,
+            'income_count': 0, 'expense_count': 0
+        }
 
     # Filtered transaction list
-    transactions = filter_transactions(
-        type_filter=type_filter,
-        env_filter=env_filter,
-        date_filter=date_filter,
-        start_date=start_date,
-        end_date=end_date,
-        category_filter=category_filter,
-        search_query=search_query,
-        sort_by=sort_by
-    ).all()
+    try:
+        transactions = filter_transactions(
+            type_filter=type_filter,
+            env_filter=env_filter,
+            date_filter=date_filter,
+            start_date=start_date,
+            end_date=end_date,
+            category_filter=category_filter,
+            search_query=search_query,
+            sort_by=sort_by
+        ).all()
+    except Exception as e:
+        current_app.logger.error(f"[MoneyManagement] Filter transactions error: {e}", exc_info=True)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        transactions = []
 
     # Aggregate distinct categories for filter dropdown
-    db_categories = db.session.query(MoneyTransaction.category).distinct().all()
-    all_categories = sorted(list(set(
-        STANDARD_INCOME_CATEGORIES + 
-        STANDARD_EXPENSE_CATEGORIES + 
-        [c[0] for c in db_categories if c[0]]
-    )))
+    try:
+        db_categories = db.session.query(MoneyTransaction.category).distinct().all()
+        all_categories = sorted(list(set(
+            STANDARD_INCOME_CATEGORIES + 
+            STANDARD_EXPENSE_CATEGORIES + 
+            [c[0] for c in db_categories if c[0]]
+        )))
+    except Exception as e:
+        current_app.logger.warning(f"[MoneyManagement] Categories query note: {e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        all_categories = sorted(list(set(STANDARD_INCOME_CATEGORIES + STANDARD_EXPENSE_CATEGORIES)))
 
     # Base counts for admin navigation badges
-    total_jobs = JobPosting.query.count()
-    total_applications = JobApplication.query.count()
-    new_applications = JobApplication.query.filter_by(status='New').count()
+    try:
+        total_jobs = JobPosting.query.count()
+        total_applications = JobApplication.query.count()
+        new_applications = JobApplication.query.filter_by(status='New').count()
+    except Exception as count_err:
+        current_app.logger.warning(f"[MoneyManagement] Base counts note: {count_err}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        total_jobs = 0
+        total_applications = 0
+        new_applications = 0
+
     try:
         total_employees = Employee.query.count()
     except Exception as emp_err:
-        current_app.logger.warning(f"Note on total_employees count: {emp_err}")
-        db.session.rollback()
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         total_employees = 0
 
     today_date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
@@ -524,7 +601,8 @@ def money_management():
     )
 
 
-@admin_bp.route('/money-management/add', methods=['GET', 'POST'])
+@admin_bp.route('/money-management/add', methods=['GET', 'POST'], strict_slashes=False)
+@admin_bp.route('/money_management/add', methods=['GET', 'POST'], strict_slashes=False)
 @admin_required
 def add_money_transaction():
     """
@@ -649,7 +727,8 @@ def add_money_transaction():
     )
 
 
-@admin_bp.route('/money-management/transactions/create', methods=['POST'])
+@admin_bp.route('/money-management/transactions/create', methods=['POST'], strict_slashes=False)
+@admin_bp.route('/money_management/transactions/create', methods=['POST'], strict_slashes=False)
 @admin_required
 def create_money_transaction():
     """
@@ -659,7 +738,8 @@ def create_money_transaction():
     return add_money_transaction()
 
 
-@admin_bp.route('/money-management/transactions/<int:txn_id>/edit', methods=['GET', 'POST'])
+@admin_bp.route('/money-management/transactions/<int:txn_id>/edit', methods=['GET', 'POST'], strict_slashes=False)
+@admin_bp.route('/money_management/transactions/<int:txn_id>/edit', methods=['GET', 'POST'], strict_slashes=False)
 @admin_required
 def edit_money_transaction(txn_id):
     """
@@ -778,7 +858,8 @@ def edit_money_transaction(txn_id):
     )
 
 
-@admin_bp.route('/money-management/transactions/<int:txn_id>/delete', methods=['POST'])
+@admin_bp.route('/money-management/transactions/<int:txn_id>/delete', methods=['POST'], strict_slashes=False)
+@admin_bp.route('/money_management/transactions/<int:txn_id>/delete', methods=['POST'], strict_slashes=False)
 @admin_required
 def delete_money_transaction(txn_id):
     """
@@ -809,7 +890,8 @@ def delete_money_transaction(txn_id):
     return redirect(url_for('admin.money_management'))
 
 
-@admin_bp.route('/money-management/transactions/<int:txn_id>', methods=['GET'])
+@admin_bp.route('/money-management/transactions/<int:txn_id>', methods=['GET'], strict_slashes=False)
+@admin_bp.route('/money_management/transactions/<int:txn_id>', methods=['GET'], strict_slashes=False)
 @admin_required
 def get_money_transaction_detail(txn_id):
     """Return full transaction details as JSON for the audit details modal."""
@@ -819,7 +901,8 @@ def get_money_transaction_detail(txn_id):
     return jsonify(txn.to_dict())
 
 
-@admin_bp.route('/money-management/reconcile', methods=['POST'])
+@admin_bp.route('/money-management/reconcile', methods=['POST'], strict_slashes=False)
+@admin_bp.route('/money_management/reconcile', methods=['POST'], strict_slashes=False)
 @admin_required
 def reconcile_payments():
     """Admin tool to scan for any verified payments that might be missing from Money Management."""
@@ -836,7 +919,8 @@ def reconcile_payments():
     return redirect(url_for('admin.money_management'))
 
 
-@admin_bp.route('/money-management/transactions/clear-all', methods=['POST'])
+@admin_bp.route('/money-management/transactions/clear-all', methods=['POST'], strict_slashes=False)
+@admin_bp.route('/money_management/transactions/clear-all', methods=['POST'], strict_slashes=False)
 @admin_required
 def clear_all_money_transactions():
     """
@@ -1118,6 +1202,8 @@ def download_resume(app_id):
 # ==============================================================================
 
 @admin_bp.route('/templates', methods=['GET'], strict_slashes=False)
+@admin_bp.route('/template', methods=['GET'], strict_slashes=False)
+@admin_bp.route('/templates/', methods=['GET'], strict_slashes=False)
 @admin_required
 def templates():
     """
@@ -1127,17 +1213,39 @@ def templates():
     from models import EmailTemplateMapping
     from services.email_template_service import (
         SUPPORTED_TEMPLATE_CATEGORIES,
+        ensure_email_template_schema,
         ensure_default_templates_and_mappings
     )
 
-    # Ensure default templates and mappings exist
+    # Ensure schema and default templates exist
     try:
-        ensure_default_templates_and_mappings()
+        ensure_email_template_schema()
     except Exception as e:
-        current_app.logger.warning(f"Note on template initialization: {e}")
+        current_app.logger.warning(f"Note on template schema initialization: {e}")
 
-    email_templates = EmailTemplate.query.order_by(EmailTemplate.category, EmailTemplate.name).all()
-    mappings = EmailTemplateMapping.query.order_by(EmailTemplateMapping.id).all()
+    try:
+        email_templates = EmailTemplate.query.order_by(EmailTemplate.category, EmailTemplate.name).all()
+    except Exception as e:
+        current_app.logger.warning(f"Error querying templates with category ordering: {e}")
+        try:
+            db.session.rollback()
+            email_templates = EmailTemplate.query.all()
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            email_templates = []
+
+    try:
+        mappings = EmailTemplateMapping.query.order_by(EmailTemplateMapping.id).all()
+    except Exception as e:
+        current_app.logger.warning(f"Error querying template mappings: {e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        mappings = []
     
     # Backward compatibility helper for single template reference
     app_success_email = next((t for t in email_templates if t.template_type == 'application_successful'), None)
@@ -1154,7 +1262,7 @@ def templates():
     )
 
 
-@admin_bp.route('/templates/create', methods=['POST'], endpoint='create_email_template')
+@admin_bp.route('/templates/create', methods=['POST'], endpoint='create_email_template', strict_slashes=False)
 @admin_required
 def create_email_template():
     """
@@ -1204,7 +1312,7 @@ def create_email_template():
     return redirect(url_for('admin.templates'))
 
 
-@admin_bp.route('/templates/<int:template_id>/edit', methods=['POST'])
+@admin_bp.route('/templates/<int:template_id>/edit', methods=['POST'], strict_slashes=False)
 @admin_required
 def edit_template(template_id):
     """
@@ -1265,7 +1373,7 @@ def edit_template(template_id):
     return redirect(url_for('admin.templates'))
 
 
-@admin_bp.route('/templates/<int:template_id>/duplicate', methods=['POST'])
+@admin_bp.route('/templates/<int:template_id>/duplicate', methods=['POST'], strict_slashes=False)
 @admin_required
 def duplicate_template_route(template_id):
     """
@@ -1282,7 +1390,7 @@ def duplicate_template_route(template_id):
     return redirect(url_for('admin.templates'))
 
 
-@admin_bp.route('/templates/<int:template_id>/toggle-status', methods=['POST'])
+@admin_bp.route('/templates/<int:template_id>/toggle-status', methods=['POST'], strict_slashes=False)
 @admin_required
 def toggle_template_status(template_id):
     """
@@ -1317,7 +1425,7 @@ def toggle_template_status(template_id):
     return redirect(url_for('admin.templates'))
 
 
-@admin_bp.route('/templates/<int:template_id>/delete', methods=['POST'])
+@admin_bp.route('/templates/<int:template_id>/delete', methods=['POST'], strict_slashes=False)
 @admin_required
 def delete_template(template_id):
     """
@@ -1347,7 +1455,7 @@ def delete_template(template_id):
     return redirect(url_for('admin.templates'))
 
 
-@admin_bp.route('/templates/<int:template_id>/preview', methods=['GET'])
+@admin_bp.route('/templates/<int:template_id>/preview', methods=['GET'], strict_slashes=False)
 @admin_required
 def preview_template_by_id(template_id):
     """
@@ -1358,7 +1466,7 @@ def preview_template_by_id(template_id):
     return jsonify(preview_data)
 
 
-@admin_bp.route('/templates/mappings/update', methods=['POST'])
+@admin_bp.route('/templates/mappings/update', methods=['POST'], strict_slashes=False)
 @admin_required
 def update_event_mapping():
     """
@@ -1421,7 +1529,7 @@ def update_event_mapping():
 
 # --- Backward Compatibility Endpoints ---
 
-@admin_bp.route('/templates/email/<string:template_type>', methods=['POST'])
+@admin_bp.route('/templates/email/<string:template_type>', methods=['POST'], strict_slashes=False)
 @admin_required
 def update_email_template(template_type):
     """
@@ -1457,7 +1565,7 @@ def update_email_template(template_type):
     return redirect(url_for('admin.templates'))
 
 
-@admin_bp.route('/templates/email/<string:template_type>/preview', methods=['GET'])
+@admin_bp.route('/templates/email/<string:template_type>/preview', methods=['GET'], strict_slashes=False)
 @admin_required
 def preview_email_template(template_type):
     """
@@ -1469,7 +1577,7 @@ def preview_email_template(template_type):
     return jsonify(preview_data)
 
 
-@admin_bp.route('/templates/email/<string:template_type>/test', methods=['POST'])
+@admin_bp.route('/templates/email/<string:template_type>/test', methods=['POST'], strict_slashes=False)
 @admin_required
 def send_test_email_route(template_type):
     """

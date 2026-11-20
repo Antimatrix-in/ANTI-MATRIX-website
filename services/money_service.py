@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone, date, timedelta
+from sqlalchemy import inspect, text
 from flask import current_app
 from models import db, MoneyTransaction, Payment, JobApplication
 from models.partner import Partner
@@ -171,6 +172,66 @@ def validate_manual_admin_mutation(user, txn=None, action="edit"):
             return False, "Cashfree automatic transactions cannot be manually modified or deleted."
 
     return True, None
+
+
+_MONEY_SCHEMA_INITIALIZED = False
+
+def ensure_money_management_schema():
+    """
+    Safely inspects and updates the database schema for money management and partner earnings.
+    Ensures:
+    1. 'partners' table exists.
+    2. 'partner_id' column on 'money_transactions' exists.
+    3. Core founding partners are initialized.
+    Works seamlessly across PostgreSQL and SQLite, preventing 500/404 crashes.
+    """
+    global _MONEY_SCHEMA_INITIALIZED
+    if _MONEY_SCHEMA_INITIALIZED:
+        return True
+
+    try:
+        inspector = inspect(db.engine)
+        table_names = inspector.get_table_names()
+
+        # 1. Create partners table if not exists
+        if 'partners' not in table_names:
+            try:
+                Partner.__table__.create(db.engine, checkfirst=True)
+                logger.info("[MoneyService] 'partners' table created successfully.")
+            except Exception as e:
+                logger.warning(f"[MoneyService] Table creation note for partners: {e}")
+
+        # 2. Add partner_id column to money_transactions if not exists
+        if 'money_transactions' in table_names:
+            mt_cols = [c['name'] for c in inspector.get_columns('money_transactions')]
+            if 'partner_id' not in mt_cols:
+                with db.engine.begin() as conn:
+                    dialect_name = db.engine.dialect.name
+                    if dialect_name == 'postgresql':
+                        try:
+                            conn.execute(text("ALTER TABLE money_transactions ADD COLUMN IF NOT EXISTS partner_id INTEGER REFERENCES partners(id)"))
+                        except Exception:
+                            conn.execute(text("ALTER TABLE money_transactions ADD COLUMN IF NOT EXISTS partner_id INTEGER"))
+                    else:
+                        conn.execute(text("ALTER TABLE money_transactions ADD COLUMN partner_id INTEGER REFERENCES partners(id)"))
+                    try:
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_money_transactions_partner_id ON money_transactions (partner_id)"))
+                    except Exception:
+                        pass
+                logger.info("[MoneyService] Added partner_id column to money_transactions.")
+
+        # 3. Initialize default partners
+        ensure_default_partners_initialized()
+
+        _MONEY_SCHEMA_INITIALIZED = True
+        return True
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        logger.warning(f"[MoneyService] Schema self-healing note: {e}")
+        return False
 
 
 def ensure_default_partners_initialized():

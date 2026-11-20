@@ -1,6 +1,6 @@
 import re
 from datetime import datetime, timezone
-from sqlalchemy import func
+from sqlalchemy import func, inspect, text
 from flask import current_app
 from models import db, EmailTemplate, EmailTemplateMapping
 
@@ -114,6 +114,67 @@ def validate_template_name(name, current_id=None):
 # =====================================================================
 # INITIALIZATION & SEEDING
 # =====================================================================
+
+_EMAIL_SCHEMA_INITIALIZED = False
+
+def ensure_email_template_schema():
+    """
+    Safely inspects and updates the database schema for the email templates module.
+    Ensures:
+    1. 'email_templates' table has 'description', 'category', 'is_active' columns.
+    2. 'email_template_mappings' table exists.
+    3. Default recruitment email templates and automation event mappings are initialized.
+    Works seamlessly across PostgreSQL and SQLite, preventing 500/404 crashes.
+    """
+    global _EMAIL_SCHEMA_INITIALIZED
+    if _EMAIL_SCHEMA_INITIALIZED:
+        return True
+
+    try:
+        inspector = inspect(db.engine)
+        table_names = inspector.get_table_names()
+
+        # 1. Update columns on email_templates if missing
+        if 'email_templates' in table_names:
+            tmpl_cols = [c['name'] for c in inspector.get_columns('email_templates')]
+            with db.engine.begin() as conn:
+                dialect_name = db.engine.dialect.name
+                if dialect_name == 'postgresql':
+                    if 'description' not in tmpl_cols:
+                        conn.execute(text("ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS description TEXT"))
+                    if 'category' not in tmpl_cols:
+                        conn.execute(text("ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'Recruitment'"))
+                    if 'is_active' not in tmpl_cols:
+                        conn.execute(text("ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE NOT NULL"))
+                else:
+                    if 'description' not in tmpl_cols:
+                        conn.execute(text("ALTER TABLE email_templates ADD COLUMN description TEXT"))
+                    if 'category' not in tmpl_cols:
+                        conn.execute(text("ALTER TABLE email_templates ADD COLUMN category VARCHAR(50) DEFAULT 'Recruitment'"))
+                    if 'is_active' not in tmpl_cols:
+                        conn.execute(text("ALTER TABLE email_templates ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL"))
+
+        # 2. Create email_template_mappings table if missing
+        if 'email_template_mappings' not in table_names:
+            try:
+                EmailTemplateMapping.__table__.create(db.engine, checkfirst=True)
+            except Exception:
+                pass
+
+        # 3. Seed default templates and event mappings
+        ensure_default_templates_and_mappings()
+
+        _EMAIL_SCHEMA_INITIALIZED = True
+        return True
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        if current_app:
+            current_app.logger.warning(f"[EmailTemplateService] Schema self-healing note: {e}")
+        return False
+
 
 def ensure_default_templates_and_mappings():
     """
