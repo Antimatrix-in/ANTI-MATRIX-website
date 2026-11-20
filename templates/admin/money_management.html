@@ -186,14 +186,14 @@
     min-width: 640px;
     position: relative;
     padding-left: 95px; /* Room for Y-axis labels */
-    height: 380px;
+    height: 410px;
   }
 
   /* Y-Axis scale and horizontal grid lines */
   .chart-y-axis {
     position: absolute;
     left: 0;
-    top: 60px; /* Aligns with top of bar track */
+    top: 85px; /* Aligns with top of bar track */
     bottom: 50px; /* Aligns with bottom of bar track */
     width: 100%;
     pointer-events: none;
@@ -226,7 +226,7 @@
     position: absolute;
     left: 95px;
     right: 10px;
-    top: 60px;
+    top: 85px;
     bottom: 50px;
     display: flex;
     justify-content: space-around;
@@ -248,7 +248,7 @@
   /* Partner Profile Info (Positioned Above the Bar Track) */
   .partner-profile-header {
     position: absolute;
-    top: -65px;
+    top: -82px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -259,27 +259,27 @@
 
   .partner-avatar-wrapper {
     position: relative;
-    margin-bottom: 4px;
+    margin-top: 4px;
   }
   .partner-avatar {
-    width: 44px;
-    height: 44px;
+    width: 46px;
+    height: 46px;
     border-radius: 50%;
     background: linear-gradient(135deg, #059669 0%, #047857 100%);
     color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     font-weight: 700;
     letter-spacing: 0.02em;
     border: 3px solid #ffffff;
-    box-shadow: 0 3px 8px rgba(5, 150, 105, 0.22);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
     overflow: hidden;
   }
   .partner-avatar.rank-1 {
     border-color: #fef08a;
-    box-shadow: 0 4px 12px rgba(234, 179, 8, 0.35);
+    box-shadow: 0 4px 14px rgba(234, 179, 8, 0.38);
   }
   .partner-avatar-img {
     width: 100%;
@@ -303,13 +303,14 @@
   }
 
   .partner-name {
-    font-size: 0.825rem;
+    font-size: 0.85rem;
     font-weight: 700;
     color: #0f172a;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 110px;
+    line-height: 1.2;
   }
   .partner-role {
     font-size: 0.7rem;
@@ -318,6 +319,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 110px;
+    line-height: 1.2;
+    margin-top: 1px;
   }
 
   /* The Vertical Bar */
@@ -988,8 +991,13 @@
             {% for p in partner_summary.partners %}
               <div class="partner-bar-column">
                 
-                <!-- Partner Profile Info Header (Positioned at top) -->
+                <!-- Partner Profile Info Header (Positioned at top of bar) -->
                 <div class="partner-profile-header">
+                  <!-- 1. Partner Name above circular photo -->
+                  <div class="partner-name" title="{{ p.name }}">{{ p.name }}</div>
+                  <div class="partner-role" title="{{ p.role_title }}">{{ p.role_title }}</div>
+                  
+                  <!-- 2. Circular Profile Image at top of bar -->
                   <div class="partner-avatar-wrapper">
                     <div class="partner-avatar {{ 'rank-1' if p.is_top_contributor and p.total_amount > 0 else '' }}">
                       {% if p.profile_picture %}
@@ -1004,8 +1012,6 @@
                       </div>
                     {% endif %}
                   </div>
-                  <div class="partner-name" title="{{ p.name }}">{{ p.name }}</div>
-                  <div class="partner-role" title="{{ p.role_title }}">{{ p.role_title }}</div>
                 </div>
 
                 <!-- Vertical Bar Track -->
