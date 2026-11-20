@@ -17,7 +17,8 @@ As requested in the **Anti-Matrix Money Management Dashboard Redesign** specific
 1. **Partner Earnings Overview Main Chart:**
    - Prominently positioned at the top of the Money Management interface.
    - Dynamic vertical bar chart sorted strictly in **descending order of partner contribution** (highest contributor on the left, lowest on the right).
-   - Centered partner profile header with circular avatars (profile picture with fallback to initials, e.g. `PR`, `RR`, `SK`, `BB`), full partner names, role titles, and a top contributor award badge.
+   - Vertical stack per partner column: Partner Name clearly positioned above circular profile photo; Circular profile photo (with 3px white border and subtle shadow) positioned at the top of the corresponding bar; Earnings amount displayed inside the bar; Bar height proportional to contribution.
+   - Circular avatars with fallback to verified initials (e.g. `PR`, `RR`, `SK`, `BB`), full partner names, role titles, and a top contributor award badge.
    - Professional green gradient fill (`linear-gradient(180deg, #10b981 0%, #059669 100%)`) with rounded top corners (`10px 10px 0 0`).
    - Slightly thinner bars (~55–65% width) with consistent breathing room and horizontal spacing.
    - Dynamic bar height calculation scaled against a clean currency ceiling, with interactive tooltips showing contribution amounts, roles, and transaction counts.
