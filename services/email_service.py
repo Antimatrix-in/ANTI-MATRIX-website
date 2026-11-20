@@ -260,29 +260,77 @@ def markdown_to_html_email(markdown_text, title="Anti Matrix Notification"):
 # VARIABLE REPLACEMENT ENGINE
 # =====================================================================
 
-def replace_variables(template_str, variable_dict):
+SAMPLE_PREVIEW_VARIABLES = {
+    'candidate_name': 'Rahul Kumar',
+    'candidate_email': 'rahul.kumar@example.com',
+    'application_id': 'AM-APP-000001',
+    'job_title': 'AI Engineer Intern',
+    'company_name': 'Anti-Matrix',
+    'application_date': '15/09/2026',
+    'company_email': 'info@antimatrix.co.in',
+    'website': 'www.antimatrix.co.in',
+    'assessment_username': 'AM-ASSESS-8429',
+    'assessment_password': '••••••••',
+    'assessment_link': 'https://assessment.antimatrix.co.in/login',
+    'assessment_expiry': '22/09/2026, 23:59 IST',
+    'Student Name': 'Rahul Kumar',
+    'Internship Role': 'AI Engineer Intern',
+    'Application ID': 'AM-APP-000001',
+    'Application Date': '15/09/2026',
+    'Company Email': 'info@antimatrix.co.in',
+    'Website': 'www.antimatrix.co.in',
+    'employee_name': 'Rahul Kumar',
+    'employee_id': 'AM4827',
+    'employee_password': '••••••••',
+    'temp_password': '••••••••',
+    'internship_duration': '3 Months',
+    'start_date': '15/09/2026',
+    'joining_date': '15/09/2026',
+    'portal_url': 'https://www.antimatrix.co.in/internship',
+    'portal_link': 'https://www.antimatrix.co.in/internship'
+}
+
+
+def replace_variables(template_str, variable_dict, strip_unresolved=False):
     """
-    Replaces template variables dynamically, supporting multiple casing forms:
-    e.g. {{Student Name}}, {{student_name}}, {{Student_Name}}
+    Replaces template variables dynamically, supporting multiple casing forms
+    and whitespace inside braces:
+    e.g. {{candidate_name}}, {{ Candidate Name }}, {{Student Name}}, {{student_name}}
+    If strip_unresolved is True, cleans up any leftover {{...}} placeholders.
     """
     if not template_str:
         return ""
 
     result = template_str
+    norm_vars = {}
     for key, val in variable_dict.items():
         val_str = str(val) if val is not None else ""
-        
-        # Handle given key
-        result = result.replace(f"{{{{{key}}}}}", val_str)
-        # Handle lower key
-        result = result.replace(f"{{{{{key.lower()}}}}}", val_str)
-        # Handle snake_case key
-        snake_key = key.lower().replace(" ", "_")
-        result = result.replace(f"{{{{{snake_key}}}}}", val_str)
-        # Handle Title Case key
-        title_key = key.title()
-        result = result.replace(f"{{{{{title_key}}}}}", val_str)
+        norm_vars[key] = val_str
+        norm_vars[key.lower()] = val_str
+        norm_vars[key.lower().replace(" ", "_")] = val_str
+        norm_vars[key.lower().replace("_", " ")] = val_str
+        norm_vars[key.title()] = val_str
 
+    def _replace_placeholder(match):
+        raw_token = match.group(1).strip()
+        if raw_token in norm_vars:
+            return norm_vars[raw_token]
+        token_lower = raw_token.lower()
+        if token_lower in norm_vars:
+            return norm_vars[token_lower]
+        token_snake = token_lower.replace(" ", "_")
+        if token_snake in norm_vars:
+            return norm_vars[token_snake]
+        token_space = token_lower.replace("_", " ")
+        if token_space in norm_vars:
+            return norm_vars[token_space]
+        token_title = raw_token.title()
+        if token_title in norm_vars:
+            return norm_vars[token_title]
+        return "" if strip_unresolved else match.group(0)
+
+    # Match {{ placeholder }}
+    result = re.sub(r'\{\{\s*([a-zA-Z0-9_\-\s]+)\s*\}\}', _replace_placeholder, result)
     return result
 
 
@@ -545,7 +593,19 @@ def render_application_successful_email(application):
     raw_subject = DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT
     raw_body = DEFAULT_APPLICATION_SUCCESSFUL_BODY
     try:
-        tmpl = EmailTemplate.query.filter_by(template_type='application_successful').first()
+        # Check active event mapping first
+        from models import EmailTemplateMapping
+        mapping = EmailTemplateMapping.query.filter_by(
+            event_key='candidate_application_submitted',
+            is_active=True
+        ).first()
+
+        tmpl = None
+        if mapping and mapping.template and mapping.template.is_active:
+            tmpl = mapping.template
+        else:
+            tmpl = EmailTemplate.query.filter_by(template_type='application_successful').first()
+
         if tmpl and tmpl.subject:
             raw_subject = tmpl.subject
         if tmpl and tmpl.body:
@@ -554,8 +614,8 @@ def render_application_successful_email(application):
         if current_app:
             current_app.logger.warning(f"Could not load custom EmailTemplate: {str(e)}")
 
-    subject = replace_variables(raw_subject, variables)
-    body_text = replace_variables(raw_body, variables)
+    subject = replace_variables(raw_subject, variables, strip_unresolved=True)
+    body_text = replace_variables(raw_body, variables, strip_unresolved=True)
     body_html = markdown_to_html_email(body_text, title=subject)
 
     return {
@@ -1109,56 +1169,55 @@ def send_joining_credentials_email(application_or_employee, joining_date=None, p
 # 4. PREVIEW & TEST EMAIL UTILITIES
 # =====================================================================
 
-def render_sample_email_preview(template_type):
+def render_sample_email_preview(template_identifier):
     """
-    Renders email subject and body using sample preview values.
+    Renders email subject and body using sample preview values for any template.
+    template_identifier can be an integer ID, string ID, or template_type/slug.
     Does not modify any live database records.
     """
-    sample_variables = {
-        'candidate_name': 'Rahul Kumar',
-        'Student Name': 'Rahul Kumar',
-        'Internship Role': 'AI Engineer Intern',
-        'Application ID': 'AM-APP-000001',
-        'Application Date': '15/09/2026',
-        'Internship Duration': '3 Months',
-        'Start Date': '15/09/2026',
-        'Joining Date': '15/09/2026',
-        'Employee ID': 'AM4827',
-        'Employee Password': 'AMx7P9k2Q',
-        'Internship Portal Link': 'https://www.antimatrix.co.in/internship',
-        'Company Email': 'info@antimatrix.co.in',
-        'Website': 'www.antimatrix.co.in',
-        'employee_name': 'Rahul Kumar',
-        'employee_id': 'AM4827',
-        'employee_password': 'AMx7P9k2Q',
-        'temp_password': 'AMx7P9k2Q',
-        'job_title': 'AI Engineer Intern',
-        'application_id': 'AM-APP-000001',
-        'internship_duration': '3 Months',
-        'start_date': '15/09/2026',
-        'joining_date': '15/09/2026',
-        'portal_url': 'https://www.antimatrix.co.in/internship',
-        'portal_link': 'https://www.antimatrix.co.in/internship',
-        'company_email': 'info@antimatrix.co.in',
-        'website': 'www.antimatrix.co.in'
-    }
+    sample_variables = dict(SAMPLE_PREVIEW_VARIABLES)
 
-    tmpl = EmailTemplate.query.filter_by(template_type=template_type).first()
-    if template_type == 'application_successful':
-        raw_subject = tmpl.subject if tmpl and tmpl.subject else DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT
-        raw_body = tmpl.body if tmpl and tmpl.body else DEFAULT_APPLICATION_SUCCESSFUL_BODY
-    elif template_type == 'joining_credentials':
-        raw_subject = tmpl.subject if tmpl and tmpl.subject else DEFAULT_JOINING_SUBJECT
-        raw_body = tmpl.body if tmpl and tmpl.body else DEFAULT_JOINING_BODY
+    tmpl = None
+    if isinstance(template_identifier, int) or (isinstance(template_identifier, str) and template_identifier.isdigit()):
+        tmpl = db.session.get(EmailTemplate, int(template_identifier))
+    if not tmpl:
+        tmpl = EmailTemplate.query.filter_by(template_type=str(template_identifier)).first()
+    if not tmpl:
+        tmpl = EmailTemplate.query.filter(func.lower(EmailTemplate.name) == func.lower(str(template_identifier))).first()
+
+    if tmpl:
+        raw_subject = tmpl.subject or ""
+        raw_body = tmpl.body or ""
+        template_name = tmpl.name
+        template_category = getattr(tmpl, 'category', 'Recruitment')
+        template_id = tmpl.id
+    elif template_identifier in ['application_successful', 'application_acknowledgment']:
+        raw_subject = DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT
+        raw_body = DEFAULT_APPLICATION_SUCCESSFUL_BODY
+        template_name = 'Application Acknowledgment'
+        template_category = 'Recruitment'
+        template_id = None
+    elif template_identifier == 'joining_credentials':
+        raw_subject = DEFAULT_JOINING_SUBJECT
+        raw_body = DEFAULT_JOINING_BODY
+        template_name = 'Joining Credentials'
+        template_category = 'Recruitment'
+        template_id = None
     else:
-        raw_subject = tmpl.subject if tmpl and tmpl.subject else DEFAULT_OFFER_LETTER_SUBJECT
-        raw_body = tmpl.body if tmpl and tmpl.body else DEFAULT_OFFER_LETTER_BODY
+        raw_subject = DEFAULT_OFFER_LETTER_SUBJECT
+        raw_body = DEFAULT_OFFER_LETTER_BODY
+        template_name = 'Offer Letter / Shortlisted'
+        template_category = 'Recruitment'
+        template_id = None
 
-    subject = replace_variables(raw_subject, sample_variables)
-    body_text = replace_variables(raw_body, sample_variables)
+    subject = replace_variables(raw_subject, sample_variables, strip_unresolved=False)
+    body_text = replace_variables(raw_body, sample_variables, strip_unresolved=False)
     body_html = markdown_to_html_email(body_text, title=subject)
 
     return {
+        'id': template_id,
+        'name': template_name,
+        'category': template_category,
         'subject': subject,
         'body_text': body_text,
         'body_html': body_html

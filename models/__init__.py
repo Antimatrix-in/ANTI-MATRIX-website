@@ -7,7 +7,7 @@ from .contact import ContactInquiry
 from .job import JobPosting, JobApplication, Payment
 from .employee import Employee
 from .employee_onboarding_credential import EmployeeOnboardingCredential
-from .document import DocumentTemplate, EmailTemplate, EmployeeDocument, EmailLog
+from .document import DocumentTemplate, EmailTemplate, EmailTemplateMapping, EmployeeDocument, EmailLog
 from .money_transaction import MoneyTransaction
 from .internship_benefit import InternshipBenefit
 
@@ -16,7 +16,7 @@ OfferLetterTemplate = DocumentTemplate
 
 __all__ = [
     'db', 'User', 'ContactInquiry', 'JobPosting', 'JobApplication',
-    'Payment', 'Employee', 'EmployeeOnboardingCredential', 'DocumentTemplate', 'OfferLetterTemplate', 'EmailTemplate', 'EmployeeDocument', 'EmailLog',
+    'Payment', 'Employee', 'EmployeeOnboardingCredential', 'DocumentTemplate', 'OfferLetterTemplate', 'EmailTemplate', 'EmailTemplateMapping', 'EmployeeDocument', 'EmailLog',
     'MoneyTransaction', 'InternshipBenefit'
 ]
 

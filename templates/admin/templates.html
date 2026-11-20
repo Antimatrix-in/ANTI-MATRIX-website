@@ -1,20 +1,27 @@
 {% extends 'base.html' %}
 {% from 'components/icons.html' import icon %}
 
-{% block title %}Template Management | Anti-Matrix Admin{% endblock %}
+{% block title %}Email Template Management | Anti-Matrix Admin{% endblock %}
 
 {% block content %}
 <section class="section" style="padding-top: calc(var(--nav-height, 80px) + 2rem); background: var(--color-bg); min-height: 85vh;">
-  <div class="container" style="max-width: 1000px;">
+  <div class="container" style="max-width: 1140px;">
     
     <!-- Admin Header -->
-    <div class="admin-header" style="margin-bottom: var(--space-xl);">
+    <div class="admin-header" style="margin-bottom: var(--space-xl); display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: var(--space-md);">
       <div class="admin-header-title">
         <a href="{{ url_for('admin.dashboard') }}" class="btn btn-ghost btn-sm" style="margin-bottom: var(--space-xs); display: inline-flex; align-items: center; gap: 6px;">
           {{ icon('arrow-left', size=14) }} Back to Dashboard
         </a>
-        <h1>Templates</h1>
-        <p>Manage and customize automated candidate acknowledgment email communications.</p>
+        <h1 style="margin: 0; font-size: 1.85rem; font-weight: 800; color: #0f172a;">Email Template Management</h1>
+        <p style="margin-top: 4px; color: var(--color-text-dim); font-size: 0.95rem;">
+          Create, manage and map automated recruitment email templates.
+        </p>
+      </div>
+      <div style="display: flex; gap: var(--space-sm);">
+        <button type="button" class="btn btn-primary" onclick="openAddTemplateModal()" style="gap: 6px; font-weight: 700;">
+          {{ icon('plus', size=16) }} Add Template
+        </button>
       </div>
     </div>
 
@@ -42,8 +49,8 @@
       {% if messages %}
         <div style="margin-bottom: var(--space-xl);">
           {% for category, message in messages %}
-            <div class="alert alert-{{ category if category != 'error' else 'danger' }}" style="display: flex; align-items: center; gap: 8px; margin-bottom: var(--space-sm);">
-              {{ icon('check-circle' if category == 'success' else 'alert-circle', size=16) }}
+            <div class="alert alert-{{ category if category != 'error' else 'danger' }}" style="display: flex; align-items: center; gap: 10px; margin-bottom: var(--space-sm); border-radius: 8px;">
+              {{ icon('check-circle' if category == 'success' else ('alert-triangle' if category == 'warning' else 'alert-circle'), size=16) }}
               <span>{{ message }}</span>
             </div>
           {% endfor %}
@@ -51,109 +58,609 @@
       {% endif %}
     {% endwith %}
 
-    <!-- Acknowledgment Email Template Card -->
-    <div class="card" style="padding: var(--space-2xl); border-color: var(--color-border); background: #ffffff;">
-      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-lg); flex-wrap: wrap; gap: var(--space-md); border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-lg);">
-        <div>
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-            <h2 style="font-size: 1.25rem; font-weight: 800; color: #0f172a; margin: 0;">
-              Application Acknowledgment Email
-            </h2>
-            <span class="badge-status active" style="font-size: 0.75rem;">Active</span>
-          </div>
-          <p style="font-size: 0.85rem; color: var(--color-text-dim); margin: 0;">
-            Sent automatically <strong>exactly 5 minutes after</strong> a candidate submits their job application or completes payment.
-          </p>
-          <div style="font-size: 0.775rem; color: #64748b; margin-top: 6px;">
-            <strong>Last Updated:</strong> {{ app_success_email.updated_at.strftime('%d %b %Y, %H:%M UTC') if app_success_email and app_success_email.updated_at else 'System Default' }}
-          </div>
-        </div>
+    <!-- Sub Navigation Tabs: Templates vs Automation Mapping -->
+    <div style="display: flex; gap: var(--space-md); border-bottom: 2px solid var(--color-border); margin-bottom: var(--space-xl);">
+      <button
+        type="button"
+        id="subnav-tab-templates"
+        onclick="switchTab('templates')"
+        style="padding: 10px 18px; font-weight: 700; font-size: 0.95rem; border: none; background: none; cursor: pointer; border-bottom: 3px solid #10b981; color: #0f172a; margin-bottom: -2px; display: inline-flex; align-items: center; gap: 8px;"
+      >
+        {{ icon('file-text', size=16) }} Email Templates
+        <span class="badge" style="background: #e2e8f0; color: #334155; font-size: 0.75rem; padding: 2px 7px; border-radius: 12px;">{{ templates|length }}</span>
+      </button>
 
-        <div style="display: flex; gap: var(--space-xs);">
-          <button type="button" class="btn btn-outline btn-sm" onclick="openEmailPreview('application_successful')" style="gap: 5px;">
-            {{ icon('eye', size=14) }} Preview Template
-          </button>
+      <button
+        type="button"
+        id="subnav-tab-mappings"
+        onclick="switchTab('mappings')"
+        style="padding: 10px 18px; font-weight: 600; font-size: 0.95rem; border: none; background: none; cursor: pointer; border-bottom: 3px solid transparent; color: #64748b; margin-bottom: -2px; display: inline-flex; align-items: center; gap: 8px;"
+      >
+        {{ icon('link', size=16) }} Email Automation Mapping
+        <span class="badge" style="background: #e2e8f0; color: #334155; font-size: 0.75rem; padding: 2px 7px; border-radius: 12px;">
+          {{ mappings|selectattr('is_active')|list|length }}/{{ mappings|length }} Active
+        </span>
+      </button>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- TAB 1: EMAIL TEMPLATES LIST -->
+    <!-- ================================================================= -->
+    <div id="section-templates" style="display: block;">
+      
+      <!-- Filters and Search Bar -->
+      <div class="card" style="padding: var(--space-md); margin-bottom: var(--space-lg); background: #ffffff; border-color: var(--color-border);">
+        <div style="display: flex; flex-wrap: wrap; gap: var(--space-md); align-items: center; justify-content: space-between;">
+          <div style="flex: 1; min-width: 240px; position: relative;">
+            <input
+              type="text"
+              id="template-search"
+              placeholder="Search by template name or subject..."
+              class="form-input"
+              style="padding-left: 36px; font-size: 0.875rem;"
+              oninput="filterTemplates()"
+            />
+            <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8;">
+              {{ icon('search', size=15) }}
+            </span>
+          </div>
+
+          <div style="display: flex; flex-wrap: wrap; gap: var(--space-sm);">
+            <!-- Category Filter -->
+            <select id="filter-category" class="form-input" style="font-size: 0.85rem; padding: 6px 12px; width: auto;" onchange="filterTemplates()">
+              <option value="">All Categories</option>
+              {% for cat in categories %}
+                <option value="{{ cat }}">{{ cat }}</option>
+              {% endfor %}
+            </select>
+
+            <!-- Status Filter -->
+            <select id="filter-status" class="form-input" style="font-size: 0.85rem; padding: 6px 12px; width: auto;" onchange="filterTemplates()">
+              <option value="">All Statuses</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+
+            <!-- Mapped Filter -->
+            <select id="filter-mapping" class="form-input" style="font-size: 0.85rem; padding: 6px 12px; width: auto;" onchange="filterTemplates()">
+              <option value="">All Mappings</option>
+              <option value="Mapped">Mapped</option>
+              <option value="Unmapped">Unmapped</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      <form method="POST" action="{{ url_for('admin.update_email_template', template_type='application_successful') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <!-- Templates Table Card -->
+      <div class="card" style="padding: 0; background: #ffffff; border-color: var(--color-border); overflow: hidden;">
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem;">
+            <thead>
+              <tr style="background: #f8fafc; border-bottom: 1px solid var(--color-border); color: #475569; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                <th style="padding: 14px 18px;">Template Name</th>
+                <th style="padding: 14px 18px;">Email Subject</th>
+                <th style="padding: 14px 18px;">Category</th>
+                <th style="padding: 14px 18px;">Mapped Event</th>
+                <th style="padding: 14px 18px;">Delay</th>
+                <th style="padding: 14px 18px;">Status</th>
+                <th style="padding: 14px 18px;">Last Updated</th>
+                <th style="padding: 14px 18px; text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="template-table-body">
+              {% for tmpl in templates %}
+                {% set active_map = tmpl.mappings|selectattr('is_active')|first %}
+                {% set any_map = tmpl.mappings|first %}
+                <tr
+                  class="template-row"
+                  data-name="{{ tmpl.name|lower }}"
+                  data-subject="{{ tmpl.subject|lower }}"
+                  data-category="{{ tmpl.category }}"
+                  data-status="{{ 'Active' if tmpl.is_active else 'Inactive' }}"
+                  data-mapping="{{ 'Mapped' if (active_map or any_map) else 'Unmapped' }}"
+                  style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s ease;"
+                >
+                  <!-- Template Name -->
+                  <td style="padding: 14px 18px;">
+                    <div style="font-weight: 700; color: #0f172a;">{{ tmpl.name }}</div>
+                    {% if tmpl.description %}
+                      <div style="font-size: 0.775rem; color: #64748b; margin-top: 2px;">{{ tmpl.description }}</div>
+                    {% endif %}
+                  </td>
 
-        <div class="form-group" style="margin-bottom: var(--space-lg);">
-          <label class="form-label" style="font-weight: 700; font-size: 0.875rem;">
-            Email Subject <span style="color: #ef4444;">*</span>
-          </label>
-          <input
-            type="text"
-            name="subject"
-            class="form-input"
-            value="{{ app_success_email.subject if app_success_email else 'Thank You for Showing Interest in Anti-Matrix' }}"
-            required
-            style="font-size: 0.95rem; font-weight: 600;"
-          />
+                  <!-- Subject -->
+                  <td style="padding: 14px 18px; max-width: 240px;">
+                    <div style="color: #334155; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ tmpl.subject }}">
+                      {{ tmpl.subject }}
+                    </div>
+                  </td>
+
+                  <!-- Category -->
+                  <td style="padding: 14px 18px;">
+                    <span class="badge" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-weight: 600; font-size: 0.75rem; padding: 3px 8px; border-radius: 6px;">
+                      {{ tmpl.category }}
+                    </span>
+                  </td>
+
+                  <!-- Mapped Event -->
+                  <td style="padding: 14px 18px;">
+                    {% if active_map %}
+                      <span class="badge" style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; font-weight: 600; font-size: 0.75rem; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                        {{ icon('check', size=11) }} {{ active_map.event_label }}
+                      </span>
+                    {% elif any_map %}
+                      <span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-weight: 600; font-size: 0.75rem; padding: 3px 8px; border-radius: 6px;">
+                        {{ any_map.event_label }} (Paused)
+                      </span>
+                    {% else %}
+                      <span style="color: #94a3b8; font-size: 0.8rem;">Unmapped</span>
+                    {% endif %}
+                  </td>
+
+                  <!-- Delay -->
+                  <td style="padding: 14px 18px; color: #475569; font-weight: 600; font-size: 0.8rem;">
+                    {% if active_map %}
+                      {% if active_map.delay_minutes > 0 %}
+                        {{ active_map.delay_minutes }} min
+                      {% else %}
+                        Immediate
+                      {% endif %}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+
+                  <!-- Status -->
+                  <td style="padding: 14px 18px;">
+                    {% if tmpl.is_active %}
+                      <span class="badge-status active" style="font-size: 0.75rem;">Active</span>
+                    {% else %}
+                      <span class="badge-status inactive" style="font-size: 0.75rem; background: #e2e8f0; color: #64748b;">Inactive</span>
+                    {% endif %}
+                  </td>
+
+                  <!-- Last Updated -->
+                  <td style="padding: 14px 18px; font-size: 0.775rem; color: #64748b; white-space: nowrap;">
+                    {{ tmpl.updated_at.strftime('%d %b %Y, %H:%M') if tmpl.updated_at else '—' }}
+                  </td>
+
+                  <!-- Actions -->
+                  <td style="padding: 14px 18px; text-align: right; white-space: nowrap;">
+                    <div style="display: inline-flex; gap: 4px; align-items: center;">
+                      <!-- Edit -->
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-sm"
+                        title="Edit Template"
+                        onclick='openEditTemplateModal({{ tmpl.id }}, {{ tmpl.name|tojson }}, {{ (tmpl.description or "")|tojson }}, {{ tmpl.category|tojson }}, {{ tmpl.subject|tojson }}, {{ tmpl.body|tojson }}, {{ "true" if tmpl.is_active else "false" }})'
+                        style="padding: 5px 8px;"
+                      >
+                        {{ icon('edit', size=14) }}
+                      </button>
+
+                      <!-- Preview -->
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-sm"
+                        title="Preview Template"
+                        onclick="openEmailPreview({{ tmpl.id }})"
+                        style="padding: 5px 8px; color: #0284c7;"
+                      >
+                        {{ icon('eye', size=14) }}
+                      </button>
+
+                      <!-- Duplicate -->
+                      <form method="POST" action="{{ url_for('admin.duplicate_template_route', template_id=tmpl.id) }}" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <button type="submit" class="btn btn-ghost btn-sm" title="Duplicate Template" style="padding: 5px 8px; color: #475569;">
+                          {{ icon('copy', size=14) }}
+                        </button>
+                      </form>
+
+                      <!-- Toggle Status -->
+                      <form method="POST" action="{{ url_for('admin.toggle_template_status', template_id=tmpl.id) }}" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <button
+                          type="submit"
+                          class="btn btn-ghost btn-sm"
+                          title="{{ 'Deactivate Template' if tmpl.is_active else 'Activate Template' }}"
+                          style="padding: 5px 8px; color: {{ '#10b981' if tmpl.is_active else '#94a3b8' }};"
+                        >
+                          {{ icon('check-circle' if tmpl.is_active else 'slash', size=14) }}
+                        </button>
+                      </form>
+
+                      <!-- Delete -->
+                      {% if tmpl.template_type != 'application_successful' %}
+                        <button
+                          type="button"
+                          class="btn btn-ghost btn-sm"
+                          title="Delete Template"
+                          onclick='openDeleteTemplateModal({{ tmpl.id }}, {{ tmpl.name|tojson }}, {{ tmpl.active_mapping_count }})'
+                          style="padding: 5px 8px; color: #ef4444;"
+                        >
+                          {{ icon('trash', size=14) }}
+                        </button>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
 
-        <div class="form-group" style="margin-bottom: var(--space-md);">
-          <label class="form-label" style="font-weight: 700; font-size: 0.875rem;">
-            Email Body (Markdown) <span style="color: #ef4444;">*</span>
-          </label>
-          <textarea
-            name="body"
-            class="form-textarea"
-            rows="14"
-            required
-            style="font-family: var(--font-mono, monospace); font-size: 0.85rem; line-height: 1.6;"
-          >{{ app_success_email.body if app_success_email else '' }}</textarea>
+        <div id="no-templates-found" style="display: none; padding: var(--space-2xl); text-align: center; color: var(--color-text-dim);">
+          {{ icon('search', size=24) }}
+          <div style="margin-top: 8px; font-weight: 600;">No matching email templates found.</div>
+          <div style="font-size: 0.85rem;">Try adjusting your search or filters.</div>
         </div>
+      </div>
+    </div>
 
-        <!-- Dynamic Variables Pill Box -->
-        <div style="margin-bottom: var(--space-xl); background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: var(--space-md);">
-          <div style="font-size: 0.775rem; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">
-            Dynamic Placeholders (Click to Copy):
+    <!-- ================================================================= -->
+    <!-- TAB 2: EMAIL AUTOMATION MAPPING -->
+    <!-- ================================================================= -->
+    <div id="section-mappings" style="display: none;">
+      
+      <div class="card" style="padding: var(--space-lg); margin-bottom: var(--space-xl); background: #f0fdf4; border-color: #bbf7d0;">
+        <div style="display: flex; gap: var(--space-sm); align-items: flex-start;">
+          <div style="color: #10b981; margin-top: 2px;">{{ icon('info', size=20) }}</div>
+          <div>
+            <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: #166534;">Email Automation Event Mappings</h3>
+            <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #15803d; line-height: 1.5;">
+              Map specific recruitment milestones to email templates. When an event fires, the email scheduler looks up the mapped template and respects its configured delay. Mappings use stable internal identifiers so renaming templates will not break automated dispatch.
+            </p>
           </div>
-          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;candidate_name&#125;&#125;</span>
-            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;job_title&#125;&#125;</span>
-            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;application_id&#125;&#125;</span>
-            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;application_date&#125;&#125;</span>
-            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;company_email&#125;&#125;</span>
-            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;website&#125;&#125;</span>
+        </div>
+      </div>
+
+      <div style="display: grid; gap: var(--space-lg);">
+        {% for m in mappings %}
+          <div class="card" style="padding: var(--space-xl); background: #ffffff; border-color: var(--color-border);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-md); border-bottom: 1px solid #f1f5f9; padding-bottom: var(--space-md);">
+              <div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a;">{{ m.event_label }}</h3>
+                  {% if m.is_active and m.template and m.template.is_active %}
+                    <span class="badge" style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 6px;">
+                      Active
+                    </span>
+                  {% elif m.is_active and m.template and not m.template.is_active %}
+                    <span class="badge" style="background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 6px;">
+                      Template Inactive
+                    </span>
+                  {% else %}
+                    <span class="badge" style="background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 6px;">
+                      Paused / Disabled
+                    </span>
+                  {% endif %}
+                </div>
+                <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--color-text-dim);">
+                  {{ m.description or 'Automated notification triggered by this event.' }}
+                </p>
+              </div>
+
+              <!-- Current Configured Summary -->
+              <div style="text-align: right; font-size: 0.85rem; color: #475569;">
+                <div>
+                  <strong>Mapped to:</strong>
+                  {% if m.template %}
+                    <span style="font-weight: 700; color: #0f172a;">{{ m.template.name }}</span>
+                  {% else %}
+                    <span style="color: #94a3b8;">None</span>
+                  {% endif %}
+                </div>
+                <div style="margin-top: 2px;">
+                  <strong>Sending Delay:</strong>
+                  {% if m.delay_minutes > 0 %}
+                    <span style="font-weight: 700; color: #0f172a;">{{ m.delay_minutes }} minutes</span>
+                  {% else %}
+                    <span style="font-weight: 700; color: #0f172a;">Immediate (0m)</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <!-- Mapping Update Form -->
+            <form method="POST" action="{{ url_for('admin.update_event_mapping') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <input type="hidden" name="event_key" value="{{ m.event_key }}" />
+
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-md); align-items: flex-end;">
+                <!-- Template Dropdown -->
+                <div class="form-group" style="margin: 0;">
+                  <label class="form-label" style="font-size: 0.825rem; font-weight: 700;">
+                    Assigned Template <span style="color: #ef4444;">*</span>
+                  </label>
+                  <select name="email_template_id" class="form-input" style="font-size: 0.85rem;">
+                    <option value="">-- Select Template --</option>
+                    {% for tmpl in templates %}
+                      <option value="{{ tmpl.id }}" {% if m.email_template_id == tmpl.id %}selected{% endif %}>
+                        {{ tmpl.name }} ({{ tmpl.category }}){% if not tmpl.is_active %} [Inactive]{% endif %}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+
+                <!-- Delay Minutes -->
+                <div class="form-group" style="margin: 0;">
+                  <label class="form-label" style="font-size: 0.825rem; font-weight: 700;">
+                    Sending Delay (Minutes)
+                  </label>
+                  <input
+                    type="number"
+                    name="delay_minutes"
+                    min="0"
+                    max="1440"
+                    class="form-input"
+                    value="{{ m.delay_minutes }}"
+                    style="font-size: 0.85rem;"
+                    required
+                  />
+                </div>
+
+                <!-- Active Toggle Checkbox & Save Button -->
+                <div style="display: flex; gap: var(--space-md); align-items: center; justify-content: flex-end;">
+                  <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: #334155; user-select: none;">
+                    <input
+                      type="checkbox"
+                      name="is_active"
+                      value="1"
+                      {% if m.is_active %}checked{% endif %}
+                      style="accent-color: #10b981; width: 16px; height: 16px;"
+                    />
+                    Enable Automation
+                  </label>
+
+                  <button type="submit" class="btn btn-primary btn-sm" style="font-weight: 700; gap: 6px;">
+                    {{ icon('check', size=14) }} Save Mapping
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
-        </div>
-
-        <div style="display: flex; gap: var(--space-md); justify-content: flex-end;">
-          <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.75rem; font-weight: 700; gap: 6px;">
-            {{ icon('check', size=16) }} Save Template Changes
-          </button>
-        </div>
-      </form>
-
-      <!-- Send Test Email Section -->
-      <div style="margin-top: var(--space-2xl); padding-top: var(--space-xl); border-top: 1px solid var(--color-border);">
-        <h3 style="font-size: 0.95rem; font-weight: 700; color: #0f172a; margin: 0 0 var(--space-xs) 0;">
-          Send Test Acknowledgment Email
-        </h3>
-        <p style="font-size: 0.825rem; color: var(--color-text-dim); margin-bottom: var(--space-md);">
-          Send a rendered preview email with sample candidate data to test SMTP delivery without modifying real application records.
-        </p>
-
-        <form method="POST" action="{{ url_for('admin.send_test_email_route', template_type='application_successful') }}" style="display: flex; gap: var(--space-sm); max-width: 500px;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <input type="email" name="test_recipient" placeholder="admin@example.com" class="form-input" required style="font-size: 0.85rem;" />
-          <button type="submit" class="btn btn-outline" style="white-space: nowrap; gap: 5px;">
-            {{ icon('send', size=14) }} Send Test
-          </button>
-        </form>
+        {% endfor %}
       </div>
     </div>
 
   </div>
 </section>
 
-<!-- Email Preview Modal -->
+<!-- ================================================================= -->
+<!-- MODAL 1: ADD TEMPLATE -->
+<!-- ================================================================= -->
+<div id="add-template-modal" class="modal-backdrop" style="display: none;" aria-hidden="true">
+  <div class="modal-dialog" style="max-width: 760px; width: 95%;">
+    <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-md);">
+      <div>
+        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800; color: #0f172a;">Add Email Template</h3>
+        <p style="margin: 2px 0 0 0; font-size: 0.85rem; color: var(--color-text-dim);">
+          Create a new reusable recruitment email template.
+        </p>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="closeAddTemplateModal()" style="padding: 4px 8px;">
+        {{ icon('x', size=18) }}
+      </button>
+    </div>
+
+    <form method="POST" action="{{ url_for('admin.create_email_template') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      
+      <div class="modal-body" style="padding: var(--space-lg) 0; max-height: 70vh; overflow-y: auto;">
+        
+        <!-- Row: Name & Category -->
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-md); margin-bottom: var(--space-md);">
+          <div class="form-group">
+            <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">
+              Template Name <span style="color: #ef4444;">*</span>
+            </label>
+            <input type="text" name="name" class="form-input" placeholder="e.g. Assessment Invitation" required style="font-weight: 600;" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">
+              Category <span style="color: #ef4444;">*</span>
+            </label>
+            <select name="category" class="form-input">
+              {% for cat in categories %}
+                <option value="{{ cat }}">{{ cat }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div class="form-group" style="margin-bottom: var(--space-md);">
+          <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">
+            Description (Optional)
+          </label>
+          <input type="text" name="description" class="form-input" placeholder="Brief note on when this email is used..." />
+        </div>
+
+        <!-- Subject -->
+        <div class="form-group" style="margin-bottom: var(--space-md);">
+          <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">
+            Email Subject <span style="color: #ef4444;">*</span>
+          </label>
+          <input type="text" name="subject" class="form-input" placeholder="e.g. Assessment Instructions — {{job_title}} | Anti-Matrix" required />
+        </div>
+
+        <!-- Body -->
+        <div class="form-group" style="margin-bottom: var(--space-md);">
+          <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">
+            Email Body (Markdown) <span style="color: #ef4444;">*</span>
+          </label>
+          <textarea
+            name="body"
+            class="form-textarea"
+            rows="10"
+            required
+            placeholder="Dear {{candidate_name}},&#10;&#10;..."
+            style="font-family: var(--font-mono, monospace); font-size: 0.85rem; line-height: 1.6;"
+          ></textarea>
+        </div>
+
+        <!-- Placeholders Box -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: var(--space-md); margin-bottom: var(--space-md);">
+          <div style="font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">
+            Dynamic Placeholders (Click to Copy):
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;candidate_name&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;candidate_email&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;application_id&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;job_title&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;company_name&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;application_date&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;assessment_username&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;assessment_password&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;assessment_link&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;assessment_expiry&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;company_email&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;website&#125;&#125;</span>
+          </div>
+        </div>
+
+        <!-- Active Toggle -->
+        <div>
+          <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: #334155; user-select: none;">
+            <input type="checkbox" name="is_active" value="1" checked style="accent-color: #10b981; width: 16px; height: 16px;" />
+            Template is Active
+          </label>
+        </div>
+
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: var(--space-sm); border-top: 1px solid var(--color-border); padding-top: var(--space-md);">
+        <button type="button" class="btn btn-outline btn-sm" onclick="closeAddTemplateModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm" style="font-weight: 700; gap: 6px;">
+          {{ icon('check', size=14) }} Create Template
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================================================================= -->
+<!-- MODAL 2: EDIT TEMPLATE -->
+<!-- ================================================================= -->
+<div id="edit-template-modal" class="modal-backdrop" style="display: none;" aria-hidden="true">
+  <div class="modal-dialog" style="max-width: 760px; width: 95%;">
+    <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-md);">
+      <div>
+        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800; color: #0f172a;">Edit Email Template</h3>
+        <p style="margin: 2px 0 0 0; font-size: 0.85rem; color: var(--color-text-dim);">
+          Update email subject, content, and category.
+        </p>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="closeEditTemplateModal()" style="padding: 4px 8px;">
+        {{ icon('x', size=18) }}
+      </button>
+    </div>
+
+    <form id="edit-template-form" method="POST" action="">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      
+      <div class="modal-body" style="padding: var(--space-lg) 0; max-height: 70vh; overflow-y: auto;">
+        
+        <!-- Row: Name & Category -->
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-md); margin-bottom: var(--space-md);">
+          <div class="form-group">
+            <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">
+              Template Name <span style="color: #ef4444;">*</span>
+            </label>
+            <input type="text" id="edit-template-name" name="name" class="form-input" required style="font-weight: 600;" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">
+              Category <span style="color: #ef4444;">*</span>
+            </label>
+            <select id="edit-template-category" name="category" class="form-input">
+              {% for cat in categories %}
+                <option value="{{ cat }}">{{ cat }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div class="form-group" style="margin-bottom: var(--space-md);">
+          <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">
+            Description (Optional)
+          </label>
+          <input type="text" id="edit-template-description" name="description" class="form-input" />
+        </div>
+
+        <!-- Subject -->
+        <div class="form-group" style="margin-bottom: var(--space-md);">
+          <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">
+            Email Subject <span style="color: #ef4444;">*</span>
+          </label>
+          <input type="text" id="edit-template-subject" name="subject" class="form-input" required />
+        </div>
+
+        <!-- Body -->
+        <div class="form-group" style="margin-bottom: var(--space-md);">
+          <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">
+            Email Body (Markdown) <span style="color: #ef4444;">*</span>
+          </label>
+          <textarea
+            id="edit-template-body"
+            name="body"
+            class="form-textarea"
+            rows="12"
+            required
+            style="font-family: var(--font-mono, monospace); font-size: 0.85rem; line-height: 1.6;"
+          ></textarea>
+        </div>
+
+        <!-- Placeholders Box -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: var(--space-md); margin-bottom: var(--space-md);">
+          <div style="font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">
+            Dynamic Placeholders (Click to Copy):
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;candidate_name&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;candidate_email&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;application_id&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;job_title&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;company_name&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;application_date&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;assessment_username&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;assessment_password&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;assessment_link&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;assessment_expiry&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;company_email&#125;&#125;</span>
+            <span class="badge" style="font-family: monospace; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 3px 8px;" onclick="copyPlaceholder(this)">&#123;&#123;website&#125;&#125;</span>
+          </div>
+        </div>
+
+        <!-- Active Toggle -->
+        <div>
+          <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: #334155; user-select: none;">
+            <input type="checkbox" id="edit-template-active" name="is_active" value="1" style="accent-color: #10b981; width: 16px; height: 16px;" />
+            Template is Active
+          </label>
+        </div>
+
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: var(--space-sm); border-top: 1px solid var(--color-border); padding-top: var(--space-md);">
+        <button type="button" class="btn btn-outline btn-sm" onclick="closeEditTemplateModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm" style="font-weight: 700; gap: 6px;">
+          {{ icon('check', size=14) }} Save Changes
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================================================================= -->
+<!-- MODAL 3: PREVIEW & TEST EMAIL -->
+<!-- ================================================================= -->
 <div id="email-preview-modal" class="modal-backdrop" style="display: none;" aria-hidden="true">
-  <div class="modal-dialog" style="max-width: 680px; width: 95%;">
-    <div class="modal-header" style="justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-md);">
+  <div class="modal-dialog" style="max-width: 720px; width: 95%;">
+    <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-md);">
       <div>
         <h3 id="preview-modal-title" style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a;">
           Email Template Preview
@@ -164,20 +671,156 @@
         {{ icon('x', size=18) }}
       </button>
     </div>
-    <div class="modal-body" style="padding: var(--space-lg) 0;">
+
+    <div class="modal-body" style="padding: var(--space-md) 0;">
+      <!-- Loading indicator -->
       <div id="preview-modal-loading" style="text-align: center; padding: var(--space-2xl); color: var(--color-text-dim);">
         {{ icon('loader', size=24) }} Loading preview...
       </div>
-      <div id="preview-modal-frame" style="display: none; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; max-height: 520px; overflow-y: auto;">
+
+      <!-- Preview Frame -->
+      <div id="preview-modal-frame" style="display: none; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; max-height: 480px; overflow-y: auto;">
+      </div>
+
+      <!-- Send Test Email Section -->
+      <div style="margin-top: var(--space-lg); padding: var(--space-md); background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <div style="font-size: 0.8rem; font-weight: 700; color: #0f172a; margin-bottom: 4px;">
+          Send Test Email
+        </div>
+        <p style="font-size: 0.775rem; color: var(--color-text-dim); margin-bottom: var(--space-sm);">
+          Send a rendered preview with sample data to verify email delivery. Real applicant records are never modified.
+        </p>
+
+        <form id="preview-test-form" method="POST" action="{{ url_for('admin.send_test_email_route', template_type='application_successful') }}" style="display: flex; gap: var(--space-sm); max-width: 460px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <input type="email" name="test_recipient" placeholder="admin@example.com" class="form-input" required style="font-size: 0.825rem;" />
+          <button type="submit" class="btn btn-outline btn-sm" style="white-space: nowrap; gap: 5px;">
+            {{ icon('send', size=13) }} Send Test
+          </button>
+        </form>
       </div>
     </div>
+
     <div class="modal-footer" style="display: flex; justify-content: flex-end; padding-top: var(--space-md); border-top: 1px solid var(--color-border);">
       <button type="button" class="btn btn-outline btn-sm" onclick="closeEmailPreview()">Close Preview</button>
     </div>
   </div>
 </div>
 
+<!-- ================================================================= -->
+<!-- MODAL 4: DELETE CONFIRMATION -->
+<!-- ================================================================= -->
+<div id="delete-template-modal" class="modal-backdrop" style="display: none;" aria-hidden="true">
+  <div class="modal-dialog" style="max-width: 480px; width: 95%;">
+    <div class="modal-header" style="border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-md);">
+      <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #b91c1c;">
+        Delete Template Confirmation
+      </h3>
+    </div>
+
+    <div class="modal-body" style="padding: var(--space-lg) 0;">
+      <p style="margin: 0 0 var(--space-sm) 0; font-size: 0.9rem; color: #334155;">
+        Are you sure you want to permanently delete template <strong id="delete-template-name"></strong>?
+      </p>
+      <div id="delete-template-warning" style="display: none; padding: 10px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; color: #b91c1c; font-size: 0.825rem;">
+      </div>
+    </div>
+
+    <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: var(--space-sm); border-top: 1px solid var(--color-border); padding-top: var(--space-md);">
+      <button type="button" class="btn btn-outline btn-sm" onclick="closeDeleteTemplateModal()">Cancel</button>
+      <form id="delete-template-form" method="POST" action="">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button type="submit" id="delete-template-submit-btn" class="btn btn-sm" style="background: #ef4444; color: #ffffff; font-weight: 700; border: none;">
+          Yes, Delete Template
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================= -->
+<!-- JAVASCRIPT LOGIC -->
+<!-- ================================================================= -->
 <script>
+  // Switching between Email Templates and Email Automation Mapping tabs
+  function switchTab(tabName) {
+    const tabTemplatesBtn = document.getElementById('subnav-tab-templates');
+    const tabMappingsBtn = document.getElementById('subnav-tab-mappings');
+    const secTemplates = document.getElementById('section-templates');
+    const secMappings = document.getElementById('section-mappings');
+
+    if (tabName === 'mappings') {
+      secTemplates.style.display = 'none';
+      secMappings.style.display = 'block';
+
+      tabMappingsBtn.style.borderBottomColor = '#10b981';
+      tabMappingsBtn.style.color = '#0f172a';
+      tabMappingsBtn.style.fontWeight = '700';
+
+      tabTemplatesBtn.style.borderBottomColor = 'transparent';
+      tabTemplatesBtn.style.color = '#64748b';
+      tabTemplatesBtn.style.fontWeight = '600';
+    } else {
+      secTemplates.style.display = 'block';
+      secMappings.style.display = 'none';
+
+      tabTemplatesBtn.style.borderBottomColor = '#10b981';
+      tabTemplatesBtn.style.color = '#0f172a';
+      tabTemplatesBtn.style.fontWeight = '700';
+
+      tabMappingsBtn.style.borderBottomColor = 'transparent';
+      tabMappingsBtn.style.color = '#64748b';
+      tabMappingsBtn.style.fontWeight = '600';
+    }
+  }
+
+  // Check URL query param on page load for default active tab
+  document.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('tab') === 'mappings') {
+      switchTab('mappings');
+    }
+  });
+
+  // Dynamic filter for Email Templates
+  function filterTemplates() {
+    const searchVal = (document.getElementById('template-search').value || '').toLowerCase().trim();
+    const categoryVal = document.getElementById('filter-category').value;
+    const statusVal = document.getElementById('filter-status').value;
+    const mappingVal = document.getElementById('filter-mapping').value;
+
+    const rows = document.querySelectorAll('.template-row');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+      const name = row.getAttribute('data-name') || '';
+      const subject = row.getAttribute('data-subject') || '';
+      const category = row.getAttribute('data-category') || '';
+      const status = row.getAttribute('data-status') || '';
+      const mapping = row.getAttribute('data-mapping') || '';
+
+      const matchesSearch = !searchVal || name.includes(searchVal) || subject.includes(searchVal);
+      const matchesCategory = !categoryVal || category === categoryVal;
+      const matchesStatus = !statusVal || status === statusVal;
+      const matchesMapping = !mappingVal || mapping === mappingVal;
+
+      if (matchesSearch && matchesCategory && matchesStatus && matchesMapping) {
+        row.style.display = '';
+        visibleCount++;
+      } else {
+        row.style.display = 'none';
+      }
+    });
+
+    const noFound = document.getElementById('no-templates-found');
+    if (visibleCount === 0) {
+      noFound.style.display = 'block';
+    } else {
+      noFound.style.display = 'none';
+    }
+  }
+
+  // Placeholder copy helper
   function copyPlaceholder(badge) {
     const text = badge.innerText;
     navigator.clipboard.writeText(text).then(() => {
@@ -187,22 +830,54 @@
     });
   }
 
-  function openEmailPreview(templateType) {
+  // Modal: Add Template
+  function openAddTemplateModal() {
+    document.getElementById('add-template-modal').style.display = 'flex';
+  }
+  function closeAddTemplateModal() {
+    document.getElementById('add-template-modal').style.display = 'none';
+  }
+
+  // Modal: Edit Template
+  function openEditTemplateModal(id, name, description, category, subject, body, isActive) {
+    const form = document.getElementById('edit-template-form');
+    form.action = `/admin/templates/${id}/edit`;
+
+    document.getElementById('edit-template-name').value = name || '';
+    document.getElementById('edit-template-description').value = description || '';
+    document.getElementById('edit-template-category').value = category || 'Recruitment';
+    document.getElementById('edit-template-subject').value = subject || '';
+    document.getElementById('edit-template-body').value = body || '';
+    document.getElementById('edit-template-active').checked = !!isActive;
+
+    document.getElementById('edit-template-modal').style.display = 'flex';
+  }
+  function closeEditTemplateModal() {
+    document.getElementById('edit-template-modal').style.display = 'none';
+  }
+
+  // Modal: Preview Template
+  function openEmailPreview(templateId) {
     const modal = document.getElementById('email-preview-modal');
     const loading = document.getElementById('preview-modal-loading');
     const frame = document.getElementById('preview-modal-frame');
     const subjEl = document.getElementById('preview-modal-subject');
+    const titleEl = document.getElementById('preview-modal-title');
+    const testForm = document.getElementById('preview-test-form');
+
+    testForm.action = `/admin/templates/email/${templateId}/test`;
 
     modal.style.display = 'flex';
     loading.style.display = 'block';
     frame.style.display = 'none';
 
-    fetch(`/admin/templates/email/${templateType}/preview`)
+    fetch(`/admin/templates/${templateId}/preview`)
       .then(res => res.json())
       .then(data => {
         loading.style.display = 'none';
+        titleEl.innerText = (data.name || 'Email Template') + ' — Preview';
         subjEl.innerText = 'Subject: ' + (data.subject || '');
-        frame.innerHTML = data.body_html || '<pre style="padding: 20px;">' + (data.body_text || '') + '</pre>';
+        frame.innerHTML = data.body_html || ('<pre style="padding: 20px;">' + (data.body_text || '') + '</pre>');
         frame.style.display = 'block';
       })
       .catch(err => {
@@ -211,16 +886,46 @@
         frame.style.display = 'block';
       });
   }
-
   function closeEmailPreview() {
     document.getElementById('email-preview-modal').style.display = 'none';
   }
 
-  window.addEventListener('click', (e) => {
-    const modal = document.getElementById('email-preview-modal');
-    if (e.target === modal) {
-      closeEmailPreview();
+  // Modal: Delete Template
+  function openDeleteTemplateModal(id, name, activeMappingCount) {
+    const form = document.getElementById('delete-template-form');
+    form.action = `/admin/templates/${id}/delete`;
+
+    document.getElementById('delete-template-name').innerText = `"${name}"`;
+    const warnBox = document.getElementById('delete-template-warning');
+    const submitBtn = document.getElementById('delete-template-submit-btn');
+
+    if (activeMappingCount > 0) {
+      warnBox.style.display = 'block';
+      warnBox.innerText = 'Warning: This template is currently mapped to one or more active automation events. You must unmap or replace it first before deleting.';
+      submitBtn.disabled = true;
+      submitBtn.style.opacity = '0.5';
+      submitBtn.style.cursor = 'not-allowed';
+    } else {
+      warnBox.style.display = 'none';
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+      submitBtn.style.cursor = 'pointer';
     }
+
+    document.getElementById('delete-template-modal').style.display = 'flex';
+  }
+  function closeDeleteTemplateModal() {
+    document.getElementById('delete-template-modal').style.display = 'none';
+  }
+
+  // Close modals on clicking backdrop
+  window.addEventListener('click', (e) => {
+    ['add-template-modal', 'edit-template-modal', 'email-preview-modal', 'delete-template-modal'].forEach(id => {
+      const el = document.getElementById(id);
+      if (e.target === el) {
+        el.style.display = 'none';
+      }
+    });
   });
 </script>
 {% endblock %}

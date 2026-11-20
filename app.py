@@ -450,6 +450,30 @@ def create_app(config_name=None):
                         except Exception as e:
                             conn.rollback()
                             logger.warning(f"Note on sequence sync for contact_inquiries: {e}")
+
+            # Ensure email_templates table has description, category, and is_active columns
+            if 'email_templates' in inspector.get_table_names():
+                tmpl_cols = [c['name'] for c in inspector.get_columns('email_templates')]
+                with db.engine.connect() as conn:
+                    if 'description' not in tmpl_cols:
+                        conn.execute(text("ALTER TABLE email_templates ADD COLUMN description TEXT"))
+                    if 'category' not in tmpl_cols:
+                        conn.execute(text("ALTER TABLE email_templates ADD COLUMN category VARCHAR(50) DEFAULT 'Recruitment'"))
+                    if 'is_active' not in tmpl_cols:
+                        conn.execute(text("ALTER TABLE email_templates ADD COLUMN is_active BOOLEAN DEFAULT TRUE NOT NULL"))
+                    conn.commit()
+
+            # Ensure email_template_mappings table exists
+            if 'email_template_mappings' not in inspector.get_table_names():
+                from models import EmailTemplateMapping
+                EmailTemplateMapping.__table__.create(db.engine, checkfirst=True)
+
+            # Ensure default templates and event mappings are safely initialized
+            try:
+                from services.email_template_service import ensure_default_templates_and_mappings
+                ensure_default_templates_and_mappings()
+            except Exception as tmpl_init_err:
+                logger.warning(f"Email templates/mappings initialization note: {tmpl_init_err}")
         except Exception as e:
             app.logger.warning(f"Database auto-migration note: {str(e)}")
 

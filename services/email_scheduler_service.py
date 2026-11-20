@@ -29,14 +29,25 @@ def schedule_application_acknowledgment(application, delay_minutes=5):
             current_app.logger.warning(f"Could not persist Pending status for app {application.id}: {e}")
 
 
-def get_due_applications(delay_minutes=5):
+def get_due_applications(delay_minutes=None):
     """
     Returns candidate applications whose acknowledgment email is due.
+    Checks the configured delay in EmailTemplateMapping if delay_minutes is None.
     An application is due if:
     1. application_success_email_status is 'Pending' (or 'PENDING' / 'Failed' for retry)
     2. created_at <= (now - delay_minutes)
-    3. payment_status is 'paid', 'exempt', 'not_required', or 'pending' (for free/manual)
     """
+    if delay_minutes is None:
+        try:
+            from models import EmailTemplateMapping
+            mapping = EmailTemplateMapping.query.filter_by(event_key='candidate_application_submitted').first()
+            if mapping and mapping.delay_minutes is not None:
+                delay_minutes = mapping.delay_minutes
+            else:
+                delay_minutes = 5
+        except Exception:
+            delay_minutes = 5
+
     now_utc = datetime.now(timezone.utc)
     cutoff = now_utc - timedelta(minutes=delay_minutes)
 
@@ -47,14 +58,14 @@ def get_due_applications(delay_minutes=5):
     return query.all()
 
 
-def process_due_acknowledgment_emails(app=None, delay_minutes=5):
+def process_due_acknowledgment_emails(app=None, delay_minutes=None):
     """
     Checks for due acknowledgment emails and sends them.
     Implements:
     - Atomic status transition from 'Pending' -> 'Processing' -> 'Sent' / 'Failed'
     - Concurrency-safety: Prevents duplicate emails across threads or worker instances
+    - Respects dynamic delay and template mapping from EmailTemplateMapping
     - Safe retry logic up to 3 attempts
-    - Dynamic email template loading from Templates section
     Returns: count of successfully sent emails.
     """
     if app and not current_app:
@@ -63,9 +74,34 @@ def process_due_acknowledgment_emails(app=None, delay_minutes=5):
     return _execute_email_processing(delay_minutes)
 
 
-def _execute_email_processing(delay_minutes=5):
+def _execute_email_processing(delay_minutes=None):
+    from models import EmailTemplateMapping
+
+    mapping = None
+    try:
+        mapping = EmailTemplateMapping.query.filter_by(event_key='candidate_application_submitted').first()
+    except Exception:
+        pass
+
+    effective_delay = 5 if delay_minutes is None else delay_minutes
+    effective_template_type = 'application_successful'
+
+    if mapping:
+        if not mapping.is_active:
+            # Automation is disabled by administrator. Do not send automated emails.
+            return 0
+        if delay_minutes is None and mapping.delay_minutes is not None:
+            effective_delay = mapping.delay_minutes
+        if not mapping.template or not mapping.template.is_active:
+            # Mapped template is missing or inactive. Pause automated dispatch safely.
+            if current_app:
+                current_app.logger.warning("Application acknowledgment dispatch paused: mapped template is inactive or missing.")
+            return 0
+        if mapping.template:
+            effective_template_type = mapping.template.template_type or 'application_successful'
+
     now_utc = datetime.now(timezone.utc)
-    cutoff = now_utc - timedelta(minutes=delay_minutes)
+    cutoff = now_utc - timedelta(minutes=effective_delay)
 
     # Fetch candidate applications where email is due
     due_apps = JobApplication.query.filter(
@@ -147,7 +183,7 @@ def _execute_email_processing(delay_minutes=5):
                 try:
                     email_log = EmailLog(
                         recipient_email=recipient_email,
-                        template_type='application_successful',
+                        template_type=effective_template_type,
                         reference_id=app_instance.formatted_code,
                         subject=subject,
                         body_preview=(body_text or '')[:200],
@@ -168,7 +204,7 @@ def _execute_email_processing(delay_minutes=5):
                 try:
                     email_log = EmailLog(
                         recipient_email=recipient_email,
-                        template_type='application_successful',
+                        template_type=effective_template_type,
                         reference_id=app_instance.formatted_code,
                         subject=subject,
                         body_preview=(body_text or '')[:200],

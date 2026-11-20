@@ -1100,39 +1100,311 @@ def download_resume(app_id):
 @admin_required
 def templates():
     """
-    Template Management Hub.
-    Allows viewing, editing, and previewing automated recruitment email templates.
+    Centralized Email Template Management & Automation Mapping Hub.
+    Allows viewing, creating, editing, duplicating, previewing, and mapping email templates.
     """
-    from services.email_service import (
-        DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT,
-        DEFAULT_APPLICATION_SUCCESSFUL_BODY
+    from models import EmailTemplateMapping
+    from services.email_template_service import (
+        SUPPORTED_TEMPLATE_CATEGORIES,
+        ensure_default_templates_and_mappings
     )
 
-    app_success_email = EmailTemplate.query.filter_by(template_type='application_successful').first()
-    if not app_success_email:
-        app_success_email = EmailTemplate(
-            template_type='application_successful',
-            name='Application Acknowledgment',
-            subject=DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT,
-            body=DEFAULT_APPLICATION_SUCCESSFUL_BODY
-        )
-        try:
-            db.session.add(app_success_email)
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+    # Ensure default templates and mappings exist
+    try:
+        ensure_default_templates_and_mappings()
+    except Exception as e:
+        current_app.logger.warning(f"Note on template initialization: {e}")
+
+    email_templates = EmailTemplate.query.order_by(EmailTemplate.category, EmailTemplate.name).all()
+    mappings = EmailTemplateMapping.query.order_by(EmailTemplateMapping.id).all()
+    
+    # Backward compatibility helper for single template reference
+    app_success_email = next((t for t in email_templates if t.template_type == 'application_successful'), None)
+
+    active_tab = request.args.get('tab', 'templates')
 
     return render_template(
         'admin/templates.html',
+        templates=email_templates,
+        mappings=mappings,
+        categories=SUPPORTED_TEMPLATE_CATEGORIES,
+        active_tab=active_tab,
         app_success_email=app_success_email
     )
 
+
+@admin_bp.route('/templates/create', methods=['POST'], endpoint='create_email_template')
+@admin_required
+def create_email_template():
+    """
+    Create a new email template with uniqueness validation.
+    """
+    from services.email_template_service import (
+        validate_template_name,
+        slugify,
+        generate_unique_slug
+    )
+
+    name = (request.form.get('name') or '').strip()
+    description = (request.form.get('description') or '').strip()
+    category = (request.form.get('category') or 'Recruitment').strip()
+    subject = (request.form.get('subject') or '').strip()
+    body = (request.form.get('body') or '').strip()
+    is_active = request.form.get('is_active') in ['true', 'on', '1', True]
+
+    is_valid, err_msg = validate_template_name(name)
+    if not is_valid:
+        flash(err_msg, 'danger')
+        return redirect(url_for('admin.templates'))
+
+    if not subject:
+        flash('Email Subject is required.', 'danger')
+        return redirect(url_for('admin.templates'))
+
+    if not body:
+        flash('Email Body is required.', 'danger')
+        return redirect(url_for('admin.templates'))
+
+    slug = generate_unique_slug(slugify(name))
+
+    new_tmpl = EmailTemplate(
+        template_type=slug,
+        name=name,
+        description=description,
+        category=category,
+        subject=subject,
+        body=body,
+        is_active=is_active
+    )
+    db.session.add(new_tmpl)
+    db.session.commit()
+
+    flash(f"Email template '{name}' created successfully.", 'success')
+    return redirect(url_for('admin.templates'))
+
+
+@admin_bp.route('/templates/<int:template_id>/edit', methods=['POST'])
+@admin_required
+def edit_template(template_id):
+    """
+    Edit an existing email template. Renaming safely preserves foreign key event mappings.
+    """
+    from models import EmailTemplateMapping
+    from services.email_template_service import validate_template_name
+
+    tmpl = db.session.get(EmailTemplate, template_id)
+    if not tmpl:
+        flash('Template not found.', 'danger')
+        return redirect(url_for('admin.templates'))
+
+    name = (request.form.get('name') or '').strip()
+    description = (request.form.get('description') or '').strip()
+    category = (request.form.get('category') or tmpl.category or 'Recruitment').strip()
+    subject = (request.form.get('subject') or '').strip()
+    body = (request.form.get('body') or '').strip()
+    is_active = request.form.get('is_active') in ['true', 'on', '1', True]
+
+    is_valid, err_msg = validate_template_name(name, current_id=tmpl.id)
+    if not is_valid:
+        flash(err_msg, 'danger')
+        return redirect(url_for('admin.templates'))
+
+    if not subject or not body:
+        flash('Subject and Body are required for email templates.', 'danger')
+        return redirect(url_for('admin.templates'))
+
+    # Check if deactivating a template that is mapped to an active event
+    warning_notice = None
+    if tmpl.is_active and not is_active:
+        active_mappings = EmailTemplateMapping.query.filter_by(
+            email_template_id=tmpl.id,
+            is_active=True
+        ).all()
+        if active_mappings:
+            event_names = ", ".join([m.event_label for m in active_mappings])
+            warning_notice = (
+                f"Template '{name}' was deactivated. Warning: This template is mapped to active event(s): "
+                f"{event_names}. Automated emails for these events are paused until an active template is assigned."
+            )
+
+    tmpl.name = name
+    tmpl.description = description
+    tmpl.category = category
+    tmpl.subject = subject
+    tmpl.body = body
+    tmpl.is_active = is_active
+
+    db.session.commit()
+
+    if warning_notice:
+        flash(warning_notice, 'warning')
+    else:
+        flash(f"Template '{name}' updated successfully.", 'success')
+
+    return redirect(url_for('admin.templates'))
+
+
+@admin_bp.route('/templates/<int:template_id>/duplicate', methods=['POST'])
+@admin_required
+def duplicate_template_route(template_id):
+    """
+    Duplicate an existing email template with a unique name and slug.
+    """
+    from services.email_template_service import duplicate_template
+
+    cloned = duplicate_template(template_id)
+    if cloned:
+        flash(f"Template duplicated successfully as '{cloned.name}'.", 'success')
+    else:
+        flash("Could not duplicate template: source template not found.", 'danger')
+
+    return redirect(url_for('admin.templates'))
+
+
+@admin_bp.route('/templates/<int:template_id>/toggle-status', methods=['POST'])
+@admin_required
+def toggle_template_status(template_id):
+    """
+    Toggle active/inactive status of an email template.
+    """
+    from models import EmailTemplateMapping
+
+    tmpl = db.session.get(EmailTemplate, template_id)
+    if not tmpl:
+        flash('Template not found.', 'danger')
+        return redirect(url_for('admin.templates'))
+
+    tmpl.is_active = not tmpl.is_active
+    db.session.commit()
+
+    if not tmpl.is_active:
+        active_mappings = EmailTemplateMapping.query.filter_by(
+            email_template_id=tmpl.id,
+            is_active=True
+        ).all()
+        if active_mappings:
+            event_names = ", ".join([m.event_label for m in active_mappings])
+            flash(
+                f"Template '{tmpl.name}' is now Inactive. Warning: This template is mapped to active event(s): "
+                f"{event_names}. Automated emails for these events will be paused until an active template is assigned.",
+                'warning'
+            )
+            return redirect(url_for('admin.templates'))
+
+    new_status = 'Active' if tmpl.is_active else 'Inactive'
+    flash(f"Template '{tmpl.name}' status set to {new_status}.", 'success')
+    return redirect(url_for('admin.templates'))
+
+
+@admin_bp.route('/templates/<int:template_id>/delete', methods=['POST'])
+@admin_required
+def delete_template(template_id):
+    """
+    Safely delete an email template.
+    Prevents deletion if the template is currently mapped to an active event automation.
+    """
+    from models import EmailTemplateMapping
+    from services.email_template_service import can_delete_template
+
+    can_delete, reason, active_mappings = can_delete_template(template_id)
+    if not can_delete:
+        flash(reason, 'danger')
+        return redirect(url_for('admin.templates'))
+
+    tmpl = db.session.get(EmailTemplate, template_id)
+    tmpl_name = tmpl.name
+
+    # Disassociate any inactive mappings referencing this template
+    inactive_mappings = EmailTemplateMapping.query.filter_by(email_template_id=template_id).all()
+    for m in inactive_mappings:
+        m.email_template_id = None
+
+    db.session.delete(tmpl)
+    db.session.commit()
+
+    flash(f"Template '{tmpl_name}' deleted successfully.", 'success')
+    return redirect(url_for('admin.templates'))
+
+
+@admin_bp.route('/templates/<int:template_id>/preview', methods=['GET'])
+@admin_required
+def preview_template_by_id(template_id):
+    """
+    Preview rendered HTML email with sample preview values by template ID.
+    """
+    from services.email_service import render_sample_email_preview
+    preview_data = render_sample_email_preview(template_id)
+    return jsonify(preview_data)
+
+
+@admin_bp.route('/templates/mappings/update', methods=['POST'])
+@admin_required
+def update_event_mapping():
+    """
+    Update or save an email automation event mapping.
+    Ensures safe foreign key mapping, delay configuration, and validation.
+    """
+    from models import EmailTemplateMapping
+
+    event_key = (request.form.get('event_key') or '').strip()
+    template_id_raw = (request.form.get('email_template_id') or '').strip()
+    delay_minutes_raw = (request.form.get('delay_minutes') or '0').strip()
+    is_active = request.form.get('is_active') in ['true', 'on', '1', True]
+
+    if not event_key:
+        flash('Event key is required.', 'danger')
+        return redirect(url_for('admin.templates', tab='mappings'))
+
+    mapping = EmailTemplateMapping.query.filter_by(event_key=event_key).first()
+    if not mapping:
+        flash('Invalid event mapping.', 'danger')
+        return redirect(url_for('admin.templates', tab='mappings'))
+
+    # Parse template ID
+    template_id = None
+    if template_id_raw and template_id_raw.isdigit():
+        template_id = int(template_id_raw)
+
+    # Parse delay minutes
+    delay_minutes = 0
+    if delay_minutes_raw.isdigit():
+        delay_minutes = max(0, int(delay_minutes_raw))
+
+    # Validation: if mapping is set to active, require a valid, active template
+    if is_active:
+        if not template_id:
+            flash(f"Cannot enable automation for '{mapping.event_label}': Please select a template.", 'danger')
+            return redirect(url_for('admin.templates', tab='mappings'))
+
+        selected_tmpl = db.session.get(EmailTemplate, template_id)
+        if not selected_tmpl:
+            flash(f"Selected template does not exist.", 'danger')
+            return redirect(url_for('admin.templates', tab='mappings'))
+
+        if not selected_tmpl.is_active:
+            flash(
+                f"Cannot activate automation for '{mapping.event_label}': The selected template '{selected_tmpl.name}' is inactive. "
+                f"Please activate the template first or choose an active template.",
+                'danger'
+            )
+            return redirect(url_for('admin.templates', tab='mappings'))
+
+    mapping.email_template_id = template_id
+    mapping.delay_minutes = delay_minutes
+    mapping.is_active = is_active
+    db.session.commit()
+
+    flash(f"Automation mapping for '{mapping.event_label}' updated successfully.", 'success')
+    return redirect(url_for('admin.templates', tab='mappings'))
+
+
+# --- Backward Compatibility Endpoints ---
 
 @admin_bp.route('/templates/email/<string:template_type>', methods=['POST'])
 @admin_required
 def update_email_template(template_type):
     """
-    Update subject and body for an email template.
+    Update subject and body for an email template by slug (backward compatibility).
     """
     valid_types = ['application_successful', 'application_acknowledgment']
     if template_type not in valid_types:
@@ -1160,7 +1432,7 @@ def update_email_template(template_type):
         email_tmpl.body = body
 
     db.session.commit()
-    flash(f"Application Acknowledgment email template updated successfully.", 'success')
+    flash("Application Acknowledgment email template updated successfully.", 'success')
     return redirect(url_for('admin.templates'))
 
 
@@ -1168,7 +1440,7 @@ def update_email_template(template_type):
 @admin_required
 def preview_email_template(template_type):
     """
-    Preview rendered HTML email with sample candidate data.
+    Preview rendered HTML email with sample candidate data by slug (backward compatibility).
     """
     from services.email_service import render_sample_email_preview
     actual_type = 'application_successful' if template_type in ['application_successful', 'application_acknowledgment'] else template_type
@@ -1253,7 +1525,7 @@ _RETIRED_ENDPOINTS = [
     'preview_document_file_by_id', 'preview_document_pdf_by_id',
     'preview_document_by_id', 'update_application_payment_status',
     'admin_reset_employee_password', 'upload_document_template',
-    'create_template', 'assign_job_to_template', 'activate_document_template',
+    'assign_job_to_template', 'activate_document_template',
     'deactivate_document_template', 'delete_document_template',
     'download_document_template_by_id', 'preview_document_template_info',
     'download_document_template', 'generate_offer_letter', 'preview_offer_letter',

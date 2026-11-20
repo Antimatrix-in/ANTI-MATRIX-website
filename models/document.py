@@ -52,10 +52,13 @@ class EmailTemplate(db.Model):
     __tablename__ = 'email_templates'
 
     id = db.Column(db.Integer, primary_key=True)
-    template_type = db.Column(db.String(50), unique=True, nullable=False, index=True)  # 'application_successful', 'offer_letter'
-    name = db.Column(db.String(100), nullable=False)
+    template_type = db.Column(db.String(100), unique=True, nullable=False, index=True)  # stable slug, e.g. 'application_successful'
+    name = db.Column(db.String(150), unique=True, nullable=False, index=True)
+    description = db.Column(db.Text, nullable=True)
+    category = db.Column(db.String(50), default='Recruitment', nullable=False, index=True)  # 'Recruitment', 'Assessment', 'Interview', 'General'
     subject = db.Column(db.String(255), nullable=False)
     body = db.Column(db.Text, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = db.Column(
         db.DateTime,
@@ -64,8 +67,49 @@ class EmailTemplate(db.Model):
         nullable=False
     )
 
+    @property
+    def slug(self):
+        return self.template_type
+
+    @slug.setter
+    def slug(self, value):
+        self.template_type = value
+
+    @property
+    def active_mapping_count(self):
+        return len([m for m in self.mappings if m.is_active])
+
     def __repr__(self):
-        return f"<EmailTemplate id={self.id} type='{self.template_type}' subject='{self.subject[:30]}'>"
+        return f"<EmailTemplate id={self.id} type='{self.template_type}' name='{self.name}' active={self.is_active}>"
+
+
+class EmailTemplateMapping(db.Model):
+    __tablename__ = 'email_template_mappings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_key = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    event_label = db.Column(db.String(150), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    email_template_id = db.Column(
+        db.Integer,
+        db.ForeignKey('email_templates.id', ondelete='RESTRICT'),
+        nullable=True,
+        index=True
+    )
+    delay_minutes = db.Column(db.Integer, default=0, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    template = db.relationship('EmailTemplate', backref=db.backref('mappings', lazy=True))
+
+    def __repr__(self):
+        return f"<EmailTemplateMapping event='{self.event_key}' template_id={self.email_template_id} delay={self.delay_minutes} active={self.is_active}>"
 
 
 class EmployeeDocument(db.Model):
