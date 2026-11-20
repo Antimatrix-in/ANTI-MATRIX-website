@@ -82,9 +82,117 @@ def save_secure_file(file_obj, upload_folder, prefix, job_id, allowed_exts, requ
     return unique_filename, save_path, None
 
 
+_CORE_SCHEMA_INITIALIZED = False
+
+
+def ensure_core_database_schema():
+    """
+    Safely inspects and self-heals database schema across all blueprints before ANY request is processed.
+    Ensures:
+    1. 'users' table has 'email_verified' column (preventing 500 when Flask-Login loads session user).
+    2. 'email_verification_otps' table exists.
+    3. 'partners' and 'partner_earnings_records' tables exist.
+    4. 'money_transactions' table has 'partner_id' column.
+    Runs once per process lifetime, safely self-healing PostgreSQL without requiring app.py overwrite or service restart.
+    """
+    global _CORE_SCHEMA_INITIALIZED
+    if _CORE_SCHEMA_INITIALIZED:
+        return True
+
+    try:
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        table_names = inspector.get_table_names()
+        dialect_name = db.engine.dialect.name
+        is_sqlite = (dialect_name == 'sqlite')
+
+        # 1. Ensure email_verified column exists on users table
+        if 'users' in table_names:
+            try:
+                u_cols = [c['name'] for c in inspector.get_columns('users')]
+                if 'email_verified' not in u_cols:
+                    with db.engine.begin() as conn:
+                        if not is_sqlite:
+                            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE"))
+                        else:
+                            conn.execute(text("ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT 0"))
+                    if current_app:
+                        current_app.logger.info("[MainSchema] Added email_verified column to users table.")
+            except Exception as u_err:
+                if current_app:
+                    current_app.logger.warning(f"[MainSchema] User column check note: {u_err}")
+
+        # 2. Ensure email_verification_otps table exists
+        if 'email_verification_otps' not in table_names:
+            try:
+                from models.signup_otp import EmailVerificationOTP
+                EmailVerificationOTP.__table__.create(db.engine, checkfirst=True)
+                if current_app:
+                    current_app.logger.info("[MainSchema] Created email_verification_otps table.")
+            except Exception as otp_err:
+                if current_app:
+                    current_app.logger.warning(f"[MainSchema] OTP table creation note: {otp_err}")
+
+        # 3. Ensure partners table exists
+        if 'partners' not in table_names:
+            try:
+                from models.partner import Partner
+                Partner.__table__.create(db.engine, checkfirst=True)
+                if current_app:
+                    current_app.logger.info("[MainSchema] Created partners table.")
+            except Exception as p_err:
+                if current_app:
+                    current_app.logger.warning(f"[MainSchema] Partner table creation note: {p_err}")
+
+        # 4. Ensure partner_earnings_records table exists
+        if 'partner_earnings_records' not in table_names:
+            try:
+                from models.partner_earnings_record import PartnerEarningsRecord
+                PartnerEarningsRecord.__table__.create(db.engine, checkfirst=True)
+                if current_app:
+                    current_app.logger.info("[MainSchema] Created partner_earnings_records table.")
+            except Exception as per_err:
+                if current_app:
+                    current_app.logger.warning(f"[MainSchema] PartnerEarningsRecord table creation note: {per_err}")
+
+        # 5. Ensure partner_id exists on money_transactions
+        if 'money_transactions' in table_names:
+            try:
+                mt_cols = [c['name'] for c in inspector.get_columns('money_transactions')]
+                if 'partner_id' not in mt_cols:
+                    with db.engine.begin() as conn:
+                        if not is_sqlite:
+                            conn.execute(text("ALTER TABLE money_transactions ADD COLUMN IF NOT EXISTS partner_id INTEGER"))
+                        else:
+                            conn.execute(text("ALTER TABLE money_transactions ADD COLUMN partner_id INTEGER REFERENCES partners(id)"))
+            except Exception as mt_err:
+                if current_app:
+                    current_app.logger.warning(f"[MainSchema] MoneyTransaction partner_id note: {mt_err}")
+
+        _CORE_SCHEMA_INITIALIZED = True
+        return True
+    except Exception as e:
+        if current_app:
+            current_app.logger.warning(f"[MainSchema] Core schema auto-heal note: {e}")
+        return False
+
+
+@main_bp.before_app_request
+def auto_heal_core_schema():
+    ensure_core_database_schema()
+
+
 @main_bp.route('/')
 def home():
-    return render_template('pages/home.html')
+    try:
+        return render_template('pages/home.html')
+    except Exception as e:
+        current_app.logger.error(f"Error rendering home template: {e}", exc_info=True)
+        try:
+            db.session.rollback()
+            return render_template('pages/home.html')
+        except Exception:
+            raise e
 
 
 @main_bp.route('/brand-film')

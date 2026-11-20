@@ -63,6 +63,12 @@ def create_app(config_name=None):
             return db.session.get(User, int(user_id))
         except (ValueError, TypeError):
             return None
+        except Exception as e:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            return None
 
     # Register blueprints
     app.register_blueprint(main_bp)
