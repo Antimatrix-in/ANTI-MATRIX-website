@@ -414,50 +414,89 @@ class JobApplication(db.Model):
     @property
     def stage(self):
         """Authoritative normalized recruitment pipeline stage."""
-        st = (self.status or self.application_status or 'APPLIED').strip().upper()
+        st = (self.status or self.application_status or 'Applied').strip().upper()
         if st in ['HIRED']:
-            return 'HIRED'
+            return 'Hired'
         if st in ['OFFER_COMPLETED', 'OFFER_COMPLETE', 'COMPLETED', 'COMPLETE']:
-            return 'OFFER_COMPLETED'
-        if st in ['SHORTLISTED']:
-            return 'SHORTLISTED'
-        if st in ['UNDER_REVIEW', 'REVIEWED']:
-            return 'UNDER_REVIEW'
+            return 'Shortlisted'
+        if st in ['SHORTLISTED', 'SHORT LISTED']:
+            return 'Shortlisted'
+        if st in ['UNDER_REVIEW', 'UNDER REVIEW', 'REVIEWED']:
+            return 'Under Review'
         if st in ['REJECTED', 'NOT SELECTED', 'NOT_SELECTED']:
-            return 'REJECTED'
-        return 'APPLIED'
+            return 'Rejected'
+        return 'Applied'
 
     @property
     def status_display(self):
-        """Map internal database recruitment status to clean human-friendly label (Applied, Under Review, Shortlisted, Offer Completed, Hired)."""
-        st = (self.status or self.application_status or 'APPLIED').strip()
+        """Map internal database recruitment status to clean human-friendly label."""
+        return self.stage
+
+    @property
+    def ack_email_status(self):
+        """Standardized acknowledgment email status (Pending, Processing, Sent, Failed)."""
+        raw = (self.application_success_email_status or 'Pending').strip()
         mapping = {
-            'APPLIED': 'Applied',
-            'applied': 'Applied',
-            'New': 'Applied',
-            'SUBMITTED': 'Applied',
-            'submitted': 'Applied',
-            'Reviewed': 'Under Review',
-            'UNDER_REVIEW': 'Under Review',
-            'reviewed': 'Under Review',
-            'under_review': 'Under Review',
-            'Shortlisted': 'Shortlisted',
-            'SHORTLISTED': 'Shortlisted',
-            'shortlisted': 'Shortlisted',
-            'OFFER_COMPLETED': 'Offer Completed',
-            'offer_completed': 'Offer Completed',
-            'COMPLETED': 'Offer Completed',
-            'completed': 'Offer Completed',
-            'Rejected': 'Not Selected',
-            'REJECTED': 'Not Selected',
-            'rejected': 'Not Selected',
-            'Hired': 'Hired',
-            'HIRED': 'Hired',
-            'hired': 'Hired',
-            'pending_payment': 'Applied',
-            'PENDING_PAYMENT': 'Applied'
+            'PENDING': 'Pending',
+            'pending': 'Pending',
+            'PROCESSING': 'Processing',
+            'processing': 'Processing',
+            'SENT': 'Sent',
+            'sent': 'Sent',
+            'FAILED': 'Failed',
+            'failed': 'Failed',
+            'Failed_Max_Retries': 'Failed'
         }
-        return mapping.get(st, st)
+        return mapping.get(raw, raw.title())
+
+    @ack_email_status.setter
+    def ack_email_status(self, val):
+        self.application_success_email_status = val
+
+    @property
+    def ack_email_scheduled_at(self):
+        """Calculated scheduled delivery timestamp (created_at + 5 minutes)."""
+        if self.created_at:
+            cr = self.created_at
+            if cr.tzinfo is None:
+                cr = cr.replace(tzinfo=timezone.utc)
+            return cr + timedelta(minutes=5)
+        return None
+
+    @property
+    def ack_email_sent_at(self):
+        """Timestamp when acknowledgment email was sent."""
+        if self.application_success_email_sent_at:
+            s = self.application_success_email_sent_at
+            if s.tzinfo is None:
+                s = s.replace(tzinfo=timezone.utc)
+            return s
+        return None
+
+    @property
+    def ack_email_attempts(self):
+        """Failed delivery attempts recorded for this application."""
+        from models.document import EmailLog
+        try:
+            code = self.formatted_code
+            if not code:
+                return 0
+            return EmailLog.query.filter_by(reference_id=code, status='FAILED').count()
+        except Exception:
+            return 0
+
+    @property
+    def ack_email_error(self):
+        """Latest error message if delivery failed."""
+        from models.document import EmailLog
+        try:
+            code = self.formatted_code
+            if not code:
+                return None
+            last_failed = EmailLog.query.filter_by(reference_id=code, status='FAILED').order_by(EmailLog.id.desc()).first()
+            return last_failed.error_message if last_failed else None
+        except Exception:
+            return None
 
     @property
     def status_badge_class(self):

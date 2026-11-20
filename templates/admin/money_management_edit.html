@@ -28,22 +28,16 @@
       </div>
     </div>
 
-    <!-- Admin Nav Tabs -->
+    <!-- Admin Nav Tabs (Strictly 5 Standard Tabs) -->
     <div class="admin-nav-tabs">
       <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-tab">
         {{ icon('layout', size=15) }} Overview
       </a>
       <a href="{{ url_for('admin.jobs') }}" class="admin-nav-tab">
-        {{ icon('briefcase', size=15) }} Job Postings <span class="admin-tab-count">{{ total_jobs }}</span>
+        {{ icon('briefcase', size=15) }} Job Postings
       </a>
       <a href="{{ url_for('admin.applications') }}" class="admin-nav-tab">
-        {{ icon('users', size=15) }} Candidate Applications <span class="admin-tab-count">{{ total_applications }}</span>
-        {% if new_applications > 0 %}
-          <span class="admin-tab-count new">{{ new_applications }} NEW</span>
-        {% endif %}
-      </a>
-      <a href="{{ url_for('admin.employees') }}" class="admin-nav-tab">
-        {{ icon('user-check', size=15) }} Employees <span class="admin-tab-count">{{ total_employees }}</span>
+        {{ icon('users', size=15) }} Candidate Applications
       </a>
       <a href="{{ url_for('admin.templates') }}" class="admin-nav-tab">
         {{ icon('file-text', size=15) }} Templates

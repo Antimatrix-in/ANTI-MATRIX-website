@@ -15,33 +15,28 @@ from models import db, JobApplication, Employee, EmployeeDocument, DocumentTempl
 # DEFAULT OFFICIAL ANTI MATRIX EMAIL TEMPLATES
 # =====================================================================
 
-DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT = "Application Successfully Submitted — {{Internship Role}} | {{Application ID}}"
+DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT = "Thank You for Showing Interest in Anti-Matrix"
 
-DEFAULT_APPLICATION_SUCCESSFUL_BODY = """Dear {{Student Name}},
+DEFAULT_APPLICATION_SUCCESSFUL_BODY = """Dear {{candidate_name}},
 
-Thank you for applying for the **{{Internship Role}} Internship Opportunity at Anti Matrix**.
+Thank you for showing interest in Anti-Matrix and applying for the **{{job_title}}** position.
 
-We are pleased to inform you that your internship application has been **successfully submitted and received**.
+We are pleased to inform you that your application has been **successfully received**.
 
 ### Application Details
 
-**Application ID:** {{Application ID}}
-**Internship Role:** {{Internship Role}}
-**Application Date:** {{Application Date}}
+**Application ID:** {{application_id}}
+**Position:** {{job_title}}
+**Application Date:** {{application_date}}
 
-Your application is currently **under review by our team**. We kindly request you to allow us some time while we evaluate your application and submitted details.
+Our recruitment team is currently **evaluating your credentials and experience**. If your profile matches our requirements, you will receive further instructions regarding the next steps.
 
-If your application is shortlisted, you will receive a **confirmation/selection email** with the next steps and further instructions.
-
-Please keep your **Application ID** for future reference when communicating with Anti Matrix regarding your application.
-
-Thank you for your interest in building your skills and gaining practical experience with **Anti Matrix**.
+Please keep your **Application ID ({{application_id}})** for reference during future communications.
 
 Best Regards,
-**Anti Matrix Team**
-Internship & Career Opportunities
-{{Company Email}}
-{{Website}}"""
+**Anti-Matrix Recruitment Team**
+{{company_email}}
+{{website}}"""
 
 DEFAULT_OFFER_LETTER_SUBJECT = "Congratulations! You Have Been Shortlisted — {{Internship Role}} | Anti Matrix"
 
@@ -323,6 +318,10 @@ def send_brevo_email(recipient_email, recipient_name, subject, body_text, body_h
         'Anti Matrix'
     )
 
+    # If testing mode is active, simulate successful delivery
+    if current_app and current_app.config.get('TESTING'):
+        return True, "Email successfully sent (testing mode)", "test_msg_id_12345"
+
     # If Brevo API key is not present or is a placeholder, use SMTP / Simulation mode
     if not api_key or 'your-brevo' in api_key.lower() or 'placeholder' in api_key.lower():
         return send_mime_email(recipient_email, subject, body_text, body_html, attachment_path, attachment_name)
@@ -528,6 +527,7 @@ def render_application_successful_email(application):
     formatted_code = application.formatted_code if hasattr(application, 'formatted_code') else f"AM-APP-{application.id:06d}"
 
     variables = {
+        'candidate_name': candidate_name,
         'Student Name': candidate_name,
         'Internship Role': job_title,
         'Application ID': formatted_code,
@@ -1115,9 +1115,10 @@ def render_sample_email_preview(template_type):
     Does not modify any live database records.
     """
     sample_variables = {
+        'candidate_name': 'Rahul Kumar',
         'Student Name': 'Rahul Kumar',
         'Internship Role': 'AI Engineer Intern',
-        'Application ID': 'AM-APP-1001',
+        'Application ID': 'AM-APP-000001',
         'Application Date': '15/09/2026',
         'Internship Duration': '3 Months',
         'Start Date': '15/09/2026',
@@ -1132,7 +1133,7 @@ def render_sample_email_preview(template_type):
         'employee_password': 'AMx7P9k2Q',
         'temp_password': 'AMx7P9k2Q',
         'job_title': 'AI Engineer Intern',
-        'application_id': 'AM-APP-1001',
+        'application_id': 'AM-APP-000001',
         'internship_duration': '3 Months',
         'start_date': '15/09/2026',
         'joining_date': '15/09/2026',

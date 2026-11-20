@@ -328,8 +328,9 @@ def apply_job(job_id):
                 gst_rate=gst_rate,
                 gst_amount=gst_amount,
                 payment_status='pending',
-                application_status='APPLIED',
-                status='APPLIED'
+                application_status='Applied',
+                status='Applied',
+                application_success_email_status='Pending'
             )
             db.session.add(application)
             db.session.flush()
@@ -339,6 +340,8 @@ def apply_job(job_id):
             try:
                 db.session.commit()
                 current_app.logger.info("Candidate application created successfully")
+                from services.email_scheduler_service import schedule_application_acknowledgment
+                schedule_application_acknowledgment(application, delay_minutes=5)
             except IntegrityError as ie:
                 db.session.rollback()
                 current_app.logger.warning(f"Duplicate applicant prevented by database constraint: {ie}")
@@ -908,12 +911,12 @@ def job_apply_test_payment(app_id):
     except Exception as e:
         current_app.logger.warning(f"Failed to record money transaction for test payment: {e}")
 
-    # Send application success email notification
+    # Schedule 5-minute delayed application acknowledgment email notification
     try:
-        from services.email_service import send_application_successful_email
-        send_application_successful_email(application)
+        from services.email_scheduler_service import schedule_application_acknowledgment
+        schedule_application_acknowledgment(application, delay_minutes=5)
     except Exception as e:
-        current_app.logger.warning(f"Failed to send confirmation email for test application {application.id}: {e}")
+        current_app.logger.warning(f"Failed to schedule confirmation email for test application {application.id}: {e}")
 
     flash("Test payment completed successfully! Your application has been submitted.", "success")
     return redirect(url_for('main.job_apply_success', app_id=application.id))
@@ -1146,12 +1149,12 @@ def cashfree_return():
         except Exception as e:
             current_app.logger.warning(f"Failed to record money transaction for Cashfree order {order_id}: {e}")
 
-        # Send application success email notification
+        # Schedule 5-minute delayed application acknowledgment email notification
         try:
-            from services.email_service import send_application_successful_email
-            send_application_successful_email(application)
+            from services.email_scheduler_service import schedule_application_acknowledgment
+            schedule_application_acknowledgment(application, delay_minutes=5)
         except Exception as e:
-            current_app.logger.warning(f"Failed to send confirmation email for application {application.id}: {e}")
+            current_app.logger.warning(f"Failed to schedule confirmation email for application {application.id}: {e}")
 
         current_app.logger.info(f"Application finalization completed: {application.id} ({application.application_code}) for Cashfree order {order_id}")
         flash("Payment verified successfully! Your application has been submitted.", "success")
@@ -1251,12 +1254,12 @@ def cashfree_webhook():
             except Exception as e:
                 current_app.logger.warning(f"Failed to record money transaction for webhook order {order_id}: {e}")
 
-            # Send application success email notification
+            # Schedule 5-minute delayed application acknowledgment email notification
             try:
-                from services.email_service import send_application_successful_email
-                send_application_successful_email(application)
+                from services.email_scheduler_service import schedule_application_acknowledgment
+                schedule_application_acknowledgment(application, delay_minutes=5)
             except Exception as e:
-                current_app.logger.warning(f"Failed to send confirmation email for webhook application {application.id}: {e}")
+                current_app.logger.warning(f"Failed to schedule confirmation email for webhook application {application.id}: {e}")
 
             current_app.logger.info(f"Application finalized via Webhook: {application.id} ({application.application_code}) for Cashfree order {order_id}")
 

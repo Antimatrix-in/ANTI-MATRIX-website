@@ -11,12 +11,9 @@
     <div class="admin-header">
       <div class="admin-header-title">
         <h1>Candidate Applications</h1>
-        <p>Review candidate profiles, evaluate credentials, check Cashfree payment stages, and manage recruitment pipeline stages.</p>
+        <p>Review candidate profiles, evaluate credentials, check Cashfree payment status, and manage recruitment pipeline stages.</p>
       </div>
       <div style="display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap;">
-        <a href="{{ url_for('admin.create_employee') }}" class="btn btn-primary" style="gap: 6px; font-weight: 700;">
-          {{ icon('user-plus', size=15) }} Create Employee
-        </a>
         {% if total_unfiltered_applications > 0 %}
           <button type="button" class="btn btn-danger-outline" id="open-clear-all-modal-btn" style="gap: 6px;">
             {{ icon('trash-2', size=15) }} Clear All Applications
@@ -29,7 +26,7 @@
       </div>
     </div>
 
-    <!-- Admin Nav Tabs -->
+    <!-- Admin Nav Tabs (Strictly 5 Standard Tabs) -->
     <div class="admin-nav-tabs">
       <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-tab">
         {{ icon('layout', size=15) }} Overview
@@ -40,23 +37,11 @@
       <a href="{{ url_for('admin.applications') }}" class="admin-nav-tab active">
         {{ icon('users', size=15) }} Candidate Applications <span class="admin-tab-count">{{ applications|length }}</span>
       </a>
-      <a href="{{ url_for('admin.employees') }}" class="admin-nav-tab">
-        {{ icon('user-check', size=15) }} Employees
-      </a>
-      <a href="{{ url_for('admin.inquiries') }}" class="admin-nav-tab">
-        {{ icon('message-square', size=15) }} Inquiries <span class="admin-tab-count {{ 'new' if unread_inquiries_count > 0 else '' }}">{{ total_inquiries_count }}</span>
-        {% if unread_inquiries_count > 0 %}
-          <span class="admin-tab-count new">{{ unread_inquiries_count }} NEW</span>
-        {% endif %}
-      </a>
       <a href="{{ url_for('admin.templates') }}" class="admin-nav-tab">
         {{ icon('file-text', size=15) }} Templates
       </a>
       <a href="{{ url_for('admin.money_management') }}" class="admin-nav-tab">
         {{ icon('wallet', size=15) }} Money Management
-      </a>
-      <a href="{{ url_for('admin.internship_benefits') }}" class="admin-nav-tab">
-        {{ icon('award', size=15) }} Internship Benefits
       </a>
     </div>
 
@@ -79,7 +64,7 @@
         <input
           type="text"
           name="q"
-          placeholder="Search name, email, App ID, skills..."
+          placeholder="Search candidate name, email, App ID, skills..."
           class="form-input"
           value="{{ search_query }}"
           style="padding: 0.55rem 0.875rem; font-size: 0.875rem;"
@@ -117,11 +102,10 @@
 
           <select name="status" class="admin-select" onchange="this.form.submit();">
             <option value="all" {{ 'selected' if selected_status == 'all' else '' }}>All Stages</option>
-            <option value="APPLIED" {{ 'selected' if selected_status in ['APPLIED', 'New'] else '' }}>Applied</option>
-            <option value="UNDER_REVIEW" {{ 'selected' if selected_status in ['UNDER_REVIEW', 'Reviewed'] else '' }}>Under Review</option>
-            <option value="SHORTLISTED" {{ 'selected' if selected_status in ['SHORTLISTED', 'Shortlisted'] else '' }}>Shortlisted</option>
-            <option value="Rejected" {{ 'selected' if selected_status == 'Rejected' else '' }}>Not Selected</option>
-            <option value="Hired" {{ 'selected' if selected_status == 'Hired' else '' }}>Hired</option>
+            <option value="applied" {{ 'selected' if selected_status in ['applied', 'Applied', 'APPLIED', 'New'] else '' }}>Applied</option>
+            <option value="under_review" {{ 'selected' if selected_status in ['under_review', 'Under Review', 'UNDER_REVIEW', 'Reviewed'] else '' }}>Under Review</option>
+            <option value="shortlisted" {{ 'selected' if selected_status in ['shortlisted', 'Shortlisted', 'SHORTLISTED'] else '' }}>Shortlisted</option>
+            <option value="rejected" {{ 'selected' if selected_status in ['rejected', 'Rejected', 'REJECTED'] else '' }}>Rejected</option>
           </select>
 
           {% if (selected_status and selected_status != 'all') or (selected_payment_status and selected_payment_status != 'all') or selected_job_id or selected_duration or search_query %}
@@ -141,9 +125,10 @@
               <th>Candidate Name</th>
               <th>Position</th>
               <th>Duration</th>
-              <th>Application Fee</th>
+              <th>Fee</th>
               <th>Payment</th>
-              <th>Stage</th>
+              <th>Recruitment Stage</th>
+              <th>Acknowledgment Email</th>
               <th>Applied Date</th>
               <th style="text-align: right;">Actions</th>
             </tr>
@@ -162,12 +147,13 @@
                 </td>
                 <td>
                   <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                    <span style="font-weight: 600; color: var(--color-text);">{{ app.job.title if app.job else 'Position' }}</span>
                     {% set app_job_code = (app.job.job_code or app.job.job_id or app.job_code) if app.job else app.job_code %}
                     {% if app_job_code %}
                       <span style="font-family: var(--font-mono, monospace); font-size: 0.725rem; font-weight: 700; color: #60a5fa; background: rgba(59, 130, 246, 0.12); padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(59, 130, 246, 0.25);">{{ app_job_code }}</span>
                     {% endif %}
                   </div>
-                  <span class="admin-table-subtitle">{{ app.job.department }} &bull; CGPA: {{ app.current_cgpa or 'N/A' }}</span>
+                  <span class="admin-table-subtitle">{{ app.job.department if app.job else '' }}{% if app.college %} &bull; {{ app.college }}{% endif %}</span>
                 </td>
                 <td>
                   {% if app.duration_display %}
@@ -180,11 +166,11 @@
                 </td>
                 <td>
                   {% if app.latest_payment and app.latest_payment.amount %}
-                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--color-white); font-family: var(--font-mono, monospace);">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--color-text); font-family: var(--font-mono, monospace);">
                       ₹{{ "%.2f"|format(app.latest_payment.amount) }}
                     </span>
                   {% elif app.application_fee and app.application_fee > 0 %}
-                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--color-white); font-family: var(--font-mono, monospace);">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--color-text); font-family: var(--font-mono, monospace);">
                       ₹{{ app.application_fee }}
                     </span>
                   {% else %}
@@ -192,31 +178,54 @@
                   {% endif %}
                 </td>
                 <td>
-                  {% if app.payment_status == 'paid' %}
+                  {% if app.payment_status in ['paid', 'PAID'] %}
                     <span class="badge-status active" style="background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3);">Paid</span>
-                  {% elif app.payment_status == 'failed' %}
+                  {% elif app.payment_status in ['failed', 'FAILED'] %}
                     <span class="badge-status" style="background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3);">Failed</span>
                   {% else %}
                     <span class="badge-status" style="background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3);">Pending</span>
                   {% endif %}
                 </td>
                 <td>
-                  <span class="badge-status {{ app.status_badge_class }}">{{ app.status_display }}</span>
+                  <!-- Interactive Quick Stage Selector -->
+                  <form method="POST" action="{{ url_for('admin.update_application_stage', app_id=app.id) }}" style="display: inline-block;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <select name="stage" class="admin-select" onchange="this.form.submit();" style="font-size: 0.775rem; font-weight: 700; padding: 0.25rem 0.6rem; border-radius: 6px; cursor: pointer; {% if app.stage == 'Applied' %}background: #f1f5f9; color: #475569; border-color: #cbd5e1;{% elif app.stage == 'Under Review' %}background: #eff6ff; color: #2563eb; border-color: #93c5fd;{% elif app.stage == 'Shortlisted' %}background: #ecfdf5; color: #059669; border-color: #a7f3d0;{% elif app.stage == 'Rejected' %}background: #fef2f2; color: #dc2626; border-color: #fca5a5;{% endif %}">
+                      <option value="Applied" {{ 'selected' if app.stage == 'Applied' else '' }}>Applied</option>
+                      <option value="Under Review" {{ 'selected' if app.stage == 'Under Review' else '' }}>Under Review</option>
+                      <option value="Shortlisted" {{ 'selected' if app.stage == 'Shortlisted' else '' }}>Shortlisted</option>
+                      <option value="Rejected" {{ 'selected' if app.stage == 'Rejected' else '' }}>Rejected</option>
+                    </select>
+                  </form>
                 </td>
-                <td style="font-size: 0.825rem; color: var(--color-text-dim);">
+                <td>
+                  {% set email_st = app.ack_email_status %}
+                  {% if email_st == 'Sent' %}
+                    <span class="badge-status active" style="font-size: 0.75rem; background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25);" title="Acknowledgment sent at {{ app.ack_email_sent_at.strftime('%H:%M UTC') if app.ack_email_sent_at else '' }}">
+                      {{ icon('check-circle', size=12) }} Sent
+                    </span>
+                  {% elif email_st == 'Processing' %}
+                    <span class="badge-status" style="font-size: 0.75rem; background: rgba(59,130,246,0.12); color: #3b82f6; border: 1px solid rgba(59,130,246,0.25);">
+                      {{ icon('loader', size=12) }} Processing
+                    </span>
+                  {% elif email_st == 'Failed' %}
+                    <span class="badge-status" style="font-size: 0.75rem; background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.25);" title="{{ app.ack_email_error or 'Failed' }}">
+                      {{ icon('alert-circle', size=12) }} Failed ({{ app.ack_email_attempts }})
+                    </span>
+                  {% else %}
+                    <span class="badge-status" style="font-size: 0.75rem; background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25);" title="Scheduled for +5 minutes">
+                      {{ icon('clock', size=12) }} Pending (+5m)
+                    </span>
+                  {% endif %}
+                </td>
+                <td style="font-size: 0.825rem; color: var(--color-text-dim); white-space: nowrap;">
                   {{ app.created_at.strftime('%b %d, %Y') }}
                 </td>
                 <td>
-                  <div class="action-buttons" style="justify-content: flex-end; gap: 4px;">
-                    {% if not app.employee %}
-                      <a href="{{ url_for('admin.create_employee', app_id=app.id) }}" class="btn btn-outline btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.725rem; border-color: rgba(16,185,129,0.4); color: #34d399;" title="Create Employee Record">
-                        {{ icon('user-plus', size=12) }} Create Emp
-                      </a>
-                    {% else %}
-                      <span style="font-size: 0.725rem; font-weight: 700; color: #a7f3d0; font-family: var(--font-mono, monospace); padding: 0.15rem 0.4rem; background: rgba(16,185,129,0.1); border-radius: 4px; border: 1px solid rgba(16,185,129,0.25);">
-                        {{ app.employee.employee_id }}
-                      </span>
-                    {% endif %}
+                  <div class="action-buttons" style="justify-content: flex-end; gap: 6px;">
+                    <a href="{{ url_for('admin.application_detail', app_id=app.id) }}" class="btn btn-outline btn-sm" style="padding: 0.25rem 0.6rem; font-size: 0.775rem;">
+                      {{ icon('eye', size=13) }} View
+                    </a>
                     {% if app.resume_path and app.resume_filename != 'NOT_PROVIDED' %}
                       <a href="{{ url_for('admin.download_document', app_id=app.id, doc_type='resume') }}" class="btn-icon" title="View Resume" target="_blank">
                         {{ icon('file-text', size=14) }}
@@ -232,7 +241,7 @@
         <div style="text-align: center; padding: var(--space-3xl) var(--space-lg);">
           <div class="icon-box" style="margin: 0 auto var(--space-md);">{{ icon('users', size=24) }}</div>
           <h3 style="color: var(--color-text); margin-bottom: 0.5rem;">No Applications Found</h3>
-          <p style="color: var(--color-text-dim); margin-bottom: 0;">No paid candidate applications match the selected filter criteria.</p>
+          <p style="color: var(--color-text-dim); margin-bottom: 0;">No candidate applications match the selected filter criteria.</p>
         </div>
       {% endif %}
     </div>
@@ -262,7 +271,7 @@
           You are about to permanently delete <strong style="color: #f87171;">{{ total_unfiltered_applications }}</strong> candidate application{% if total_unfiltered_applications != 1 %}s{% endif %} and all associated uploaded documents.
         </p>
         <p style="margin-bottom: 0; font-size: 0.825rem; color: var(--color-text-muted);">
-          Job postings, employees, templates, money transactions, and email logs will NOT be deleted.
+          Job postings, email templates, and financial records will NOT be affected.
         </p>
       </div>
 
@@ -297,72 +306,43 @@
     </div>
   </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  var openModalBtn = document.getElementById('open-clear-all-modal-btn');
-  var modalBackdrop = document.getElementById('clear-all-modal-backdrop');
-  var cancelBtn = document.getElementById('cancel-clear-all-btn');
-  var confirmInput = document.getElementById('clear-confirm-input');
-  var confirmBtn = document.getElementById('confirm-clear-all-btn');
+  // Modal interactions
+  const openModalBtn = document.getElementById('open-clear-all-modal-btn');
+  const modalBackdrop = document.getElementById('clear-all-modal-backdrop');
+  const cancelBtn = document.getElementById('cancel-clear-all-btn');
+  const confirmInput = document.getElementById('clear-confirm-input');
+  const confirmBtn = document.getElementById('confirm-clear-all-btn');
 
-  function openModal() {
-    if (modalBackdrop) {
+  if (openModalBtn && modalBackdrop) {
+    openModalBtn.addEventListener('click', () => {
       modalBackdrop.style.display = 'flex';
       modalBackdrop.setAttribute('aria-hidden', 'false');
       if (confirmInput) {
         confirmInput.value = '';
-        confirmInput.focus();
-      }
-      if (confirmBtn) {
         confirmBtn.disabled = true;
+        setTimeout(() => confirmInput.focus(), 50);
       }
-    }
-  }
+    });
 
-  function closeModal() {
-    if (modalBackdrop) {
+    cancelBtn.addEventListener('click', () => {
       modalBackdrop.style.display = 'none';
       modalBackdrop.setAttribute('aria-hidden', 'true');
-      if (confirmInput) {
-        confirmInput.value = '';
-      }
-      if (confirmBtn) {
-        confirmBtn.disabled = true;
-      }
-    }
-  }
+    });
 
-  if (openModalBtn) {
-    openModalBtn.addEventListener('click', openModal);
-  }
-
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', closeModal);
-  }
-
-  if (modalBackdrop) {
-    modalBackdrop.addEventListener('click', function(e) {
+    modalBackdrop.addEventListener('click', (e) => {
       if (e.target === modalBackdrop) {
-        closeModal();
+        modalBackdrop.style.display = 'none';
+        modalBackdrop.setAttribute('aria-hidden', 'true');
       }
     });
-  }
 
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && modalBackdrop && modalBackdrop.style.display === 'flex') {
-      closeModal();
+    if (confirmInput) {
+      confirmInput.addEventListener('input', () => {
+        confirmBtn.disabled = confirmInput.value.trim() !== 'DELETE';
+      });
     }
-  });
-
-  if (confirmInput && confirmBtn) {
-    confirmInput.addEventListener('input', function() {
-      var isMatch = (confirmInput.value.trim() === 'DELETE');
-      confirmBtn.disabled = !isMatch;
-    });
   }
-});
 </script>
 {% endblock %}

@@ -1,0 +1,12 @@
+Referencing_Source_File,Line_Number,Referenced_Asset_Path,Asset_Type,Affected_Page,Issue,Severity,Recommended_Fix
+templates/pages/brand_film.html,33,videos/anti_matrix_brand_film.mp4,Video (MP4),/brand-film,File missing from static/videos/ directory,High,Provide anti_matrix_brand_film.mp4 or embed YouTube/Vimeo player
+templates/pages/brand_film.html,34,videos/anti_matrix_brand_film.webm,Video (WebM),/brand-film,File missing from static/videos/ directory,High,Provide anti_matrix_brand_film.webm or remove WebM fallback tag
+templates/pages/brand_film.html,46,videos/anti_matrix_brand_film.mp4,Download Link,/brand-film,Download button links to 404 missing asset,High,Update download link to valid master asset or remove button
+static/videos/anti_matrix_film_audio.wav,N/A,static/videos/anti_matrix_film_audio.wav,Audio (WAV),None (Unreferenced),7.58MB uncompressed audio file unused on website,Medium,Archive or remove from production deployment
+static/videos/anti_matrix_film_audio.m4a,N/A,static/videos/anti_matrix_film_audio.m4a,Audio (M4A),None (Unreferenced),650KB audio file unused on website,Low,Archive or remove from production deployment
+static/images/home_svc_ai.jpg,N/A,static/images/home_svc_ai.jpg,Image (JPG),None (Replaced),620KB legacy service image superseded by service_ai_ml.jpg,Low,Remove or archive legacy asset
+static/images/home_svc_marketing.jpg,N/A,static/images/home_svc_marketing.jpg,Image (JPG),None (Replaced),572KB legacy service image superseded by service_digital_marketing.jpg,Low,Remove or archive legacy asset
+static/images/home_svc_mobile.jpg,N/A,static/images/home_svc_mobile.jpg,Image (JPG),None (Replaced),509KB legacy service image superseded by service_mobile_dev.jpg,Low,Remove or archive legacy asset
+static/images/home_svc_web.jpg,N/A,static/images/home_svc_web.jpg,Image (JPG),None (Replaced),504KB legacy service image superseded by service_web_dev.jpg,Low,Remove or archive legacy asset
+static/js/vendor/jszip.js,N/A,static/js/vendor/jszip.js,Vendor Script,None (Unreferenced),385KB JSZip library unreferenced in templates,Low,Archive or remove from static assets
+static/js/vendor/jszip.min.js,N/A,static/js/vendor/jszip.min.js,Vendor Script,None (Unreferenced),97KB minified JSZip library unreferenced in templates,Low,Archive or remove from static assets

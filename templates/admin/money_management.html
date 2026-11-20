@@ -25,7 +25,7 @@
       </div>
     </div>
 
-    <!-- Admin Nav Tabs -->
+    <!-- Admin Nav Tabs (Strictly 5 Standard Tabs) -->
     <div class="admin-nav-tabs">
       <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-tab">
         {{ icon('layout', size=15) }} Overview
@@ -36,23 +36,11 @@
       <a href="{{ url_for('admin.applications') }}" class="admin-nav-tab">
         {{ icon('users', size=15) }} Candidate Applications
       </a>
-      <a href="{{ url_for('admin.employees') }}" class="admin-nav-tab">
-        {{ icon('user-check', size=15) }} Employees
-      </a>
-      <a href="{{ url_for('admin.inquiries') }}" class="admin-nav-tab">
-        {{ icon('message-square', size=15) }} Inquiries <span class="admin-tab-count {{ 'new' if unread_inquiries_count > 0 else '' }}">{{ total_inquiries_count }}</span>
-        {% if unread_inquiries_count > 0 %}
-          <span class="admin-tab-count new">{{ unread_inquiries_count }} NEW</span>
-        {% endif %}
-      </a>
       <a href="{{ url_for('admin.templates') }}" class="admin-nav-tab">
         {{ icon('file-text', size=15) }} Templates
       </a>
       <a href="{{ url_for('admin.money_management') }}" class="admin-nav-tab active">
         {{ icon('wallet', size=15) }} Money Management
-      </a>
-      <a href="{{ url_for('admin.internship_benefits') }}" class="admin-nav-tab">
-        {{ icon('award', size=15) }} Internship Benefits
       </a>
     </div>
 

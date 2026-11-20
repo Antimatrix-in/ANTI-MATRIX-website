@@ -137,8 +137,14 @@
               <a href="{{ url_for('admin.dashboard') }}" style="display: flex; align-items: center; gap: 8px; padding: 0.6rem 0.75rem; border-radius: var(--radius-sm); text-decoration: none; color: var(--color-primary); font-size: 0.875rem; font-weight: 600; transition: all 0.15s;" onmouseover="this.style.background='rgba(5, 150, 105, 0.08)';" onmouseout="this.style.background='transparent';">
                 {{ icon('shield', size=15, color='var(--color-primary)') }} Admin Dashboard
               </a>
+              <a href="{{ url_for('admin.jobs') }}" style="display: flex; align-items: center; gap: 8px; padding: 0.6rem 0.75rem; border-radius: var(--radius-sm); text-decoration: none; color: var(--color-text); font-size: 0.875rem; font-weight: 500; transition: all 0.15s;" onmouseover="this.style.background='#f8fafc'; this.style.color='#059669';" onmouseout="this.style.background='transparent'; this.style.color='var(--color-text)';">
+                {{ icon('briefcase', size=15, color='#64748b') }} Job Postings
+              </a>
               <a href="{{ url_for('admin.applications') }}" style="display: flex; align-items: center; gap: 8px; padding: 0.6rem 0.75rem; border-radius: var(--radius-sm); text-decoration: none; color: var(--color-text); font-size: 0.875rem; font-weight: 500; transition: all 0.15s;" onmouseover="this.style.background='#f8fafc'; this.style.color='#059669';" onmouseout="this.style.background='transparent'; this.style.color='var(--color-text)';">
                 {{ icon('users', size=15, color='#64748b') }} Candidate Applications
+              </a>
+              <a href="{{ url_for('admin.templates') }}" style="display: flex; align-items: center; gap: 8px; padding: 0.6rem 0.75rem; border-radius: var(--radius-sm); text-decoration: none; color: var(--color-text); font-size: 0.875rem; font-weight: 500; transition: all 0.15s;" onmouseover="this.style.background='#f8fafc'; this.style.color='#059669';" onmouseout="this.style.background='transparent'; this.style.color='var(--color-text)';">
+                {{ icon('file-text', size=15, color='#64748b') }} Templates
               </a>
               <a href="{{ url_for('admin.money_management') }}" style="display: flex; align-items: center; gap: 8px; padding: 0.6rem 0.75rem; border-radius: var(--radius-sm); text-decoration: none; color: var(--color-primary); font-size: 0.875rem; font-weight: 600; transition: all 0.15s;" onmouseover="this.style.background='rgba(5, 150, 105, 0.08)';" onmouseout="this.style.background='transparent';">
                 {{ icon('wallet', size=15, color='var(--color-primary)') }} Money Management

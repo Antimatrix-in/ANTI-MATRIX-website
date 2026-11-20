@@ -5,7 +5,7 @@
 
 {% block content %}
 <section class="section" style="padding-top: calc(var(--nav-height, 80px) + 2rem); background: var(--color-bg); min-height: 85vh;">
-  <div class="container">
+  <div class="container" style="max-width: 1140px;">
     
     <!-- Admin Header -->
     <div class="admin-header" style="margin-bottom: var(--space-xl);">
@@ -15,39 +15,30 @@
         </a>
         <div style="display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap;">
           <h1 style="margin: 0; font-size: clamp(1.75rem, 3vw, 2.25rem); font-weight: 800; color: var(--color-text);">{{ app.full_name }}</h1>
-          <span style="font-family: var(--font-mono, monospace); font-weight: 700; color: var(--color-primary-light); background: rgba(16,185,129,0.1); padding: 0.25rem 0.65rem; border-radius: 6px; border: 1px solid rgba(16,185,129,0.25);">
+          <span style="font-family: var(--font-mono, monospace); font-size: 1rem; font-weight: 800; color: var(--color-primary-light); background: rgba(16,185,129,0.12); padding: 0.3rem 0.75rem; border-radius: 6px; border: 1px solid rgba(16,185,129,0.3);">
             {{ app.formatted_code }}
           </span>
-          {% if app.payment_status == 'paid' %}
+          {% if app.payment_status in ['paid', 'PAID'] %}
             <span class="badge-status active">Payment: Paid</span>
-          {% elif app.payment_status == 'pending' %}
-            <span class="badge-status" style="background: rgba(234, 179, 8, 0.12); color: #eab308; border-color: rgba(234, 179, 8, 0.3);">Payment: Pending</span>
-          {% elif app.payment_status == 'failed' %}
+          {% elif app.payment_status in ['failed', 'FAILED'] %}
             <span class="badge-status" style="background: rgba(239, 68, 68, 0.12); color: #f87171; border-color: rgba(239, 68, 68, 0.3);">Payment: Failed</span>
           {% else %}
-            <span class="badge-status" style="background: rgba(255, 255, 255, 0.05); color: var(--color-text-dim); border-color: var(--color-border);">Payment: Exempt</span>
+            <span class="badge-status" style="background: rgba(234, 179, 8, 0.12); color: #eab308; border-color: rgba(234, 179, 8, 0.3);">Payment: Pending</span>
           {% endif %}
-          <span class="badge-status {{ app.status_badge_class }}" style="font-weight: 700;">{{ app.status_display }}</span>
+          <span class="badge-status" style="font-weight: 700; {% if app.stage == 'Applied' %}background: #f1f5f9; color: #475569; border-color: #cbd5e1;{% elif app.stage == 'Under Review' %}background: #eff6ff; color: #2563eb; border-color: #93c5fd;{% elif app.stage == 'Shortlisted' %}background: #ecfdf5; color: #059669; border-color: #a7f3d0;{% elif app.stage == 'Rejected' %}background: #fef2f2; color: #dc2626; border-color: #fca5a5;{% endif %}">
+            Stage: {{ app.stage }}
+          </span>
         </div>
         <p style="margin-top: 0.35rem; color: var(--color-text-dim);">
-          Applied for: <strong style="color: var(--color-text);">{{ job.title }}</strong>
-          {% set display_job_code = job.job_code or job.job_id or app.job_code %}
+          Applied for: <strong style="color: var(--color-text);">{{ job.title if job else 'Position' }}</strong>
+          {% set display_job_code = (job.job_code or job.job_id or app.job_code) if job else app.job_code %}
           {% if display_job_code %}
             (<span style="font-family: var(--font-mono, monospace); font-weight: 700; color: #60a5fa;">Job Code: {{ display_job_code }}</span>)
           {% endif %}
-          &bull; {{ job.department }} &bull; {{ job.location }}
+          &bull; {{ job.department if job else '' }} &bull; Applied on {{ app.created_at.strftime('%d %b %Y, %I:%M %p UTC') }}
         </p>
       </div>
       <div style="display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap;">
-        {% if not employee %}
-          <a href="{{ url_for('admin.create_employee', app_id=app.id) }}" class="btn btn-primary btn-sm" style="gap: 6px; font-weight: 700;">
-            {{ icon('user-plus', size=14) }} Create Employee
-          </a>
-        {% else %}
-          <a href="{{ url_for('admin.view_employee', employee_id=employee.employee_id) }}" class="btn btn-outline btn-sm" style="gap: 6px; color: #34d399; border-color: #10b981; font-weight: 700;">
-            {{ icon('user-check', size=14) }} View Employee ({{ employee.employee_id }})
-          </a>
-        {% endif %}
         {% if app.resume_path and app.resume_filename != 'NOT_PROVIDED' %}
           <a href="{{ url_for('admin.download_document', app_id=app.id, doc_type='resume', download=1) }}" class="btn btn-outline btn-sm" style="gap: 6px;">
             {{ icon('download', size=14) }} Download Resume
@@ -56,1167 +47,240 @@
       </div>
     </div>
 
-    <!-- 1. Visual Recruitment Pipeline Status Bar -->
-    <div class="card" style="margin-bottom: var(--space-xl); border-color: rgba(16, 185, 129, 0.25); background: rgba(16, 185, 129, 0.02); padding: var(--space-lg) var(--space-xl);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md); flex-wrap: wrap; gap: var(--space-sm);">
-        <div style="font-size: 0.8rem; color: var(--color-text-dim); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 800;">
-          Candidate Recruitment &amp; Onboarding Workflow
-        </div>
-        <div style="font-size: 0.85rem; color: var(--color-primary-light); font-weight: 700;">
-          Current Stage: {{ app.status_display }}
-        </div>
-      </div>
-
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--space-md);">
-        
-        <!-- Step 1: Applied -->
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(16,185,129,0.2); border: 2px solid var(--color-primary-light); color: var(--color-primary-light); display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 800;">
-            ✓
-          </div>
-          <div>
-            <div style="font-weight: 700; color: var(--color-text); font-size: 0.9rem;">1. Applied</div>
-            <div style="font-size: 0.75rem; color: var(--color-text-dim);">Application Received</div>
-          </div>
-        </div>
-
-        <!-- Step 2: Under Review -->
-        {% set is_stage_review = current_stage in ['UNDER_REVIEW', 'SHORTLISTED', 'OFFER_COMPLETED', 'HIRED'] %}
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <div style="width: 32px; height: 32px; border-radius: 50%; background: {{ 'rgba(16,185,129,0.2)' if is_stage_review else 'rgba(255,255,255,0.05)' }}; border: 2px solid {{ 'var(--color-primary-light)' if is_stage_review else 'var(--color-border)' }}; color: {{ 'var(--color-primary-light)' if is_stage_review else 'var(--color-text-dim)' }}; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 800;">
-            {{ '✓' if is_stage_review else '2' }}
-          </div>
-          <div>
-            <div style="font-weight: 700; color: {{ 'var(--color-text)' if is_stage_review else 'var(--color-text-dim)' }}; font-size: 0.9rem;">2. Under Review</div>
-            <div style="font-size: 0.75rem; color: var(--color-text-dim);">Manual Evaluation</div>
-          </div>
-        </div>
-
-        <!-- Step 3: Shortlisted -->
-        {% set is_stage_shortlist = current_stage in ['SHORTLISTED', 'OFFER_COMPLETED', 'HIRED'] %}
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <div style="width: 32px; height: 32px; border-radius: 50%; background: {{ 'rgba(16,185,129,0.2)' if is_stage_shortlist else 'rgba(255,255,255,0.05)' }}; border: 2px solid {{ 'var(--color-primary-light)' if is_stage_shortlist else 'var(--color-border)' }}; color: {{ 'var(--color-primary-light)' if is_stage_shortlist else 'var(--color-text-dim)' }}; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 800;">
-            {{ '✓' if is_stage_shortlist else '3' }}
-          </div>
-          <div>
-            <div style="font-weight: 700; color: {{ 'var(--color-text)' if is_stage_shortlist else 'var(--color-text-dim)' }}; font-size: 0.9rem;">3. Shortlisted</div>
-            <div style="font-size: 0.75rem; color: var(--color-text-dim);">Offer Generated</div>
-          </div>
-        </div>
-
-        <!-- Step 4: Offer Completed -->
-        {% set is_stage_offer_completed = current_stage in ['OFFER_COMPLETED', 'HIRED'] %}
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <div style="width: 32px; height: 32px; border-radius: 50%; background: {{ 'rgba(16,185,129,0.2)' if is_stage_offer_completed else 'rgba(255,255,255,0.05)' }}; border: 2px solid {{ 'var(--color-primary-light)' if is_stage_offer_completed else 'var(--color-border)' }}; color: {{ 'var(--color-primary-light)' if is_stage_offer_completed else 'var(--color-text-dim)' }}; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 800;">
-            {{ '✓' if is_stage_offer_completed else '4' }}
-          </div>
-          <div>
-            <div style="font-weight: 700; color: {{ 'var(--color-text)' if is_stage_offer_completed else 'var(--color-text-dim)' }}; font-size: 0.9rem;">4. Offer Completed</div>
-            <div style="font-size: 0.75rem; color: var(--color-text-dim);">Offer Letter Sent</div>
-          </div>
-        </div>
-
-        <!-- Step 5: Hired -->
-        {% set is_stage_hired = current_stage == 'HIRED' %}
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <div style="width: 32px; height: 32px; border-radius: 50%; background: {{ 'rgba(16,185,129,0.2)' if is_stage_hired else 'rgba(255,255,255,0.05)' }}; border: 2px solid {{ 'var(--color-primary-light)' if is_stage_hired else 'var(--color-border)' }}; color: {{ 'var(--color-primary-light)' if is_stage_hired else 'var(--color-text-dim)' }}; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 800;">
-            {{ '✓' if is_stage_hired else '5' }}
-          </div>
-          <div>
-            <div style="font-weight: 700; color: {{ 'var(--color-text)' if is_stage_hired else 'var(--color-text-dim)' }}; font-size: 0.9rem;">5. Hired</div>
-            <div style="font-size: 0.75rem; color: var(--color-text-dim);">Onboarding Complete</div>
-          </div>
-        </div>
-
-      </div>
+    <!-- Admin Nav Tabs (Strictly 5 Standard Tabs) -->
+    <div class="admin-nav-tabs" style="margin-bottom: var(--space-xl);">
+      <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-tab">
+        {{ icon('layout', size=15) }} Overview
+      </a>
+      <a href="{{ url_for('admin.jobs') }}" class="admin-nav-tab">
+        {{ icon('briefcase', size=15) }} Job Postings
+      </a>
+      <a href="{{ url_for('admin.applications') }}" class="admin-nav-tab active">
+        {{ icon('users', size=15) }} Candidate Applications
+      </a>
+      <a href="{{ url_for('admin.templates') }}" class="admin-nav-tab">
+        {{ icon('file-text', size=15) }} Templates
+      </a>
+      <a href="{{ url_for('admin.money_management') }}" class="admin-nav-tab">
+        {{ icon('wallet', size=15) }} Money Management
+      </a>
     </div>
 
-    <!-- 2. Interactive Stage-Specific Action Panel -->
-    <div class="card" style="margin-bottom: var(--space-2xl); border-color: rgba(16, 185, 129, 0.35); background: rgba(0,0,0,0.25); padding: var(--space-xl);">
-      
-      <!-- ============================================================= -->
-      <!-- STAGE 1: APPLIED -->
-      <!-- ============================================================= -->
-      {% if current_stage == 'APPLIED' %}
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-md);">
-          <div>
-            <div style="font-size: 1.15rem; font-weight: 800; color: var(--color-text); margin-bottom: 0.25rem;">
-              Stage 1: Applied (Pending Review)
+    <!-- Flashed Alert Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div style="margin-bottom: var(--space-xl);">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category if category != 'error' else 'danger' }}" style="display: flex; align-items: center; gap: 8px; margin-bottom: var(--space-sm);">
+              {{ icon('check-circle' if category == 'success' else 'alert-circle', size=16) }}
+              <span>{{ message }}</span>
             </div>
-            <p style="color: var(--color-text-dim); margin-bottom: 0; font-size: 0.9rem;">
-              The candidate has submitted their application. Click below to begin review and unlock the Application Successful email.
-            </p>
-          </div>
-          <form method="POST" action="{{ url_for('admin.mark_application_under_review', app_id=app.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-            <button type="submit" class="btn btn-primary" style="gap: 8px; font-weight: 700;">
-              {{ icon('check-circle', size=16) }} Mark as Under Review
-            </button>
-          </form>
-        </div>
-
-      <!-- ============================================================= -->
-      <!-- STAGE 2: UNDER REVIEW -->
-      <!-- ============================================================= -->
-      {% elif current_stage == 'UNDER_REVIEW' %}
-        <div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); flex-wrap: wrap; gap: var(--space-md); padding-bottom: var(--space-md); border-bottom: 1px solid var(--color-border);">
-            <div>
-              <div style="font-size: 1.25rem; font-weight: 800; color: var(--color-text);">
-                Stage 2: Under Review
-              </div>
-              <p style="color: var(--color-text-dim); margin-bottom: 0; font-size: 0.9rem;">
-                Review the candidate details below and click the button to shortlist the candidate and dispatch their official Offer Letter email.
-              </p>
-            </div>
-            
-            <form method="POST" action="{{ url_for('admin.mark_application_shortlisted', app_id=app.id) }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-              <button type="submit" class="btn btn-primary" style="gap: 8px; font-weight: 800; font-size: 0.95rem; box-shadow: 0 4px 15px rgba(16,185,129,0.3);">
-                {{ icon('check-circle', size=17) }} Mark as Shortlisted &amp; Send Offer Email
-              </button>
-            </form>
-          </div>
-
-          <!-- Application Successful Email Preview Box -->
-          <div style="background: rgba(16, 185, 129, 0.03); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: var(--radius-md); padding: var(--space-lg);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md); flex-wrap: wrap; gap: var(--space-sm);">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                {{ icon('mail', size=18, color='var(--color-primary-light)') }}
-                <span style="font-weight: 800; font-size: 1.05rem; color: var(--color-text);">Application Successful Email Preview</span>
-              </div>
-              {% if app.application_success_email_status == 'SENT' %}
-                <span class="badge-status active" style="font-weight: 700;">
-                  {{ icon('check', size=12) }} Sent on {{ app.application_success_email_sent_at.strftime('%d %b %Y, %I:%M %p') if app.application_success_email_sent_at else 'Earlier' }}
-                </span>
-              {% elif app.application_success_email_status == 'FAILED' %}
-                <span class="badge-status" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3);">
-                  Sending Failed (Retry Available)
-                </span>
-              {% else %}
-                <span class="badge-status" style="background: rgba(234, 179, 8, 0.12); color: #eab308; border-color: rgba(234, 179, 8, 0.3);">
-                  Ready to Send
-                </span>
-              {% endif %}
-            </div>
-
-            {% if app_email_preview %}
-              <!-- Email Meta Header -->
-              <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-md); margin-bottom: var(--space-md); font-size: 0.85rem;">
-                <div style="margin-bottom: 4px;"><strong style="color: var(--color-text-dim);">To:</strong> <span style="color: var(--color-primary-light); font-weight: 600;">{{ app_email_preview.to }}</span></div>
-                <div><strong style="color: var(--color-text-dim);">Subject:</strong> <span style="color: var(--color-text); font-weight: 600;">{{ app_email_preview.subject }}</span></div>
-              </div>
-
-              <!-- Email Body Preview Container -->
-              <div style="background: #ffffff; color: #1e293b; border-radius: var(--radius-md); padding: var(--space-lg); max-height: 280px; overflow-y: auto; font-size: 0.9rem; line-height: 1.6; border: 1px solid var(--color-border); box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); margin-bottom: var(--space-md);">
-                {{ app_email_preview.body_html|safe }}
-              </div>
-            {% endif %}
-
-            <!-- Email Action -->
-            <div style="display: flex; justify-content: flex-end; align-items: center; gap: var(--space-md);">
-              {% if app.application_success_email_status != 'SENT' %}
-                <form method="POST" action="{{ url_for('admin.send_application_success_email_action', app_id=app.id) }}">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                  <button type="submit" class="btn btn-outline" style="gap: 6px; font-weight: 700; color: var(--color-primary-light); border-color: var(--color-primary-light);">
-                    {{ icon('send', size=15) }} Send Application Successful Email via Brevo
-                  </button>
-                </form>
-              {% else %}
-                <div style="color: var(--color-primary-light); font-size: 0.875rem; font-weight: 600; display: flex; align-items: center; gap: 6px;">
-                  {{ icon('check-circle', size=16) }} Confirmation email has been delivered to candidate.
-                </div>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-
-      <!-- ============================================================= -->
-      <!-- STAGE 3: SHORTLISTED -->
-      <!-- ============================================================= -->
-      {% elif current_stage == 'SHORTLISTED' %}
-        <div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); flex-wrap: wrap; gap: var(--space-md); padding-bottom: var(--space-md); border-bottom: 1px solid var(--color-border);">
-            <div>
-              <div style="font-size: 1.25rem; font-weight: 800; color: var(--color-text);">
-                Stage 3: Shortlisted &bull; Offer Letter &amp; Credentials Generated
-              </div>
-              <p style="color: var(--color-text-dim); margin-bottom: 0; font-size: 0.9rem;">
-                Candidate has been shortlisted, Employee ID assigned, and Offer Letter generated. Proceed to <strong>Mark as Complete</strong> to finalize the offer stage.
-              </p>
-            </div>
-            
-            <!-- Primary Action: Mark as Complete -->
-            <form method="POST" action="{{ url_for('admin.mark_application_offer_complete', app_id=app.id) }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-              <button type="submit" class="btn btn-primary" style="gap: 8px; font-weight: 800; font-size: 0.95rem; box-shadow: 0 4px 15px rgba(16,185,129,0.3);">
-                {{ icon('check-circle', size=17) }} Mark as Offer Completed &rarr;
-              </button>
-            </form>
-          </div>
-
-          <!-- Document Template Missing Alert (if any) -->
-          {% if template_missing_error %}
-            <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-md); padding: var(--space-md); margin-bottom: var(--space-lg); color: #f87171; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-sm);">
-              <div>
-                <strong>Template Warning:</strong> {{ template_missing_error }}
-              </div>
-              <a href="{{ url_for('admin.templates') }}" class="btn btn-outline btn-sm" style="color: #f87171; border-color: #f87171;">
-                Go to Template Management
-              </a>
-            </div>
-          {% endif %}
-
-          <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: var(--space-lg); margin-bottom: var(--space-lg);">
-            
-            <!-- Left Subcard: Generated Offer Letter Document Card -->
-            <div style="background: rgba(16, 185, 129, 0.03); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); padding: var(--space-lg); display: flex; flex-direction: column; justify-content: space-between;">
-              <div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
-                  <span style="font-weight: 800; color: var(--color-text); font-size: 1rem; display: flex; align-items: center; gap: 6px;">
-                    {{ icon('file-text', size=16, color='var(--color-primary-light)') }} Offer Letter DOCX
-                  </span>
-                  {% if offer_doc %}
-                    <span class="badge-status active" style="font-size: 0.75rem;">Status: Generated</span>
-                  {% else %}
-                    <span class="badge-status" style="background: rgba(234, 179, 8, 0.12); color: #eab308; border-color: rgba(234, 179, 8, 0.3); font-size: 0.75rem;">Pending</span>
-                  {% endif %}
-                </div>
-
-                {% if offer_doc %}
-                  <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-md); margin-bottom: var(--space-md);">
-                    <div style="font-family: var(--font-mono, monospace); font-size: 0.85rem; color: var(--color-primary-light); word-break: break-all; font-weight: 700;">
-                      {{ offer_doc.file_name }}
-                    </div>
-                    <div style="font-size: 0.775rem; color: var(--color-text-dim); margin-top: 4px;">
-                      Generated: {{ offer_doc.generated_at.strftime('%d %b %Y, %I:%M %p UTC') if offer_doc.generated_at else 'Just now' }}
-                    </div>
-                  </div>
-                {% endif %}
-              </div>
-
-              {% if offer_doc %}
-                <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: var(--space-sm);">
-                  <button type="button" class="btn btn-primary" onclick="openOfferLetterPreview({{ app.id }})" style="flex: 1; min-width: 130px; justify-content: center; gap: 6px; font-weight: 700;">
-                    {{ icon('eye', size=15) }} Show Preview
-                  </button>
-                  <a href="{{ url_for('admin.download_application_offer_letter', app_id=app.id) }}" class="btn btn-outline" style="flex: 1; min-width: 130px; justify-content: center; gap: 6px; font-weight: 700;">
-                    {{ icon('download', size=15) }} Download DOCX
-                  </a>
-                </div>
-              {% endif %}
-            </div>
-
-            <!-- Right Subcard: Shortlisted Email Preview -->
-            <div style="background: rgba(16, 185, 129, 0.03); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); padding: var(--space-lg); display: flex; flex-direction: column; justify-content: space-between;">
-              <div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md); flex-wrap: wrap; gap: var(--space-xs);">
-                  <span style="font-weight: 800; color: var(--color-text); font-size: 1rem; display: flex; align-items: center; gap: 6px;">
-                    {{ icon('mail', size=16, color='var(--color-primary-light)') }} Shortlisted Email Preview
-                  </span>
-                  {% if offer_doc and offer_doc.email_status == 'sent' %}
-                    <span class="badge-status active" style="font-size: 0.75rem; font-weight: 700;">
-                      {{ icon('check', size=11) }} Sent on {{ offer_doc.sent_at.strftime('%d %b %Y, %I:%M %p') if offer_doc.sent_at else 'Earlier' }}
-                    </span>
-                  {% elif offer_doc and offer_doc.email_status == 'failed' %}
-                    <span class="badge-status" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3); font-size: 0.75rem; font-weight: 700;" title="{{ offer_doc.email_error or 'Delivery failed' }}">
-                      ⚠ Delivery Failed
-                    </span>
-                  {% else %}
-                    <span class="badge-status" style="background: rgba(234, 179, 8, 0.12); color: #eab308; border-color: rgba(234, 179, 8, 0.3); font-size: 0.75rem;">
-                      ○ Not Sent
-                    </span>
-                  {% endif %}
-                </div>
-
-                {% if shortlist_email_preview %}
-                  <!-- Email Meta Info -->
-                  <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-md); margin-bottom: var(--space-md); font-size: 0.8rem;">
-                    <div style="margin-bottom: 2px;"><strong style="color: var(--color-text-dim);">To:</strong> <span style="color: var(--color-primary-light); font-weight: 600;">{{ shortlist_email_preview.to }}</span></div>
-                    <div style="margin-bottom: 2px;"><strong style="color: var(--color-text-dim);">Subject:</strong> <span style="color: var(--color-text); font-weight: 600;">{{ shortlist_email_preview.subject }}</span></div>
-                    {% if offer_doc %}
-                      <div><strong style="color: var(--color-text-dim);">Attachment:</strong> <span style="color: #60a5fa; font-weight: 600;">{{ offer_doc.file_name | replace('.docx', '.pdf') }} (PDF)</span></div>
-                    {% endif %}
-                  </div>
-
-                  <!-- Email HTML Preview Container -->
-                  <div style="background: #ffffff; color: #1e293b; border-radius: var(--radius-md); padding: var(--space-md); max-height: 180px; overflow-y: auto; font-size: 0.85rem; line-height: 1.55; border: 1px solid var(--color-border); margin-bottom: var(--space-md);">
-                    {{ shortlist_email_preview.body_html|safe }}
-                  </div>
-                {% endif %}
-              </div>
-
-              <!-- Action: Retry if failed/not sent, or confirmation -->
-              <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: var(--space-xs);">
-                {% if not offer_doc or offer_doc.email_status != 'sent' %}
-                  <form method="POST" action="{{ url_for('admin.retry_shortlist_offer_email', app_id=app.id) }}" onsubmit="return confirm('Retry sending official Shortlisted & Offer Letter PDF email to {{ app.email }} via Brevo?');">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                    <button type="submit" class="btn btn-primary btn-sm" style="gap: 6px; font-size: 0.825rem; font-weight: 700;">
-                      {{ icon('send', size=13) }} Retry Shortlisted &amp; Offer Email
-                    </button>
-                  </form>
-                {% else %}
-                  <div style="color: var(--color-primary-light); font-size: 0.825rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">
-                    {{ icon('check-circle', size=15) }} Offer Letter PDF email delivered via Brevo.
-                  </div>
-                {% endif %}
-              </div>
-            </div>
-
-          </div>
-
-          <!-- Employee Credentials Box -->
-          {% if app.employee %}
-            <div style="background: rgba(16, 185, 129, 0.08); border: 2px solid rgba(16, 185, 129, 0.4); border-radius: var(--radius-md); padding: var(--space-xl);">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md); flex-wrap: wrap; gap: var(--space-sm);">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                  {{ icon('shield', size=24, color='var(--color-primary-light)') }}
-                  <span style="font-size: 1.15rem; font-weight: 800; color: var(--color-text);">EMPLOYEE CREDENTIALS</span>
-                </div>
-                {% if new_employee_creds and new_employee_creds.temp_password %}
-                  <span class="badge-status active" style="font-size: 0.8rem; font-weight: 700;">Temporary Password Active</span>
-                {% else %}
-                  <span class="badge-status inactive" style="font-size: 0.8rem; font-weight: 700;">Temporary Password Reset</span>
-                {% endif %}
-              </div>
-
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-lg); margin-bottom: var(--space-md);">
-                
-                <!-- Employee ID Box -->
-                <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-md);">
-                  <div style="font-size: 0.775rem; color: var(--color-text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Employee ID</div>
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span id="display-emp-id" style="font-family: var(--font-mono, monospace); font-size: 1.35rem; font-weight: 900; color: var(--color-primary-light);">
-                      {{ app.employee.employee_id }}
-                    </span>
-                    <button type="button" onclick="navigator.clipboard.writeText('{{ app.employee.employee_id }}'); this.innerText='Copied!'; setTimeout(() => this.innerText='Copy', 2000);" class="btn btn-ghost btn-sm" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
-                      Copy
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Temporary Password Box -->
-                <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-md);">
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                    <div style="font-size: 0.775rem; color: var(--color-text-dim); text-transform: uppercase; font-weight: 700;">Temporary Password</div>
-                    {% if new_employee_creds and new_employee_creds.temp_password %}
-                      <span class="badge-status active" style="font-size: 0.7rem; padding: 0.1rem 0.4rem;">Active</span>
-                    {% else %}
-                      <span class="badge-status inactive" style="font-size: 0.7rem; padding: 0.1rem 0.4rem;">Reset</span>
-                    {% endif %}
-                  </div>
-                  {% if new_employee_creds and new_employee_creds.temp_password %}
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                      <span id="temp-pwd-text" style="font-family: var(--font-mono, monospace); font-size: 1.15rem; font-weight: 800; color: #60a5fa;">
-                        {{ new_employee_creds.temp_password }}
-                      </span>
-                      <button type="button" onclick="navigator.clipboard.writeText('{{ new_employee_creds.temp_password }}'); this.innerText='Copied!'; setTimeout(() => this.innerText='Copy', 2000);" class="btn btn-ghost btn-sm" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
-                        Copy
-                      </button>
-                    </div>
-                  {% else %}
-                    <div style="font-size: 0.85rem; color: var(--color-text-dim);">
-                      Temporary Password Reset &bull; Securely hashed in database.
-                    </div>
-                  {% endif %}
-                </div>
-
-              </div>
-
-              {% if new_employee_creds and new_employee_creds.temp_password %}
-                <div style="font-size: 0.825rem; color: #34d399; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-sm); padding: 0.6rem 0.85rem;">
-                  ℹ️ <strong>Status:</strong> Temporary Password Active. This credential remains available here until the employee resets it on the Internship Portal.
-                </div>
-              {% else %}
-                <div style="font-size: 0.825rem; color: var(--color-text-dim); background: rgba(255, 255, 255, 0.02); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 0.6rem 0.85rem;">
-                  🔒 <strong>Status:</strong> Temporary Password Reset. The employee's password has been updated and the old temporary password has been permanently deactivated.
-                </div>
-              {% endif %}
-            </div>
-          {% endif %}
-
-        </div>
-
-      <!-- ============================================================= -->
-      <!-- STAGE 4: OFFER COMPLETED -->
-      <!-- ============================================================= -->
-      {% elif current_stage == 'OFFER_COMPLETED' %}
-        <div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); flex-wrap: wrap; gap: var(--space-md); padding-bottom: var(--space-md); border-bottom: 1px solid var(--color-border);">
-            <div>
-              <div style="font-size: 1.25rem; font-weight: 800; color: var(--color-text);">
-                Stage 4: Offer Completed &bull; Ready for Onboarding &amp; Joining
-              </div>
-              <p style="color: var(--color-text-dim); margin-bottom: 0; font-size: 0.9rem;">
-                Offer Letter has been delivered to candidate. Set the official joining date and click <strong>Mark as Hired</strong> to send credentials &amp; complete onboarding.
-              </p>
-            </div>
-            
-            <div style="display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap;">
-              {% if offer_doc and offer_doc.email_status == 'sent' %}
-                <span class="badge-status active" style="font-size: 0.85rem; font-weight: 800; padding: 0.35rem 0.85rem;">
-                  {{ icon('check', size=14) }} Offer Email: SENT ({{ offer_doc.sent_at.strftime('%d %b %Y, %I:%M %p') if offer_doc.sent_at else 'Delivered' }})
-                </span>
-              {% elif offer_doc and offer_doc.email_status == 'failed' %}
-                <span class="badge-status" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3); font-size: 0.85rem; font-weight: 800; padding: 0.35rem 0.85rem;" title="{{ offer_doc.email_error or 'Delivery failed' }}">
-                  ⚠ Offer Email: FAILED
-                </span>
-                <form method="POST" action="{{ url_for('admin.retry_shortlist_offer_email', app_id=app.id) }}" onsubmit="return confirm('Retry sending official Offer Letter PDF email to {{ app.email }} via Brevo?');" style="display: inline-block;">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                  <button type="submit" class="btn btn-primary btn-sm" style="gap: 6px; font-size: 0.8rem; font-weight: 700;">
-                    {{ icon('send', size=13) }} Retry Shortlisted &amp; Offer Email
-                  </button>
-                </form>
-              {% else %}
-                <span class="badge-status" style="background: rgba(234, 179, 8, 0.12); color: #eab308; border-color: rgba(234, 179, 8, 0.3); font-size: 0.85rem; font-weight: 800; padding: 0.35rem 0.85rem;">
-                  ○ Offer Email: NOT SENT
-                </span>
-                <form method="POST" action="{{ url_for('admin.retry_shortlist_offer_email', app_id=app.id) }}" onsubmit="return confirm('Send official Offer Letter PDF email to {{ app.email }} via Brevo?');" style="display: inline-block;">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                  <button type="submit" class="btn btn-primary btn-sm" style="gap: 6px; font-size: 0.8rem; font-weight: 700;">
-                    {{ icon('send', size=13) }} Retry Shortlisted &amp; Offer Email
-                  </button>
-                </form>
-              {% endif %}
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: var(--space-lg); margin-bottom: var(--space-lg);">
-            
-            <!-- Left Subcard: Employee Credentials & Offer Status -->
-            <div style="background: rgba(16, 185, 129, 0.03); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); padding: var(--space-lg); display: flex; flex-direction: column; justify-content: space-between;">
-              <div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
-                  <span style="font-weight: 800; color: var(--color-text); font-size: 1rem; display: flex; align-items: center; gap: 6px;">
-                    {{ icon('shield', size=16, color='var(--color-primary-light)') }} Employee Account
-                  </span>
-                  <span class="badge-status active" style="font-size: 0.75rem;">Active</span>
-                </div>
-
-                <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-md); margin-bottom: var(--space-md);">
-                  <div style="font-size: 0.775rem; color: var(--color-text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 2px;">Employee ID</div>
-                  <div style="font-family: var(--font-mono, monospace); font-size: 1.25rem; font-weight: 900; color: var(--color-primary-light);">
-                    {{ app.employee.employee_id if app.employee else 'Pending' }}
-                  </div>
-                  <div style="font-size: 0.775rem; color: var(--color-text-dim); margin-top: 6px;">
-                    Portal: <a href="https://www.antimatrix.co.in/internship" target="_blank" style="color: #60a5fa;">antimatrix.co.in/internship</a>
-                  </div>
-                </div>
-
-                {% if offer_doc %}
-                  <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: var(--space-sm);">
-                    <button type="button" class="btn btn-primary btn-sm" onclick="openOfferLetterPreview({{ app.id }})" style="flex: 1; min-width: 120px; justify-content: center; gap: 6px; font-weight: 700;">
-                      {{ icon('eye', size=14) }} Show Preview
-                    </button>
-                    <a href="{{ url_for('admin.download_application_offer_letter', app_id=app.id) }}" class="btn btn-outline btn-sm" style="flex: 1; min-width: 120px; justify-content: center; gap: 6px; font-weight: 700;">
-                      {{ icon('download', size=14) }} Download DOCX
-                    </a>
-                  </div>
-                {% endif %}
-              </div>
-            </div>
-
-            <!-- Right Subcard: Joining Email Preview -->
-            <div style="background: rgba(16, 185, 129, 0.03); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); padding: var(--space-lg);">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
-                <span style="font-weight: 800; color: var(--color-text); font-size: 1rem; display: flex; align-items: center; gap: 6px;">
-                  {{ icon('mail', size=16, color='var(--color-primary-light)') }} Joining &amp; Credentials Email Preview
-                </span>
-                <span class="badge-status" style="background: rgba(234, 179, 8, 0.12); color: #eab308; border-color: rgba(234, 179, 8, 0.3); font-size: 0.75rem;">Will Send on "Mark as Hired"</span>
-              </div>
-
-              {% if app.employee and app.employee.onboarding_credential and app.employee.onboarding_credential.status == 'RESET' %}
-                <div style="background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-md); margin-bottom: var(--space-md); font-size: 0.825rem; color: #facc15;">
-                  🔒 <strong>Notice:</strong> This employee has already activated/reset their portal password. The temporary credentials are deactivated.
-                </div>
-              {% endif %}
-
-              {% if joining_email_preview %}
-                <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-md); margin-bottom: var(--space-md); font-size: 0.8rem;">
-                  <div style="margin-bottom: 2px;"><strong style="color: var(--color-text-dim);">To:</strong> <span style="color: var(--color-primary-light); font-weight: 600;">{{ joining_email_preview.to }}</span></div>
-                  <div><strong style="color: var(--color-text-dim);">Subject:</strong> <span style="color: var(--color-text); font-weight: 600;">{{ joining_email_preview.subject }}</span></div>
-                </div>
-
-                <div style="background: #ffffff; color: #1e293b; border-radius: var(--radius-md); padding: var(--space-md); max-height: 180px; overflow-y: auto; font-size: 0.85rem; line-height: 1.55; border: 1px solid var(--color-border); margin-bottom: var(--space-md);">
-                  {{ joining_email_preview.body_html|safe }}
-                </div>
-              {% endif %}
-            </div>
-
-          </div>
-
-          <!-- Mark as Hired Form with Joining Date -->
-          <div style="background: rgba(16, 185, 129, 0.06); border: 2px solid rgba(16, 185, 129, 0.35); border-radius: var(--radius-md); padding: var(--space-xl);">
-            <form method="POST" action="{{ url_for('admin.mark_application_hired', app_id=app.id) }}" style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: var(--space-md);">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-              
-              <div style="flex: 1; min-width: 260px;">
-                <label style="font-size: 0.85rem; font-weight: 700; color: var(--color-text); display: block; margin-bottom: 6px;">
-                  Official Joining Date *
-                </label>
-                <input 
-                  type="text" 
-                  name="joining_date" 
-                  class="form-input" 
-                  placeholder="e.g. 15/09/2026 or Immediate" 
-                  value="{{ app.joining_date if app.joining_date else '' }}" 
-                  required 
-                  style="font-size: 0.95rem; font-weight: 600; font-family: var(--font-mono, monospace);"
-                />
-                <span style="font-size: 0.775rem; color: var(--color-text-dim); margin-top: 4px; display: block;">
-                  This date will appear in the candidate's official onboarding credentials email.
-                </span>
-              </div>
-
-              <div>
-                <button type="submit" class="btn btn-primary" style="padding: 0.75rem 1.5rem; font-weight: 800; font-size: 1rem; gap: 8px; box-shadow: 0 4px 20px rgba(16,185,129,0.35);">
-                  {{ icon('check-circle', size=18) }} MARK AS HIRED &amp; DISPATCH JOINING EMAIL &rarr;
-                </button>
-              </div>
-            </form>
-          </div>
-
-        </div>
-
-      <!-- ============================================================= -->
-      <!-- STAGE 5: HIRED -->
-      <!-- ============================================================= -->
-      {% elif current_stage == 'HIRED' %}
-        <div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); flex-wrap: wrap; gap: var(--space-md); padding-bottom: var(--space-md); border-bottom: 1px solid var(--color-border);">
-            <div>
-              <div style="font-size: 1.35rem; font-weight: 900; color: var(--color-primary-light); display: flex; align-items: center; gap: 8px;">
-                {{ icon('check-circle', size=22) }} Candidate Successfully Hired &amp; Onboarded
-              </div>
-              <p style="color: var(--color-text-dim); margin-bottom: 0; font-size: 0.9rem;">
-                Employee account active. Onboarding credentials &amp; joining confirmation have been delivered.
-              </p>
-            </div>
-            
-            <span class="badge-status active" style="font-size: 0.9rem; font-weight: 800; padding: 0.4rem 1rem;">
-              Status: HIRED
-            </span>
-          </div>
-
-          <!-- Summary Dossier Grid -->
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-lg);">
-            <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-md);">
-              <div style="font-size: 0.775rem; color: var(--color-text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 2px;">Employee ID</div>
-              <div style="font-family: var(--font-mono, monospace); font-size: 1.25rem; font-weight: 900; color: var(--color-primary-light);">
-                {{ app.employee.employee_id if app.employee else 'N/A' }}
-              </div>
-            </div>
-
-            <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-md);">
-              <div style="font-size: 0.775rem; color: var(--color-text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 2px;">Confirmed Joining Date</div>
-              <div style="font-weight: 800; font-size: 1.1rem; color: var(--color-text);">
-                {{ app.joining_date or 'Immediate' }}
-              </div>
-            </div>
-
-            <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-md);">
-              <div style="font-size: 0.775rem; color: var(--color-text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 2px;">Joining Email Status</div>
-              <div style="font-weight: 800; font-size: 0.95rem; color: {{ '#10b981' if app.joining_email_status == 'SENT' else '#eab308' }};">
-                {{ app.joining_email_status or 'DELIVERED' }}
-                {% if app.joining_email_sent_at %}
-                  <span style="font-size: 0.75rem; font-weight: normal; color: var(--color-text-dim); display: block;">
-                    {{ app.joining_email_sent_at.strftime('%d %b %Y, %I:%M %p') }}
-                  </span>
-                {% endif %}
-              </div>
-            </div>
-          </div>
-
-          <div style="display: flex; justify-content: flex-end; align-items: center; gap: var(--space-md); flex-wrap: wrap;">
-            {% if offer_doc %}
-              <div style="display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap;">
-                <button type="button" class="btn btn-primary btn-sm" onclick="openOfferLetterPreview({{ app.id }})" style="gap: 6px; font-weight: 700;">
-                  {{ icon('eye', size=14) }} Show Preview
-                </button>
-                <a href="{{ url_for('admin.download_application_offer_letter', app_id=app.id) }}" class="btn btn-outline btn-sm" style="gap: 6px;">
-                  {{ icon('download', size=14) }} Download Offer Letter DOCX
-                </a>
-              </div>
-            {% endif %}
-            <form method="POST" action="{{ url_for('admin.retry_shortlist_offer_email', app_id=app.id) }}" onsubmit="return confirm('Send / Resend official Offer Letter PDF email to {{ app.email }} via Brevo?');">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-              <input type="hidden" name="force_resend" value="1" />
-              <button type="submit" class="btn btn-ghost btn-sm" style="gap: 6px; font-size: 0.8rem; color: var(--color-text-dim);">
-                {{ icon('mail', size=13) }} Resend Offer Letter Email
-              </button>
-            </form>
-            {% if app.employee and app.employee.onboarding_credential and app.employee.onboarding_credential.status == 'RESET' %}
-              <button type="button" class="btn btn-ghost btn-sm" disabled title="The candidate has already reset their password. Obsolete temporary credentials cannot be sent." style="gap: 6px; font-size: 0.8rem; color: var(--color-text-dim); opacity: 0.6; cursor: not-allowed;">
-                {{ icon('lock', size=13) }} Temporary Password Reset
-              </button>
-            {% else %}
-              <form method="POST" action="{{ url_for('admin.send_joining_email_action', app_id=app.id) }}" onsubmit="return confirm('Resend joining & credentials email to {{ app.email }} via Brevo?');">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                <button type="submit" class="btn btn-ghost btn-sm" style="gap: 6px; font-size: 0.8rem; color: var(--color-text-dim);">
-                  {{ icon('send', size=13) }} Resend Joining Email
-                </button>
-              </form>
-            {% endif %}
-          </div>
-
+          {% endfor %}
         </div>
       {% endif %}
+    {% endwith %}
+
+    <!-- Top Workflow Cards Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: var(--space-xl); margin-bottom: var(--space-2xl);">
+      
+      <!-- CARD 1: Recruitment Stage Management -->
+      <div class="card" style="padding: var(--space-xl); border-color: var(--color-border); background: #ffffff;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+          <h3 style="font-size: 1.1rem; font-weight: 700; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 8px;">
+            {{ icon('layers', size=16, color='var(--color-primary-light)') }} Recruitment Stage
+          </h3>
+          <span class="badge-status" style="font-weight: 700; font-size: 0.8rem; {% if app.stage == 'Applied' %}background: #f1f5f9; color: #475569;{% elif app.stage == 'Under Review' %}background: #eff6ff; color: #2563eb;{% elif app.stage == 'Shortlisted' %}background: #ecfdf5; color: #059669;{% elif app.stage == 'Rejected' %}background: #fef2f2; color: #dc2626;{% endif %}">
+            Current: {{ app.stage }}
+          </span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--color-text-dim); margin-bottom: var(--space-lg);">
+          Update the candidate's recruitment stage in the hiring pipeline. Stage updates are tracked and reflected across the admin portal.
+        </p>
+
+        <form method="POST" action="{{ url_for('admin.update_application_stage', app_id=app.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); margin-bottom: var(--space-md);">
+            <button type="submit" name="stage" value="Applied" class="btn btn-sm {% if app.stage == 'Applied' %}btn-primary{% else %}btn-outline{% endif %}" style="justify-content: center;">
+              {{ icon('file-text', size=13) }} Applied
+            </button>
+            <button type="submit" name="stage" value="Under Review" class="btn btn-sm {% if app.stage == 'Under Review' %}btn-primary{% else %}btn-outline{% endif %}" style="justify-content: center;">
+              {{ icon('search', size=13) }} Under Review
+            </button>
+            <button type="submit" name="stage" value="Shortlisted" class="btn btn-sm {% if app.stage == 'Shortlisted' %}btn-primary{% else %}btn-outline{% endif %}" style="justify-content: center;">
+              {{ icon('check-circle', size=13) }} Shortlisted
+            </button>
+            <button type="submit" name="stage" value="Rejected" class="btn btn-sm {% if app.stage == 'Rejected' %}btn-danger-solid{% else %}btn-outline{% endif %}" style="justify-content: center; {% if app.stage != 'Rejected' %}color: #dc2626; border-color: #fca5a5;{% endif %}">
+              {{ icon('x-circle', size=13) }} Rejected
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- CARD 2: 5-Minute Acknowledgment Email Status & Dispatch -->
+      <div class="card" style="padding: var(--space-xl); border-color: var(--color-border); background: #ffffff;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+          <h3 style="font-size: 1.1rem; font-weight: 700; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 8px;">
+            {{ icon('mail', size=16, color='var(--color-primary-light)') }} Acknowledgment Email
+          </h3>
+          {% set email_st = app.ack_email_status %}
+          {% if email_st == 'Sent' %}
+            <span class="badge-status active" style="font-size: 0.8rem;">Sent</span>
+          {% elif email_st == 'Processing' %}
+            <span class="badge-status" style="font-size: 0.8rem; background: #eff6ff; color: #2563eb;">Processing</span>
+          {% elif email_st == 'Failed' %}
+            <span class="badge-status" style="font-size: 0.8rem; background: #fef2f2; color: #dc2626;">Failed</span>
+          {% else %}
+            <span class="badge-status" style="font-size: 0.8rem; background: #fffbeb; color: #d97706;">Pending (+5m)</span>
+          {% endif %}
+        </div>
+        
+        <p style="font-size: 0.85rem; color: var(--color-text-dim); margin-bottom: var(--space-md);">
+          Acknowledgment emails are scheduled automatically for <strong>5 minutes after submission</strong> using the template configured in Templates.
+        </p>
+
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: var(--space-sm) var(--space-md); font-size: 0.825rem; margin-bottom: var(--space-md);">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <span style="color: var(--color-text-dim);">Scheduled Delivery:</span>
+            <span style="font-weight: 600; color: var(--color-text);">
+              {{ app.ack_email_scheduled_at.strftime('%H:%M:%S UTC') if app.ack_email_scheduled_at else 'N/A' }}
+            </span>
+          </div>
+          {% if app.ack_email_sent_at %}
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span style="color: var(--color-text-dim);">Delivered At:</span>
+              <span style="font-weight: 600; color: #059669;">
+                {{ app.ack_email_sent_at.strftime('%d %b %Y, %H:%M:%S UTC') }}
+              </span>
+            </div>
+          {% endif %}
+          {% if app.ack_email_attempts > 0 %}
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span style="color: var(--color-text-dim);">Delivery Attempts:</span>
+              <span style="font-weight: 600; color: #dc2626;">{{ app.ack_email_attempts }}</span>
+            </div>
+          {% endif %}
+          {% if app.ack_email_error %}
+            <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #cbd5e1; color: #dc2626; font-size: 0.775rem;">
+              <strong>Error:</strong> {{ app.ack_email_error }}
+            </div>
+          {% endif %}
+        </div>
+
+        <form method="POST" action="{{ url_for('admin.send_application_success_email_action', app_id=app.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button type="submit" class="btn btn-outline btn-sm" style="width: 100%; justify-content: center; gap: 6px;">
+            {{ icon('send', size=13) }} {% if email_st == 'Sent' %}Resend Acknowledgment Email{% else %}Send Acknowledgment Email Now{% endif %}
+          </button>
+        </form>
+      </div>
 
     </div>
 
-    <!-- 3. Complete Candidate Dossier Layout -->
-    <div class="dossier-grid">
+    <!-- Candidate Detailed Dossier Cards Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-xl);">
       
-      <!-- Main Candidate Dossier (Left Column) -->
-      <div>
-        <!-- 1. Personal & Contact Information -->
-        <div class="dossier-card">
-          <div class="dossier-title">
-            {{ icon('user', size=18, color='var(--color-primary-light)') }} Personal & Contact Details
-          </div>
-          <div class="dossier-row">
-            <div class="dossier-item">
-              <span class="dossier-label">First Name</span>
-              <span class="dossier-value">{{ app.first_name or (app.full_name.split()[0] if app.full_name else '') }}</span>
-            </div>
-            <div class="dossier-item">
-              <span class="dossier-label">Last Name</span>
-              <span class="dossier-value">{{ app.last_name or (app.full_name.split()[1:]|join(' ') if app.full_name else '') }}</span>
-            </div>
-            <div class="dossier-item">
-              <span class="dossier-label">Email Address</span>
-              <span class="dossier-value"><a href="mailto:{{ app.email }}" style="color: var(--color-primary-light);">{{ app.email }}</a></span>
-            </div>
-            <div class="dossier-item">
-              <span class="dossier-label">Phone Number</span>
-              <span class="dossier-value"><a href="tel:{{ app.phone }}" style="color: var(--color-text);">{{ app.phone }}</a></span>
-            </div>
-          </div>
+      <!-- Personal & Contact Information -->
+      <div class="card" style="padding: var(--space-xl); background: #ffffff; border-color: var(--color-border);">
+        <h3 style="font-size: 1rem; font-weight: 700; color: #0f172a; margin: 0 0 var(--space-md) 0; display: flex; align-items: center; gap: 8px;">
+          {{ icon('user', size=16, color='var(--color-primary-light)') }} Personal Information
+        </h3>
+        <dl style="display: grid; grid-template-columns: 120px 1fr; gap: var(--space-xs) var(--space-sm); font-size: 0.85rem; margin: 0;">
+          <dt style="color: var(--color-text-dim);">Full Name:</dt>
+          <dd style="font-weight: 600; color: var(--color-text); margin: 0;">{{ app.full_name }}</dd>
 
-          <div class="dossier-row" style="margin-top: var(--space-md);">
-            <div class="dossier-item" style="grid-column: 1 / -1;">
-              <span class="dossier-label">Address</span>
-              <span class="dossier-value">{{ app.address or 'Not provided' }}</span>
-            </div>
-          </div>
+          <dt style="color: var(--color-text-dim);">Email:</dt>
+          <dd style="font-weight: 600; color: var(--color-text); margin: 0;">
+            <a href="mailto:{{ app.email }}" style="color: var(--color-primary-light); text-decoration: none;">{{ app.email }}</a>
+          </dd>
 
-          <div class="dossier-row" style="margin-top: var(--space-md);">
-            <div class="dossier-item">
-              <span class="dossier-label">State</span>
-              <span class="dossier-value">{{ app.state or 'Not specified' }}</span>
-            </div>
-            <div class="dossier-item">
-              <span class="dossier-label">City</span>
-              <span class="dossier-value">{{ app.city or 'Not specified' }}</span>
-            </div>
-            <div class="dossier-item">
-              <span class="dossier-label">Pincode</span>
-              <span class="dossier-value">{{ app.pincode or 'Not specified' }}</span>
-            </div>
-          </div>
-        </div>
+          <dt style="color: var(--color-text-dim);">Phone:</dt>
+          <dd style="font-weight: 600; color: var(--color-text); margin: 0;">{{ app.phone }}</dd>
 
-        <!-- 2. Academic & Education Details -->
-        <div class="dossier-card">
-          <div class="dossier-title">
-            {{ icon('award', size=18, color='var(--color-primary-light)') }} Academic & Education Details
-          </div>
-          <div class="dossier-row">
-            <div class="dossier-item">
-              <span class="dossier-label">Education Level</span>
-              <span class="dossier-value">{{ app.education_level or 'Bachelor\'s Degree' }}</span>
-            </div>
-            <div class="dossier-item">
-              <span class="dossier-label">Degree</span>
-              <span class="dossier-value">{{ app.degree or 'Not specified' }}</span>
-            </div>
-            <div class="dossier-item">
-              <span class="dossier-label">Major / Specialization</span>
-              <span class="dossier-value">{{ app.major or app.department }}</span>
-            </div>
-            <div class="dossier-item">
-              <span class="dossier-label">Graduation Year</span>
-              <span class="dossier-value">{{ app.graduation_year or 'Not specified' }}</span>
-            </div>
-          </div>
-
-          {% if app.college or app.current_cgpa is not none %}
-            <div class="dossier-row" style="margin-top: var(--space-md);">
-              {% if app.college %}
-                <div class="dossier-item">
-                  <span class="dossier-label">College / University</span>
-                  <span class="dossier-value">{{ app.college }}</span>
-                </div>
-              {% endif %}
-              {% if app.current_cgpa is not none %}
-                <div class="dossier-item">
-                  <span class="dossier-label">Current CGPA</span>
-                  <span class="dossier-value" style="color: var(--color-primary-light); font-weight: 800; font-size: 1.05rem;">
-                    {{ app.current_cgpa }} / 10.0
-                  </span>
-                </div>
-              {% endif %}
-            </div>
-          {% endif %}
-        </div>
-
-        <!-- 3. Internship & Duration Details -->
-        <div class="dossier-card">
-          <div class="dossier-title">
-            {{ icon('briefcase', size=18, color='var(--color-primary-light)') }} Internship Program Details
-          </div>
-          <div class="dossier-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
-            <div class="dossier-item">
-              <span class="dossier-label">Job Code</span>
-              <span class="dossier-value" style="font-family: var(--font-mono, monospace); color: #60a5fa; font-weight: 800;">
-                {{ job.job_code or job.job_id or app.job_code or 'N/A' }}
-              </span>
-            </div>
-            <div class="dossier-item">
-              <span class="dossier-label">Job Title</span>
-              <span class="dossier-value" style="font-weight: 700;">{{ job.title }}</span>
-            </div>
-            <div class="dossier-item">
-              <span class="dossier-label">Selected Duration</span>
-              <span class="dossier-value" style="color: #60a5fa; font-weight: 700;">
-                {{ app.duration_display or job.duration_display or '1 Month' }}
-              </span>
-            </div>
-            <div class="dossier-item">
-              <span class="dossier-label">Base Fee</span>
-              <span class="dossier-value" style="color: var(--color-primary-light); font-weight: 800; font-family: var(--font-mono, monospace);">
-                ₹{{ "%.2f"|format(app.base_amount or (199.0 if app.duration == '1_month' else (399.0 if app.duration == '3_months' else (job.fee_inr or 0)))) }}
-              </span>
-            </div>
-            <div class="dossier-item">
-              <span class="dossier-label">Payment Status</span>
-              <span class="dossier-value">
-                {% if app.payment_status == 'paid' %}
-                  <span class="badge-status active">Paid</span>
-                {% elif app.payment_status == 'pending' %}
-                  <span class="badge-status" style="background: rgba(234, 179, 8, 0.12); color: #eab308; border-color: rgba(234, 179, 8, 0.3);">Pending</span>
-                {% elif app.payment_status == 'failed' %}
-                  <span class="badge-status" style="background: rgba(239, 68, 68, 0.12); color: #f87171; border-color: rgba(239, 68, 68, 0.3);">Failed</span>
-                {% else %}
-                  <span class="badge-status" style="background: rgba(255, 255, 255, 0.05); color: var(--color-text-dim); border-color: var(--color-border);">Exempt</span>
-                {% endif %}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 4. Professional Background & Profiles -->
-        <div class="dossier-card">
-          <div class="dossier-title">
-            {{ icon('globe', size=18, color='var(--color-primary-light)') }} Professional Background & Profiles
-          </div>
-          
-          {% if app.experience %}
-            <div class="dossier-row" style="margin-bottom: var(--space-md);">
-              <div class="dossier-item" style="grid-column: span 2;">
-                <span class="dossier-label">Experience</span>
-                <span class="dossier-value">{{ app.experience }}</span>
-              </div>
-            </div>
+          {% if app.address %}
+            <dt style="color: var(--color-text-dim);">Address:</dt>
+            <dd style="color: var(--color-text); margin: 0;">{{ app.address }}</dd>
           {% endif %}
 
-          {% if app.skills %}
-            <div style="margin-bottom: var(--space-lg);">
-              <span class="dossier-label">Technical Skills</span>
-              <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem;">
-                {% for s in app.get_skills_list() %}
-                  <span style="font-size: 0.8rem; color: var(--color-primary-light); background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); padding: 0.2rem 0.6rem; border-radius: var(--radius-sm); font-weight: 600;">
-                    {{ s }}
-                  </span>
-                {% endfor %}
-              </div>
-            </div>
+          {% if app.city or app.state %}
+            <dt style="color: var(--color-text-dim);">Location:</dt>
+            <dd style="color: var(--color-text); margin: 0;">{{ app.city }}{% if app.city and app.state %}, {% endif %}{{ app.state }} {% if app.pincode %}({{ app.pincode }}){% endif %}</dd>
           {% endif %}
-
-          <div class="dossier-row">
-            {% if app.portfolio_url %}
-              <div class="dossier-item">
-                <span class="dossier-label">Portfolio URL</span>
-                <span class="dossier-value"><a href="{{ app.portfolio_url }}" target="_blank" rel="noopener noreferrer" style="color: var(--color-primary-light); display: inline-flex; align-items: center; gap: 4px;">{{ app.portfolio_url }} {{ icon('external-link', size=12) }}</a></span>
-              </div>
-            {% endif %}
-
-            {% if app.linkedin_url %}
-              <div class="dossier-item">
-                <span class="dossier-label">LinkedIn Profile</span>
-                <span class="dossier-value"><a href="{{ app.linkedin_url }}" target="_blank" rel="noopener noreferrer" style="color: var(--color-primary-light); display: inline-flex; align-items: center; gap: 4px;">LinkedIn Profile {{ icon('external-link', size=12) }}</a></span>
-              </div>
-            {% endif %}
-
-            {% if app.github_url %}
-              <div class="dossier-item">
-                <span class="dossier-label">GitHub Profile</span>
-                <span class="dossier-value"><a href="{{ app.github_url }}" target="_blank" rel="noopener noreferrer" style="color: var(--color-primary-light); display: inline-flex; align-items: center; gap: 4px;">GitHub Profile {{ icon('external-link', size=12) }}</a></span>
-              </div>
-            {% endif %}
-          </div>
-        </div>
-
-        <!-- 5. Cover Letter & Statements -->
-        {% if app.cover_letter or app.why_join %}
-          <div class="dossier-card">
-            <div class="dossier-title">
-              {{ icon('file-text', size=18, color='var(--color-primary-light)') }} Statement of Interest
-            </div>
-            {% if app.cover_letter %}
-              <div class="dossier-text-block" style="margin-bottom: var(--space-lg);">{{ app.cover_letter }}</div>
-            {% endif %}
-            {% if app.why_join %}
-              <div class="dossier-label" style="margin-bottom: 0.35rem;">Why do you want to join Anti-Matrix?</div>
-              <div class="dossier-text-block">{{ app.why_join }}</div>
-            {% endif %}
-          </div>
-        {% endif %}
+        </dl>
       </div>
 
-      <!-- Right Column: Documents & Payment -->
-      <div>
-        
-        <!-- Attached Documents Card (Resume, Aadhaar, PAN, College ID) -->
-        <div class="dossier-card">
-          <div class="dossier-title">
-            {{ icon('file-text', size=18, color='var(--color-primary-light)') }} Candidate Documents
-          </div>
-          
-          <!-- Resume -->
-          <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-md); margin-bottom: var(--space-sm);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-              <span style="font-weight: 700; color: var(--color-text); font-size: 0.875rem;">Resume / CV</span>
-              {% if app.resume_path and app.resume_filename != 'NOT_PROVIDED' %}
-                <span class="badge-status active" style="font-size: 0.7rem;">Attached</span>
-              {% else %}
-                <span class="badge-status" style="background: rgba(255,255,255,0.05); color: var(--color-text-dim); border-color: var(--color-border); font-size: 0.7rem;">Manual Flow (None)</span>
-              {% endif %}
-            </div>
-            {% if app.resume_path and app.resume_filename != 'NOT_PROVIDED' %}
-              <div style="font-size: 0.775rem; color: var(--color-text-dim); margin-bottom: 0.6rem; word-break: break-all;">
-                {{ app.resume_filename }}
-              </div>
-              <a href="{{ url_for('admin.download_document', app_id=app.id, doc_type='resume', download=1) }}" class="btn btn-outline btn-sm" style="width: 100%; justify-content: center; font-size: 0.8rem; gap: 5px;">
-                {{ icon('download', size=13) }} Download Resume
-              </a>
-            {% else %}
-              <div style="font-size: 0.775rem; color: var(--color-text-muted);">No resume upload required for this application.</div>
-            {% endif %}
-          </div>
+      <!-- Academic Background -->
+      <div class="card" style="padding: var(--space-xl); background: #ffffff; border-color: var(--color-border);">
+        <h3 style="font-size: 1rem; font-weight: 700; color: #0f172a; margin: 0 0 var(--space-md) 0; display: flex; align-items: center; gap: 8px;">
+          {{ icon('award', size=16, color='var(--color-primary-light)') }} Academic Credentials
+        </h3>
+        <dl style="display: grid; grid-template-columns: 120px 1fr; gap: var(--space-xs) var(--space-sm); font-size: 0.85rem; margin: 0;">
+          <dt style="color: var(--color-text-dim);">College:</dt>
+          <dd style="font-weight: 600; color: var(--color-text); margin: 0;">{{ app.college or 'Not specified' }}</dd>
 
-          <!-- Aadhaar Card -->
-          <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-md); margin-bottom: var(--space-sm);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-              <span style="font-weight: 700; color: var(--color-text); font-size: 0.875rem;">Aadhaar Document</span>
-              {% if app.aadhaar_filename %}
-                <span class="badge-status active" style="font-size: 0.7rem;">Attached</span>
-              {% else %}
-                <span class="badge-status" style="background: rgba(255,255,255,0.05); color: var(--color-text-dim); border-color: var(--color-border); font-size: 0.7rem;">Not Provided</span>
-              {% endif %}
-            </div>
-            {% if app.aadhaar_filename %}
-              <div style="font-size: 0.775rem; color: var(--color-text-dim); margin-bottom: 0.6rem; word-break: break-all;">
-                {{ app.aadhaar_filename }}
-              </div>
-              <a href="{{ url_for('admin.download_document', app_id=app.id, doc_type='aadhaar', download=1) }}" class="btn btn-outline btn-sm" style="width: 100%; justify-content: center; font-size: 0.8rem; gap: 5px;">
-                {{ icon('download', size=13) }} Download Aadhaar
-              </a>
-            {% else %}
-              <div style="font-size: 0.775rem; color: var(--color-text-muted);">No Aadhaar file attached.</div>
-            {% endif %}
-          </div>
+          <dt style="color: var(--color-text-dim);">Department:</dt>
+          <dd style="color: var(--color-text); margin: 0;">{{ app.department or 'N/A' }}</dd>
 
-          <!-- PAN Card -->
-          <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-md); margin-bottom: var(--space-sm);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-              <span style="font-weight: 700; color: var(--color-text); font-size: 0.875rem;">PAN Document</span>
-              {% if app.pan_filename %}
-                <span class="badge-status active" style="font-size: 0.7rem;">Attached</span>
-              {% else %}
-                <span class="badge-status" style="background: rgba(255,255,255,0.05); color: var(--color-text-dim); border-color: var(--color-border); font-size: 0.7rem;">Not Provided</span>
-              {% endif %}
-            </div>
-            {% if app.pan_filename %}
-              <div style="font-size: 0.775rem; color: var(--color-text-dim); margin-bottom: 0.6rem; word-break: break-all;">
-                {{ app.pan_filename }}
-              </div>
-              <a href="{{ url_for('admin.download_document', app_id=app.id, doc_type='pan', download=1) }}" class="btn btn-outline btn-sm" style="width: 100%; justify-content: center; font-size: 0.8rem; gap: 5px;">
-                {{ icon('download', size=13) }} Download PAN
-              </a>
-            {% else %}
-              <div style="font-size: 0.775rem; color: var(--color-text-muted);">No PAN file attached.</div>
-            {% endif %}
-          </div>
+          {% if app.degree %}
+            <dt style="color: var(--color-text-dim);">Degree:</dt>
+            <dd style="color: var(--color-text); margin: 0;">{{ app.degree }}</dd>
+          {% endif %}
 
-          <!-- College ID -->
-          <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-md);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-              <span style="font-weight: 700; color: var(--color-text); font-size: 0.875rem;">College ID Card</span>
-              {% if app.college_id_filename %}
-                <span class="badge-status active" style="font-size: 0.7rem;">Attached</span>
-              {% else %}
-                <span class="badge-status" style="background: rgba(255,255,255,0.05); color: var(--color-text-dim); border-color: var(--color-border); font-size: 0.7rem;">Not Provided</span>
-              {% endif %}
-            </div>
-            {% if app.college_id_filename %}
-              <div style="font-size: 0.775rem; color: var(--color-text-dim); margin-bottom: 0.6rem; word-break: break-all;">
-                {{ app.college_id_filename }}
-              </div>
-              <a href="{{ url_for('admin.download_document', app_id=app.id, doc_type='college_id', download=1) }}" class="btn btn-outline btn-sm" style="width: 100%; justify-content: center; font-size: 0.8rem; gap: 5px;">
-                {{ icon('download', size=13) }} Download College ID
-              </a>
-            {% else %}
-              <div style="font-size: 0.775rem; color: var(--color-text-muted);">No College ID file attached.</div>
-            {% endif %}
-          </div>
-        </div>
+          {% if app.graduation_year %}
+            <dt style="color: var(--color-text-dim);">Graduation:</dt>
+            <dd style="color: var(--color-text); margin: 0;">{{ app.graduation_year }}</dd>
+          {% endif %}
 
-        <!-- Payment Verification & Record Card -->
-        <div class="dossier-card">
-          <div class="dossier-title">
-            {{ icon('credit-card', size=18, color='var(--color-primary-light)') }} Cashfree Payment Record
-          </div>
-          
-          <div style="display: flex; flex-direction: column; gap: var(--space-sm); font-size: 0.85rem;">
-            <div>
-              <span style="color: var(--color-text-dim);">Payment Status:</span>
-              <span style="font-weight: 700; color: {{ '#10b981' if app.payment_status == 'paid' else ('#eab308' if app.payment_status == 'pending' else '#f87171') }}; text-transform: uppercase;">
-                {{ app.payment_status }}
-              </span>
-            </div>
-            {% set pay = app.latest_payment %}
-            {% if pay and pay.base_amount is not none %}
-              <div>
-                <span style="color: var(--color-text-dim);">Base Amount:</span>
-                <span style="color: #ffffff; font-weight: 700; font-family: var(--font-mono, monospace);">₹{{ "%.2f"|format(pay.base_amount) }}</span>
-              </div>
-              <div>
-                <span style="color: var(--color-text-dim);">GST (18%):</span>
-                <span style="color: #34d399; font-weight: 700; font-family: var(--font-mono, monospace);">₹{{ "%.2f"|format(pay.gst_amount or 0) }}</span>
-              </div>
-              <div>
-                <span style="color: var(--color-text-dim);">Total Paid:</span>
-                <span style="color: var(--color-primary-light); font-weight: 800; font-family: var(--font-mono, monospace);">₹{{ "%.2f"|format(pay.amount) }}</span>
-              </div>
-            {% elif app.base_amount is not none %}
-              <div>
-                <span style="color: var(--color-text-dim);">Base Amount:</span>
-                <span style="color: #ffffff; font-weight: 700; font-family: var(--font-mono, monospace);">₹{{ "%.2f"|format(app.base_amount) }}</span>
-              </div>
-              <div>
-                <span style="color: var(--color-text-dim);">GST (18%):</span>
-                <span style="color: #34d399; font-weight: 700; font-family: var(--font-mono, monospace);">₹{{ "%.2f"|format(app.gst_amount or 0) }}</span>
-              </div>
-              <div>
-                <span style="color: var(--color-text-dim);">Total Paid:</span>
-                <span style="color: var(--color-primary-light); font-weight: 800; font-family: var(--font-mono, monospace);">₹{{ "%.2f"|format(app.application_fee) }}</span>
-              </div>
-            {% else %}
-              <div>
-                <span style="color: var(--color-text-dim);">Application Fee:</span>
-                <span style="color: #ffffff; font-weight: 800; font-family: var(--font-mono, monospace);">₹{{ "%.2f"|format(pay.amount) if pay and pay.amount else (app.application_fee or job.fee_inr) }}</span>
-              </div>
-            {% endif %}
+          {% if app.current_cgpa %}
+            <dt style="color: var(--color-text-dim);">CGPA / Score:</dt>
+            <dd style="font-weight: 700; color: #059669; margin: 0;">{{ app.current_cgpa }}</dd>
+          {% endif %}
+        </dl>
+      </div>
+
+      <!-- Application & Payment Details -->
+      <div class="card" style="padding: var(--space-xl); background: #ffffff; border-color: var(--color-border);">
+        <h3 style="font-size: 1rem; font-weight: 700; color: #0f172a; margin: 0 0 var(--space-md) 0; display: flex; align-items: center; gap: 8px;">
+          {{ icon('credit-card', size=16, color='var(--color-primary-light)') }} Position &amp; Fee Details
+        </h3>
+        <dl style="display: grid; grid-template-columns: 120px 1fr; gap: var(--space-xs) var(--space-sm); font-size: 0.85rem; margin: 0;">
+          <dt style="color: var(--color-text-dim);">Applied Role:</dt>
+          <dd style="font-weight: 700; color: var(--color-text); margin: 0;">{{ job.title if job else 'Position' }}</dd>
+
+          <dt style="color: var(--color-text-dim);">Duration:</dt>
+          <dd style="color: var(--color-text); margin: 0;">{{ app.duration_display or 'Standard' }}</dd>
+
+          <dt style="color: var(--color-text-dim);">Payment Status:</dt>
+          <dd style="font-weight: 700; margin: 0; {% if app.payment_status in ['paid', 'PAID'] %}color: #059669;{% elif app.payment_status in ['failed', 'FAILED'] %}color: #dc2626;{% else %}color: #d97706;{% endif %}">
+            {{ app.payment_status|upper }}
+          </dd>
+
+          <dt style="color: var(--color-text-dim);">Fee Charged:</dt>
+          <dd style="font-weight: 600; color: var(--color-text); margin: 0;">
             {% if app.latest_payment %}
-              <div>
-                <span style="color: var(--color-text-dim);">Cashfree Order ID:</span>
-                <div style="font-family: var(--font-mono, monospace); font-size: 0.775rem; color: var(--color-primary-light); word-break: break-all; margin-top: 2px;">
-                  {{ app.latest_payment.cashfree_order_id }}
-                </div>
-              </div>
-              {% if app.latest_payment.cf_payment_id %}
-                <div>
-                  <span style="color: var(--color-text-dim);">Gateway Reference:</span>
-                  <div style="font-family: var(--font-mono, monospace); font-size: 0.775rem; color: var(--color-text-muted);">
-                    {{ app.latest_payment.cf_payment_id }}
-                  </div>
-                </div>
-              {% endif %}
-              <div>
-                <span style="color: var(--color-text-dim);">Payment Date:</span>
-                <span style="color: var(--color-text); font-weight: 600;">{{ app.latest_payment.created_at.strftime('%b %d, %Y %I:%M %p UTC') }}</span>
-              </div>
+              ₹{{ "%.2f"|format(app.latest_payment.amount) }} (via {{ app.latest_payment.gateway }})
+            {% elif app.application_fee and app.application_fee > 0 %}
+              ₹{{ app.application_fee }}
             {% else %}
-              <div style="font-size: 0.8rem; color: var(--color-text-muted);">
-                No external gateway transaction initialized.
-              </div>
+              Free
             {% endif %}
-          </div>
-        </div>
+          </dd>
 
-        <!-- Manual Payment Status Verification Card -->
-        <div class="dossier-card" style="border: 1px solid rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.02);">
-          <div class="dossier-title">
-            {{ icon('check-circle', size=18, color='var(--color-primary-light)') }} Manual Payment Verification
-          </div>
-          <p style="font-size: 0.8rem; color: var(--color-text-dim); margin-bottom: var(--space-md); line-height: 1.5;">
-            Update payment verification state manually after reviewing candidate payment (e.g. UPI QR / Google Form verification).
-          </p>
-          <form method="POST" action="{{ url_for('admin.update_application_payment_status', app_id=app.id) }}" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-            <select name="payment_status" class="admin-select" style="flex: 1; min-width: 130px; padding: 0.45rem 0.75rem; font-size: 0.85rem;">
-              <option value="pending" {{ 'selected' if app.payment_status == 'pending' else '' }}>Pending</option>
-              <option value="paid" {{ 'selected' if app.payment_status == 'paid' else '' }}>Paid (Verified)</option>
-              <option value="failed" {{ 'selected' if app.payment_status == 'failed' else '' }}>Failed</option>
-            </select>
-            <button type="submit" class="btn btn-primary btn-sm" style="padding: 0.45rem 0.85rem; font-weight: 700;">
-              Update Status
-            </button>
-          </form>
-        </div>
-
+          <dt style="color: var(--color-text-dim);">Resume File:</dt>
+          <dd style="margin: 0;">
+            {% if app.resume_path and app.resume_filename != 'NOT_PROVIDED' %}
+              <a href="{{ url_for('admin.download_document', app_id=app.id, doc_type='resume') }}" target="_blank" style="color: var(--color-primary-light); font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+                {{ icon('download', size=12) }} View Resume
+              </a>
+            {% else %}
+              <span style="color: var(--color-text-dim);">Not uploaded</span>
+            {% endif %}
+          </dd>
+        </dl>
       </div>
 
     </div>
 
   </div>
 </section>
-
-<!-- DOCX In-Page Document Preview Modal -->
-<div id="docx-preview-modal-overlay" class="docx-preview-overlay" style="display: none;" aria-hidden="true" role="dialog" aria-labelledby="docx-preview-modal-title">
-  <div class="docx-preview-modal" onclick="event.stopPropagation();">
-    <!-- Header -->
-    <div class="docx-preview-header">
-      <div class="docx-preview-title-group">
-        {{ icon('file-text', size=20, color='var(--color-primary-light)') }}
-        <h3 id="docx-preview-modal-title" class="docx-preview-title">
-          Offer Letter Preview &bull; {{ app.full_name }}
-        </h3>
-        <span id="docx-preview-modal-badge" class="docx-preview-badge">
-          {{ app.formatted_code }}
-        </span>
-      </div>
-      <div class="docx-preview-actions">
-        <a id="docx-preview-download-btn" href="{{ url_for('admin.download_application_offer_letter', app_id=app.id) }}" class="btn btn-outline btn-sm" style="gap: 6px; font-weight: 700;" title="Download DOCX File">
-          {{ icon('download', size=14) }} Download DOCX
-        </a>
-        <button type="button" class="btn btn-ghost btn-sm" onclick="closeOfferLetterPreview()" aria-label="Close Preview" style="padding: 0.35rem 0.55rem; color: #94a3b8;" title="Close (Esc)">
-          {{ icon('x', size=18) }}
-        </button>
-      </div>
-    </div>
-
-    <!-- Body (Native High-Fidelity PDF Preview Container) -->
-    <div id="docx-preview-modal-body" class="docx-preview-body" style="padding: 0; background: #0f172a; position: relative; min-height: 75vh; height: 75vh; display: flex; flex-direction: column;">
-      <div id="docx-preview-loading" class="docx-preview-loading" style="position: absolute; inset: 0; z-index: 10; background: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-        <div class="docx-spinner"></div>
-        <div style="font-weight: 600; color: #f8fafc; font-size: 0.95rem; margin-top: 1rem;">Rendering document preview...</div>
-        <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem;">Generating authentic PDF from candidate Word document</div>
-      </div>
-      <iframe id="docx-preview-iframe" class="docx-pdf-frame" style="width: 100%; height: 100%; min-height: 75vh; border: none; flex: 1;" title="Offer Letter Preview"></iframe>
-    </div>
-
-    <!-- Footer -->
-    <div class="docx-preview-footer">
-      <div class="docx-preview-info">
-        {{ icon('shield', size=14, color='var(--color-primary-light)') }}
-        <span>Official Anti Matrix Generated Document &bull; Read-Only Preview</span>
-      </div>
-      <div style="display: flex; gap: var(--space-sm); align-items: center;">
-        <button type="button" class="btn btn-ghost btn-sm" onclick="closeOfferLetterPreview()" style="font-weight: 600;">
-          Close Preview
-        </button>
-        <a id="docx-preview-footer-download-btn" href="{{ url_for('admin.download_application_offer_letter', app_id=app.id) }}" class="btn btn-primary btn-sm" style="gap: 6px; font-weight: 700;">
-          {{ icon('download', size=14) }} Download DOCX
-        </a>
-      </div>
-    </div>
-  </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-function openOfferLetterPreview(appId) {
-  var overlay = document.getElementById('docx-preview-modal-overlay');
-  var body = document.getElementById('docx-preview-modal-body');
-  var loadingEl = document.getElementById('docx-preview-loading');
-  var iframe = document.getElementById('docx-preview-iframe');
-  var downloadBtn = document.getElementById('docx-preview-download-btn');
-  var footerDownloadBtn = document.getElementById('docx-preview-footer-download-btn');
-
-  if (!overlay || !iframe) return;
-
-  var downloadUrl = '/admin/applications/' + appId + '/offer-letter/download';
-  var pdfUrl = '/admin/applications/' + appId + '/offer-letter/preview/pdf#toolbar=1&navpanes=0';
-
-  if (downloadBtn) downloadBtn.href = downloadUrl;
-  if (footerDownloadBtn) footerDownloadBtn.href = downloadUrl;
-
-  // Show loading spinner and open overlay
-  if (loadingEl) {
-    loadingEl.style.display = 'flex';
-    loadingEl.innerHTML = 
-      '<div class="docx-spinner"></div>' +
-      '<div style="font-weight: 600; color: #f8fafc; font-size: 0.95rem; margin-top: 1rem;">Rendering document preview...</div>' +
-      '<div style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem;">Generating authentic PDF from candidate Word document</div>';
-  }
-  
-  overlay.style.display = 'flex';
-  overlay.setAttribute('aria-hidden', 'false');
-  document.body.style.overflow = 'hidden';
-
-  // Set iframe source
-  iframe.onload = function() {
-    if (loadingEl) {
-      loadingEl.style.display = 'none';
-    }
-  };
-
-  iframe.onerror = function() {
-    if (loadingEl) {
-      loadingEl.style.display = 'flex';
-      loadingEl.innerHTML = 
-        '<div class="docx-preview-error">' +
-          '<h4>Document Preview Unavailable</h4>' +
-          '<p>Preview is temporarily unavailable. Please use Download DOCX.</p>' +
-          '<div style="display: flex; justify-content: center; gap: 10px; margin-top: 1rem;">' +
-            '<a href="' + downloadUrl + '" class="btn btn-primary btn-sm" style="gap: 6px;">' +
-              'Download Document' +
-            '</a>' +
-            '<button type="button" class="btn btn-outline btn-sm" onclick="closeOfferLetterPreview()">' +
-              'Close' +
-            '</button>' +
-          '</div>' +
-        '</div>';
-    }
-  };
-
-  iframe.src = pdfUrl;
-}
-
-function closeOfferLetterPreview() {
-  var overlay = document.getElementById('docx-preview-modal-overlay');
-  var iframe = document.getElementById('docx-preview-iframe');
-  if (overlay) {
-    overlay.style.display = 'none';
-    overlay.setAttribute('aria-hidden', 'true');
-  }
-  if (iframe) {
-    iframe.src = 'about:blank';
-  }
-  document.body.style.overflow = '';
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-  var overlay = document.getElementById('docx-preview-modal-overlay');
-  if (overlay) {
-    overlay.addEventListener('click', function(e) {
-      if (e.target === overlay) {
-        closeOfferLetterPreview();
-      }
-    });
-  }
-
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-      var overlay = document.getElementById('docx-preview-modal-overlay');
-      if (overlay && overlay.style.display === 'flex') {
-        closeOfferLetterPreview();
-      }
-    }
-  });
-});
-</script>
 {% endblock %}

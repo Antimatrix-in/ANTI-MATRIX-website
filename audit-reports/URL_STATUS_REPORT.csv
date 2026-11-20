@@ -1,0 +1,36 @@
+URL,HTTP_Status,Final_Status,Redirect_Chain,Type,Issue,Severity,Recommended_Fix
+https://antimatrix.co.in/,200,200,Direct,Page,Missing canonical tag and duplicate meta description,Medium,Add link rel=canonical pointing to https://antimatrix.co.in/
+https://antimatrix.co.in/about,200,200,Direct,Page,Missing canonical tag and duplicate meta description,Medium,Add link rel=canonical pointing to https://antimatrix.co.in/about
+https://antimatrix.co.in/services,200,200,Direct,Page,Missing canonical tag and duplicate meta description,Medium,Add link rel=canonical pointing to https://antimatrix.co.in/services
+https://antimatrix.co.in/products,200,200,Direct,Page,Duplicate content of /product; missing canonical tag,High,Canonicalize or 301-redirect /product to /products
+https://antimatrix.co.in/product,200,200,Direct,Page,Duplicate URL variant of /products,High,301 redirect /product to /products
+https://antimatrix.co.in/pricing,301,200,301 -> /services,Redirect,Working 301 redirect to /services,Low,Preserve redirect; ensure internal links use /services directly
+https://antimatrix.co.in/careers,200,200,Direct,Page,Missing canonical tag and duplicate meta description,Medium,Add link rel=canonical pointing to https://antimatrix.co.in/careers
+https://antimatrix.co.in/careers/,200,200,Direct,Page,Trailing slash variant returns 200 without redirect,Medium,Enforce 301 redirect /careers/ to /careers
+https://antimatrix.co.in/careers/apply/142,200,200,Direct,Dynamic Page,Application form accessible; lacks noindex tag,Medium,Add noindex to application forms
+https://antimatrix.co.in/careers/apply/143,200,200,Direct,Dynamic Page,Application form accessible; lacks noindex tag,Medium,Add noindex to application forms
+https://antimatrix.co.in/careers/apply/144,200,200,Direct,Dynamic Page,Application form accessible; lacks noindex tag,Medium,Add noindex to application forms
+https://antimatrix.co.in/careers/apply/145,200,200,Direct,Dynamic Page,Application form accessible; lacks noindex tag,Medium,Add noindex to application forms
+https://antimatrix.co.in/brand-film,200,200,Direct,Orphan Page,Missing video media files (404); unlinked orphan page,High,Upload video assets or remove/redirect route
+https://antimatrix.co.in/contact,200,200,Direct,Page,Duplicate variant of /contact/; missing canonical tag,Medium,Add canonical tag and unify slash handling
+https://antimatrix.co.in/contact/,200,200,Direct,Page,Trailing slash variant returns 200 without redirect,Medium,Enforce 301 redirect /contact/ to /contact
+https://antimatrix.co.in/login,200,200,Direct,Auth Page,Lacks noindex directive; indexable by crawlers,High,Add meta name=robots content=noindex nofollow
+https://antimatrix.co.in/login/,200,200,Direct,Auth Page,Trailing slash variant returns 200 without redirect,Low,Enforce 301 redirect /login/ to /login
+https://antimatrix.co.in/signup,200,200,Direct,Auth Page,Lacks noindex directive; indexable by crawlers,High,Add meta name=robots content=noindex nofollow
+https://antimatrix.co.in/signup/,200,200,Direct,Auth Page,Trailing slash variant returns 200 without redirect,Low,Enforce 301 redirect /signup/ to /signup
+https://antimatrix.co.in/profile,302,200,302 -> /login?next=%2Fprofile,User Flow,Protected user route; lacks noindex,Low,Disallow in robots.txt
+https://antimatrix.co.in/my-profile,302,200,302 -> /login?next=%2Fmy-profile,User Flow,Protected user route; duplicate of /profile,Low,301 redirect /my-profile to /profile
+https://antimatrix.co.in/my-applications,302,200,302 -> /login?next=%2Fmy-applications,User Flow,Protected user route; lacks noindex,Low,Disallow in robots.txt
+https://antimatrix.co.in/privacy,200,200,Direct,Legal Page,Duplicate content of /privacy-policy,High,301 redirect /privacy to /privacy-policy
+https://antimatrix.co.in/privacy-policy,200,200,Direct,Legal Page,Canonical legal page; missing canonical tag,Medium,Add link rel=canonical pointing to https://antimatrix.co.in/privacy-policy
+https://antimatrix.co.in/terms,200,200,Direct,Legal Page,Duplicate content of /terms-and-conditions,High,301 redirect /terms to /terms-and-conditions
+https://antimatrix.co.in/terms-and-conditions,200,200,Direct,Legal Page,Canonical legal page; missing canonical tag,Medium,Add link rel=canonical pointing to https://antimatrix.co.in/terms-and-conditions
+https://antimatrix.co.in/refund-policy,200,200,Direct,Legal Page,Duplicate content of /refunds,High,301 redirect /refund-policy to /refunds
+https://antimatrix.co.in/cancellation-refund,200,200,Direct,Legal Page,Duplicate content of /refunds,High,301 redirect /cancellation-refund to /refunds
+https://antimatrix.co.in/refunds,200,200,Direct,Legal Page,Canonical legal page; missing canonical tag,Medium,Add link rel=canonical pointing to https://antimatrix.co.in/refunds
+https://antimatrix.co.in/api/health,200,200,Direct,API,System diagnostic API; lacks noindex,Low,Disallow in robots.txt
+https://antimatrix.co.in/robots.txt,404,404,Direct,SEO Asset,File not found on server,Critical,Create and deploy standard robots.txt
+https://antimatrix.co.in/sitemap.xml,404,404,Direct,SEO Asset,XML sitemap not found on server,Critical,Generate and deploy valid sitemap.xml
+https://www.antimatrix.co.in/,200,200,Direct,Hostname,www subdomain serves duplicate site without 301 redirect,High,Configure Nginx 301 redirect from www to non-www
+http://antimatrix.co.in/,301,200,301 -> https://antimatrix.co.in/,Protocol,Working HTTP-to-HTTPS redirect,Low,None (working as expected)
+http://www.antimatrix.co.in/,301,200,301 -> https://www.antimatrix.co.in/,Protocol,Redirects to https://www instead of https:// non-www,Medium,Update Nginx redirect to point directly to https://antimatrix.co.in/

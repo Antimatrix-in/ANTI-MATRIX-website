@@ -35,7 +35,7 @@
       </div>
     </div>
 
-    <!-- Admin Nav Tabs -->
+    <!-- Admin Nav Tabs (Strictly 5 Standard Tabs) -->
     <div class="admin-nav-tabs" style="margin-bottom: 1.75rem;">
       <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-tab">
         {{ icon('layout', size=14) }} Overview
@@ -45,9 +45,6 @@
       </a>
       <a href="{{ url_for('admin.applications') }}" class="admin-nav-tab">
         {{ icon('users', size=14) }} Candidate Applications
-      </a>
-      <a href="{{ url_for('admin.employees') }}" class="admin-nav-tab">
-        {{ icon('user-check', size=14) }} Employees
       </a>
       <a href="{{ url_for('admin.templates') }}" class="admin-nav-tab">
         {{ icon('file-text', size=14) }} Templates

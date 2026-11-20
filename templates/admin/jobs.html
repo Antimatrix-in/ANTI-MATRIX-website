@@ -29,7 +29,7 @@
       </div>
     </div>
 
-    <!-- Admin Nav Tabs -->
+    <!-- Admin Nav Tabs (Strictly 5 Standard Tabs) -->
     <div class="admin-nav-tabs">
       <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-tab">
         {{ icon('layout', size=15) }} Overview
@@ -40,23 +40,11 @@
       <a href="{{ url_for('admin.applications') }}" class="admin-nav-tab">
         {{ icon('users', size=15) }} Candidate Applications
       </a>
-      <a href="{{ url_for('admin.employees') }}" class="admin-nav-tab">
-        {{ icon('user-check', size=15) }} Employees
-      </a>
-      <a href="{{ url_for('admin.inquiries') }}" class="admin-nav-tab">
-        {{ icon('message-square', size=15) }} Inquiries <span class="admin-tab-count {{ 'new' if unread_inquiries_count > 0 else '' }}">{{ total_inquiries_count }}</span>
-        {% if unread_inquiries_count > 0 %}
-          <span class="admin-tab-count new">{{ unread_inquiries_count }} NEW</span>
-        {% endif %}
-      </a>
       <a href="{{ url_for('admin.templates') }}" class="admin-nav-tab">
         {{ icon('file-text', size=15) }} Templates
       </a>
       <a href="{{ url_for('admin.money_management') }}" class="admin-nav-tab">
         {{ icon('wallet', size=15) }} Money Management
-      </a>
-      <a href="{{ url_for('admin.internship_benefits') }}" class="admin-nav-tab">
-        {{ icon('award', size=15) }} Internship Benefits
       </a>
     </div>
 
@@ -154,9 +142,9 @@
                   {% endif %}
                 </td>
                 <td>
-                  <a href="{{ url_for('admin.applications', job_id=job.id) }}" class="btn btn-outline btn-sm" style="padding: 0.2rem 0.6rem; font-size: 0.775rem;">
+                  <span class="badge" style="padding: 0.2rem 0.6rem; font-size: 0.775rem; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;">
                     {{ icon('users', size=12) }} {{ job.application_count }} Apps
-                  </a>
+                  </span>
                 </td>
                 <td>
                   {% if job.is_active %}

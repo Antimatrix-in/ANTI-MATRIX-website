@@ -1,0 +1,6 @@
+Source_Page,Target_URL,Link_Text_or_Type,HTTP_Status,Issue_Description,Severity,Recommended_Fix
+https://antimatrix.co.in/brand-film,https://antimatrix.co.in/static/videos/anti_matrix_brand_film.mp4,Download Master MP4 / Video Source,404,Referenced MP4 video file does not exist on disk,High,Upload video to static/videos/ or embed hosted stream
+https://antimatrix.co.in/brand-film,https://antimatrix.co.in/static/videos/anti_matrix_brand_film.webm,Video Source,404,Referenced WebM video file does not exist on disk,High,Upload video to static/videos/ or remove source tag
+https://antimatrix.co.in/products,https://www.qmatrix.co.in/?utm_source=chatgpt.com,External Link (Explore Platform),200,Hardcoded chatgpt.com UTM parameter in production link,Medium,Clean query parameters to https://www.qmatrix.co.in/
+https://antimatrix.co.in/robots.txt,https://antimatrix.co.in/robots.txt,Direct Access / Crawler,404,robots.txt missing from server,Critical,Add route or static file for robots.txt
+https://antimatrix.co.in/sitemap.xml,https://antimatrix.co.in/sitemap.xml,Direct Access / Search Console,404,sitemap.xml missing from server,Critical,Add dynamic route or static XML sitemap

@@ -11,20 +11,14 @@
     <div class="admin-header">
       <div class="admin-header-title">
         <h1>Admin Dashboard</h1>
-        <p>Manage job postings, candidate submissions, and talent acquisition pipelines.</p>
+        <p>Manage job postings, career opportunities, and financial transactions.</p>
       </div>
       <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
-        <a href="{{ url_for('admin.inquiries') }}" class="btn btn-outline" style="gap: 6px;">
-          {{ icon('message-square', size=15) }} Inquiries {% if unread_inquiries > 0 %}<span style="background: #059669; color: #fff; border-radius: 999px; padding: 1px 6px; font-size: 0.7rem; font-weight: 700;">{{ unread_inquiries }}</span>{% endif %}
-        </a>
-        <a href="{{ url_for('admin.internship_benefits') }}" class="btn btn-outline" style="gap: 6px;">
-          {{ icon('award', size=15) }} Internship Benefits
-        </a>
         <a href="{{ url_for('admin.money_management') }}" class="btn btn-outline" style="gap: 6px;">
           {{ icon('wallet', size=15) }} Money Management
         </a>
-        <a href="{{ url_for('admin.templates') }}" class="btn btn-outline" style="gap: 6px;">
-          {{ icon('file-text', size=15) }} Templates
+        <a href="{{ url_for('admin.add_money_transaction') }}" class="btn btn-outline" style="gap: 6px;">
+          {{ icon('plus', size=15) }} Add Transaction
         </a>
         <a href="{{ url_for('admin.create_job') }}" class="btn btn-primary" style="gap: 6px;">
           {{ icon('plus', size=15) }} Create Job Posting
@@ -32,7 +26,7 @@
       </div>
     </div>
 
-    <!-- Admin Nav Tabs -->
+    <!-- Admin Nav Tabs (Strictly 5 Standard Tabs) -->
     <div class="admin-nav-tabs">
       <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-tab active">
         {{ icon('layout', size=15) }} Overview
@@ -42,27 +36,12 @@
       </a>
       <a href="{{ url_for('admin.applications') }}" class="admin-nav-tab">
         {{ icon('users', size=15) }} Candidate Applications <span class="admin-tab-count">{{ total_applications }}</span>
-        {% if new_applications > 0 %}
-          <span class="admin-tab-count new">{{ new_applications }} NEW</span>
-        {% endif %}
-      </a>
-      <a href="{{ url_for('admin.employees') }}" class="admin-nav-tab">
-        {{ icon('user-check', size=15) }} Employees <span class="admin-tab-count">{{ total_employees }}</span>
-      </a>
-      <a href="{{ url_for('admin.inquiries') }}" class="admin-nav-tab">
-        {{ icon('message-square', size=15) }} Inquiries <span class="admin-tab-count {{ 'new' if unread_inquiries > 0 else '' }}">{{ total_inquiries }}</span>
-        {% if unread_inquiries > 0 %}
-          <span class="admin-tab-count new">{{ unread_inquiries }} NEW</span>
-        {% endif %}
       </a>
       <a href="{{ url_for('admin.templates') }}" class="admin-nav-tab">
         {{ icon('file-text', size=15) }} Templates
       </a>
       <a href="{{ url_for('admin.money_management') }}" class="admin-nav-tab">
         {{ icon('wallet', size=15) }} Money Management
-      </a>
-      <a href="{{ url_for('admin.internship_benefits') }}" class="admin-nav-tab">
-        {{ icon('award', size=15) }} Internship Benefits
       </a>
     </div>
 
@@ -87,32 +66,42 @@
       </div>
 
       <div class="stat-card">
-        <div class="stat-icon" style="background: #f8fafc; color: #475569; border-color: #e2e8f0;">
+        <div class="stat-icon" style="background: #eff6ff; color: #2563eb; border-color: #bfdbfe;">
           {{ icon('users', size=20) }}
         </div>
         <div class="stat-info">
-          <div class="stat-value">{{ total_applications }}</div>
-          <div class="stat-label">Total Applications</div>
+          <div class="stat-value" style="color: #2563eb;">{{ total_applications }}</div>
+          <div class="stat-label">Candidate Applications</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #ecfdf5; color: #047857; border-color: #a7f3d0;">
+          {{ icon('wallet', size=20) }}
+        </div>
+        <div class="stat-info">
+          <div class="stat-value" style="color: #047857;">₹{{ "{:,.2f}".format(financial_summary.production_balance if financial_summary and financial_summary.production_balance is not none else 0.0) }}</div>
+          <div class="stat-label">Net Balance</div>
         </div>
       </div>
 
       <div class="stat-card">
         <div class="stat-icon" style="background: #eff6ff; color: #2563eb; border-color: #bfdbfe;">
-          {{ icon('inbox', size=20) }}
+          {{ icon('trending-up', size=20) }}
         </div>
         <div class="stat-info">
-          <div class="stat-value" style="color: #2563eb;">{{ new_applications }}</div>
-          <div class="stat-label">New Submissions</div>
+          <div class="stat-value" style="color: #2563eb;">₹{{ "{:,.2f}".format(financial_summary.production_income if financial_summary and financial_summary.production_income is not none else 0.0) }}</div>
+          <div class="stat-label">Total Income</div>
         </div>
       </div>
 
       <div class="stat-card">
-        <div class="stat-icon" style="background: #f0fdfa; color: #0d9488; border-color: #99f6e4;">
-          {{ icon('message-square', size=20) }}
+        <div class="stat-icon" style="background: #f8fafc; color: #475569; border-color: #e2e8f0;">
+          {{ icon('credit-card', size=20) }}
         </div>
         <div class="stat-info">
-          <div class="stat-value" style="color: #0d9488;">{{ total_inquiries }}</div>
-          <div class="stat-label">Contact Messages {% if unread_inquiries > 0 %}<span style="color: #059669; font-weight: 700;">({{ unread_inquiries }} New)</span>{% endif %}</div>
+          <div class="stat-value" style="color: #475569;">{{ total_transactions }}</div>
+          <div class="stat-label">Total Transactions</div>
         </div>
       </div>
     </div>
@@ -152,9 +141,9 @@
                     </td>
                     <td>{{ job.department }}</td>
                     <td>
-                      <a href="{{ url_for('admin.applications', job_id=job.id) }}" style="color: var(--color-primary-light); font-weight: 700; text-decoration: underline;">
-                        {{ job.application_count }}
-                      </a>
+                      <span class="badge" style="font-weight: 600; color: #475569; background: #f1f5f9; border: 1px solid #cbd5e1; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem;">
+                        {{ job.application_count }} Apps
+                      </span>
                     </td>
                     <td>
                       {% if job.is_active %}
@@ -178,45 +167,61 @@
         {% endif %}
       </div>
 
-      <!-- Recent Applications Widget -->
+      <!-- Recent Financial Transactions Widget -->
       <div class="card" style="padding: var(--space-xl);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border);">
           <h3 style="font-family: var(--font-admin-heading); font-size: 1.05rem; font-weight: 600; color: #0f172a; display: flex; align-items: center; gap: 8px; margin: 0;">
-            {{ icon('users', size=16, color='#059669') }} Recent Applications
+            {{ icon('wallet', size=16, color='#059669') }} Recent Financial Transactions
           </h3>
-          <a href="{{ url_for('admin.applications') }}" class="btn btn-ghost btn-sm" style="font-size: 0.8rem;">
+          <a href="{{ url_for('admin.money_management') }}" class="btn btn-ghost btn-sm" style="font-size: 0.8rem;">
             View All {{ icon('arrow-right', size=12) }}
           </a>
         </div>
 
-        {% if recent_applications %}
+        {% if recent_transactions %}
           <div class="admin-table-wrapper" style="margin-bottom: 0; border: none; background: transparent;">
             <table class="admin-table">
               <thead>
                 <tr>
-                  <th>Candidate</th>
-                  <th>Position</th>
-                  <th>Status</th>
-                  <th style="text-align: right;">Review</th>
+                  <th>Description</th>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th style="text-align: right;">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {% for app in recent_applications %}
+                {% for txn in recent_transactions %}
                   <tr>
                     <td>
-                      <span class="admin-table-title">{{ app.full_name }}</span>
-                      <span class="admin-table-subtitle">{{ app.email }}</span>
+                      <span class="admin-table-title" style="max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ txn.description or txn.category or 'Transaction' }}
+                      </span>
+                      <span class="admin-table-subtitle">{{ txn.category }}</span>
+                    </td>
+                    <td style="font-size: 0.8rem; color: #64748b; white-space: nowrap;">
+                      {{ txn.transaction_date.strftime('%b %d, %Y') if txn.transaction_date else '' }}
                     </td>
                     <td>
-                      <span style="font-size: 0.85rem; color: var(--color-text);">{{ app.job.title }}</span>
+                      {% if txn.is_income %}
+                        <span class="badge" style="background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; font-size: 0.72rem; font-weight: 700;">INCOME</span>
+                      {% else %}
+                        <span class="badge" style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; font-size: 0.72rem; font-weight: 700;">EXPENSE</span>
+                      {% endif %}
                     </td>
-                    <td>
-                      <span class="badge-status {{ app.status.lower() }}">{{ app.status }}</span>
+                    <td style="font-weight: 700; white-space: nowrap; font-size: 0.85rem; color: {{ '#16a34a' if txn.is_income else '#dc2626' }};">
+                      {{ '+' if txn.is_income else '-' }}₹{{ "{:,.2f}".format(txn.amount) }}
                     </td>
-                    <td style="text-align: right;">
-                      <a href="{{ url_for('admin.application_detail', app_id=app.id) }}" class="btn btn-outline btn-sm" style="font-size: 0.775rem; padding: 0.25rem 0.6rem;">
-                        View
-                      </a>
+                    <td style="text-align: right; white-space: nowrap;">
+                      {% if txn.is_manual %}
+                        <a href="{{ url_for('admin.edit_money_transaction', txn_id=txn.id) }}" class="btn-icon" title="Edit Transaction">
+                          {{ icon('edit', size=14) }}
+                        </a>
+                      {% else %}
+                        <a href="{{ url_for('admin.money_management') }}" class="btn-icon" title="View in Ledger">
+                          {{ icon('external-link', size=14) }}
+                        </a>
+                      {% endif %}
                     </td>
                   </tr>
                 {% endfor %}
@@ -224,75 +229,10 @@
             </table>
           </div>
         {% else %}
-          <p style="color: var(--color-text-dim); text-align: center; padding: var(--space-lg) 0;">No candidate applications received yet.</p>
+          <p style="color: var(--color-text-dim); text-align: center; padding: var(--space-lg) 0;">No financial transactions recorded yet.</p>
         {% endif %}
       </div>
 
-    </div>
-
-    <!-- Recent Contact Inquiries Widget -->
-    <div class="card" style="padding: var(--space-xl); margin-top: var(--space-xl);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border);">
-        <h3 style="font-family: var(--font-admin-heading); font-size: 1.05rem; font-weight: 600; color: #0f172a; display: flex; align-items: center; gap: 8px; margin: 0;">
-          {{ icon('message-square', size=16, color='#0d9488') }} Recent Contact Inquiries
-          {% if unread_inquiries > 0 %}
-            <span class="badge" style="background: #ecfdf5; color: #059669; border-color: #a7f3d0; font-size: 0.7rem; font-weight: 700;">{{ unread_inquiries }} UNREAD</span>
-          {% endif %}
-        </h3>
-        <a href="{{ url_for('admin.inquiries') }}" class="btn btn-ghost btn-sm" style="font-size: 0.8rem;">
-          View All Inquiries {{ icon('arrow-right', size=12) }}
-        </a>
-      </div>
-
-      {% if recent_inquiries %}
-        <div class="admin-table-wrapper" style="margin-bottom: 0; border: none; background: transparent;">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th>Status</th>
-                <th>Sender</th>
-                <th>Subject</th>
-                <th>Message</th>
-                <th>Received</th>
-                <th style="text-align: right;">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for inq in recent_inquiries %}
-                <tr>
-                  <td>
-                    {% if not inq.is_processed %}
-                      <span class="badge" style="background: #ecfdf5; color: #059669; border-color: #a7f3d0; font-size: 0.7rem; font-weight: 700;">● NEW</span>
-                    {% else %}
-                      <span class="badge" style="background: #f1f5f9; color: #64748b; border-color: #e2e8f0; font-size: 0.7rem; font-weight: 600;">READ</span>
-                    {% endif %}
-                  </td>
-                  <td>
-                    <span class="admin-table-title">{{ inq.name }}</span>
-                    <span class="admin-table-subtitle">{{ inq.email }}{% if inq.phone %} &bull; {{ inq.phone }}{% endif %}</span>
-                  </td>
-                  <td>
-                    <span style="font-size: 0.825rem; font-weight: 600; color: #1d4ed8;">{{ inq.subject }}</span>
-                  </td>
-                  <td style="max-width: 320px;">
-                    <div style="font-size: 0.825rem; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ inq.message }}</div>
-                  </td>
-                  <td style="font-size: 0.8rem; color: #64748b; white-space: nowrap;">
-                    {{ inq.created_at.strftime('%b %d, %Y %I:%M %p') if inq.created_at else '' }}
-                  </td>
-                  <td style="text-align: right; white-space: nowrap;">
-                    <a href="{{ url_for('admin.inquiries') }}" class="btn btn-outline btn-sm" style="font-size: 0.775rem; padding: 0.25rem 0.6rem;">
-                      Open
-                    </a>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% else %}
-        <p style="color: var(--color-text-dim); text-align: center; padding: var(--space-lg) 0;">No contact inquiries received yet.</p>
-      {% endif %}
     </div>
 
   </div>

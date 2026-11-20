@@ -485,6 +485,13 @@ def create_app(config_name=None):
 
         logger.info("APPLICATION IMPORT SUCCESS | SERVER READY")
 
+        # Start the 5-minute delayed acknowledgment email background worker
+        try:
+            from services.email_scheduler_service import start_email_scheduler_worker
+            start_email_scheduler_worker(app)
+        except Exception as e:
+            logger.warning(f"Could not start email scheduler worker: {e}")
+
     return app
 
 

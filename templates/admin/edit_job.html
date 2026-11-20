@@ -31,9 +31,9 @@
       </div>
 
       <div style="display: flex; gap: 8px; align-items: center;">
-        <a href="{{ url_for('admin.applications', job_id=job.id) }}" class="btn btn-outline btn-sm" style="gap: 6px; font-weight: 500;">
+        <span class="btn btn-ghost btn-sm" style="gap: 6px; font-weight: 500; cursor: default; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;">
           {{ icon('users', size=14) }} Applicants ({{ job.application_count }})
-        </a>
+        </span>
         <button type="button" onclick="togglePreviewDrawer()" class="btn btn-outline btn-sm" id="toggle-preview-btn" style="gap: 6px; font-weight: 500;">
           {{ icon('eye', size=14) }} <span id="preview-btn-text">Preview Card</span>
         </button>
@@ -43,7 +43,7 @@
       </div>
     </div>
 
-    <!-- Admin Nav Tabs -->
+    <!-- Admin Nav Tabs (Strictly 5 Standard Tabs) -->
     <div class="admin-nav-tabs" style="margin-bottom: 1.75rem;">
       <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-tab">
         {{ icon('layout', size=14) }} Overview
@@ -53,9 +53,6 @@
       </a>
       <a href="{{ url_for('admin.applications') }}" class="admin-nav-tab">
         {{ icon('users', size=14) }} Candidate Applications
-      </a>
-      <a href="{{ url_for('admin.employees') }}" class="admin-nav-tab">
-        {{ icon('user-check', size=14) }} Employees
       </a>
       <a href="{{ url_for('admin.templates') }}" class="admin-nav-tab">
         {{ icon('file-text', size=14) }} Templates

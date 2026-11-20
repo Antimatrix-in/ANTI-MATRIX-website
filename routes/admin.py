@@ -23,6 +23,7 @@ from services.offer_letter_service import (
     get_active_offer_letter_template, determine_job_category,
     OFFER_LETTER_CATEGORIES, ensure_default_templates_initialized
 )
+from services.money_service import get_financial_summary
 from routes.auth import get_safe_redirect
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -87,38 +88,39 @@ def admin_login():
 def dashboard():
     total_jobs = JobPosting.query.count()
     active_jobs = JobPosting.query.filter_by(is_active=True).count()
-    total_applications = JobApplication.query.count()
-    paid_applications = JobApplication.query.filter(JobApplication.payment_status.in_(['paid', 'PAID', 'exempt'])).count()
-    new_applications = JobApplication.query.filter(
-        JobApplication.status.in_(['New', 'APPLIED', 'applied'])
-    ).count()
-    try:
-        total_employees = Employee.query.count()
-    except Exception as emp_err:
-        current_app.logger.warning(f"Note on total_employees count: {emp_err}")
-        db.session.rollback()
-        total_employees = 0
-
-    total_inquiries = ContactInquiry.query.count()
-    unread_inquiries = ContactInquiry.query.filter_by(is_processed=False).count()
-    recent_inquiries = ContactInquiry.query.order_by(ContactInquiry.created_at.desc()).limit(6).all()
-
     recent_jobs = JobPosting.query.order_by(JobPosting.created_at.desc()).limit(5).all()
-    recent_applications = JobApplication.query.order_by(JobApplication.created_at.desc()).limit(8).all()
+    total_applications = JobApplication.query.count()
+
+    try:
+        financial_summary = get_financial_summary()
+        total_transactions = MoneyTransaction.query.count()
+        recent_transactions = MoneyTransaction.query.order_by(
+            MoneyTransaction.transaction_date.desc(),
+            MoneyTransaction.created_at.desc()
+        ).limit(6).all()
+    except Exception as f_err:
+        current_app.logger.warning(f"Error computing financial summary for dashboard: {f_err}")
+        db.session.rollback()
+        financial_summary = {
+            'production_balance': 0.0,
+            'production_income': 0.0,
+            'balance': 0.0,
+            'total_income': 0.0,
+            'total_expense': 0.0,
+            'all_time_count': 0
+        }
+        total_transactions = 0
+        recent_transactions = []
 
     return render_template(
         'admin/dashboard.html',
         total_jobs=total_jobs,
         active_jobs=active_jobs,
-        total_applications=total_applications,
-        new_applications=new_applications,
-        paid_applications=paid_applications,
-        total_employees=total_employees,
-        total_inquiries=total_inquiries,
-        unread_inquiries=unread_inquiries,
-        recent_inquiries=recent_inquiries,
         recent_jobs=recent_jobs,
-        recent_applications=recent_applications
+        total_applications=total_applications,
+        financial_summary=financial_summary,
+        total_transactions=total_transactions,
+        recent_transactions=recent_transactions
     )
 
 
@@ -418,1944 +420,6 @@ def delete_job(job_id):
     db.session.commit()
     flash(f"Job posting '{title}' and its applications have been safely removed.", 'info')
     return redirect(url_for('admin.jobs'))
-
-
-@admin_bp.route('/applications/clear-all', methods=['POST'])
-@admin_bp.route('/applications/delete-all', methods=['POST'])
-@admin_required
-def clear_all_applications():
-    """
-    Clear all candidate applications and related uploaded documents upon typing DELETE.
-    Strictly preserves job postings, employees, templates, money transactions, and email logs.
-    """
-    confirmation = (request.form.get('confirmation') or '').strip()
-    if confirmation != 'DELETE':
-        flash('Deletion cancelled. You must type DELETE to confirm.', 'danger')
-        return redirect(url_for('admin.applications'))
-
-    total_apps = JobApplication.query.count()
-    if total_apps == 0:
-        flash('There are no candidate applications to delete.', 'info')
-        return redirect(url_for('admin.applications'))
-
-    try:
-        # 1. Clean up candidate uploaded documents from disk
-        apps = JobApplication.query.all()
-        for app in apps:
-            for path_attr in ['resume_path', 'aadhaar_path', 'pan_path', 'college_id_path']:
-                fpath = getattr(app, path_attr, None)
-                if fpath and os.path.exists(fpath):
-                    try:
-                        os.remove(fpath)
-                    except Exception:
-                        pass
-
-        # 2. Preserve Employee, MoneyTransaction, and EmployeeDocument records
-        Employee.query.filter(Employee.application_id.isnot(None)).update({'application_id': None})
-        MoneyTransaction.query.filter(MoneyTransaction.application_id.isnot(None)).update({'application_id': None})
-        EmployeeDocument.query.filter(EmployeeDocument.employee_id.isnot(None)).update({'application_id': None})
-
-        # 3. Delete Payment and JobApplication records
-        Payment.query.delete()
-        JobApplication.query.delete()
-        db.session.commit()
-        flash('All candidate applications and associated files have been cleared successfully.', 'success')
-    except Exception as e:
-        db.session.rollback()
-        current_app.logger.error(f"Error clearing candidate applications: {e}")
-        flash('Unable to clear candidate applications. No changes were made.', 'danger')
-
-    return redirect(url_for('admin.applications'))
-
-
-@admin_bp.route('/applications')
-@admin_required
-def applications():
-    job_id_filter = request.args.get('job_id', type=int)
-    duration_filter = request.args.get('duration', '').strip()
-    status_filter = request.args.get('status', 'all').strip()
-    payment_filter = request.args.get('payment_status', 'all').strip()
-    search_query = request.args.get('q', '').strip()
-
-    # Query all applications (including new manual applications with pending payment)
-    query = JobApplication.query.join(JobPosting)
-
-    if job_id_filter:
-        query = query.filter(JobApplication.job_id == job_id_filter)
-
-    if duration_filter and duration_filter.lower() != 'all':
-        query = query.filter(JobApplication.duration == duration_filter)
-
-    if status_filter and status_filter.lower() != 'all':
-        query = query.filter(JobApplication.status.ilike(status_filter))
-
-    if payment_filter and payment_filter.lower() != 'all':
-        if payment_filter.lower() == 'paid':
-            query = query.filter(JobApplication.payment_status.in_(['paid', 'PAID', 'exempt']))
-        elif payment_filter.lower() == 'pending':
-            query = query.filter(JobApplication.payment_status.in_(['pending', 'PENDING']))
-        elif payment_filter.lower() == 'failed':
-            query = query.filter(JobApplication.payment_status.in_(['failed', 'FAILED']))
-        else:
-            query = query.filter(JobApplication.payment_status.ilike(payment_filter))
-
-    if search_query:
-        query = query.filter(
-            (JobApplication.full_name.ilike(f'%{search_query}%')) |
-            (JobApplication.email.ilike(f'%{search_query}%')) |
-            (JobApplication.phone.ilike(f'%{search_query}%')) |
-            (JobApplication.college.ilike(f'%{search_query}%')) |
-            (JobApplication.skills.ilike(f'%{search_query}%')) |
-            (JobApplication.application_code.ilike(f'%{search_query}%')) |
-            (JobPosting.title.ilike(f'%{search_query}%')) |
-            (JobPosting.job_code.ilike(f'%{search_query}%')) |
-            (JobPosting.job_id.ilike(f'%{search_query}%')) |
-            (JobPosting.department.ilike(f'%{search_query}%'))
-        )
-
-    all_applications = query.order_by(JobApplication.created_at.desc()).all()
-    all_jobs = JobPosting.query.order_by(JobPosting.title.asc()).all()
-    total_unfiltered_applications = JobApplication.query.count()
-
-    return render_template(
-        'admin/applications.html',
-        applications=all_applications,
-        all_jobs=all_jobs,
-        total_unfiltered_applications=total_unfiltered_applications,
-        selected_job_id=job_id_filter,
-        selected_duration=duration_filter,
-        selected_status=status_filter,
-        selected_payment_status=payment_filter,
-        search_query=search_query
-    )
-
-
-@admin_bp.route('/applications/<int:app_id>')
-@admin_required
-def application_detail(app_id):
-    application = db.session.get(JobApplication, app_id) or abort(404)
-    job = application.job
-
-    # Normalize application stage to one of: 'APPLIED', 'UNDER_REVIEW', 'SHORTLISTED', 'OFFER_COMPLETED', 'HIRED'
-    st_raw = (application.status or application.application_status or 'APPLIED').strip().upper()
-    if st_raw in ['HIRED']:
-        current_stage = 'HIRED'
-    elif st_raw in ['OFFER_COMPLETED', 'OFFER_COMPLETE', 'COMPLETED', 'COMPLETE']:
-        current_stage = 'OFFER_COMPLETED'
-    elif st_raw in ['SHORTLISTED']:
-        current_stage = 'SHORTLISTED'
-    elif st_raw in ['UNDER_REVIEW', 'REVIEWED']:
-        current_stage = 'UNDER_REVIEW'
-    else:
-        current_stage = 'APPLIED'
-
-    app_email_preview = None
-    shortlist_email_preview = None
-    joining_email_preview = None
-    offer_doc = application.offer_letter_doc
-    new_employee_creds = None
-    template_missing_error = None
-
-    # Retrieve temporary credentials: check onboarding credential state
-    secret_key = current_app.config.get('SECRET_KEY', 'default-secret-key')
-    cred = application.employee.onboarding_credential if application.employee else None
-    if cred and cred.status == 'RESET':
-        new_employee_creds = None
-    elif application.employee and application.employee.is_temporary_password_active:
-        decrypted_pwd = application.employee.get_temp_password(secret_key)
-        if decrypted_pwd:
-            new_employee_creds = {
-                'app_id': application.id,
-                'employee_id': application.employee.employee_id,
-                'temp_password': decrypted_pwd
-            }
-    else:
-        session_creds = session.get('new_employee_credentials')
-        if session_creds and session_creds.get('app_id') == application.id and (not cred or cred.status == 'ACTIVE'):
-            new_employee_creds = session_creds
-
-    # If stage is UNDER_REVIEW: prepare Application Successful email preview with real candidate data
-    if current_stage == 'UNDER_REVIEW':
-        from services.email_service import render_application_successful_email
-        app_email_preview = render_application_successful_email(application)
-
-    # If stage is SHORTLISTED or OFFER_COMPLETED: prepare Offer Letter & Shortlist email preview
-    if current_stage in ['SHORTLISTED', 'OFFER_COMPLETED']:
-        from services.email_service import render_shortlisted_offer_email
-        shortlist_email_preview = render_shortlisted_offer_email(application)
-
-    # If stage is OFFER_COMPLETED or HIRED: prepare Joining & Credentials email preview
-    if current_stage in ['OFFER_COMPLETED', 'HIRED']:
-        from services.email_service import render_joining_credentials_email
-        joining_email_preview = render_joining_credentials_email(application)
-
-    # Auto-generate Offer Letter DOCX if missing or not generated when stage is SHORTLISTED, OFFER_COMPLETED, or HIRED
-    if current_stage in ['SHORTLISTED', 'OFFER_COMPLETED', 'HIRED']:
-        if not offer_doc or not offer_doc.file_path or not os.path.exists(offer_doc.file_path):
-            try:
-                offer_doc, _ = generate_offer_letter_docx(application)
-            except (OfferLetterTemplateNotFoundError, OfferLetterTemplateFileMissingError) as tmpl_err:
-                template_missing_error = str(tmpl_err)
-            except Exception as gen_err:
-                template_missing_error = f"Error generating Offer Letter: {str(gen_err)}"
-
-    return render_template(
-        'admin/application_detail.html',
-        app=application,
-        job=job,
-        current_stage=current_stage,
-        app_email_preview=app_email_preview,
-        shortlist_email_preview=shortlist_email_preview,
-        joining_email_preview=joining_email_preview,
-        offer_doc=offer_doc,
-        new_employee_creds=new_employee_creds,
-        template_missing_error=template_missing_error
-    )
-
-
-@admin_bp.route('/applications/<int:app_id>/mark-under-review', methods=['POST'])
-@admin_required
-def mark_application_under_review(app_id):
-    application = db.session.get(JobApplication, app_id) or abort(404)
-    application.status = 'UNDER_REVIEW'
-    application.application_status = 'UNDER_REVIEW'
-    db.session.commit()
-    flash(f"Application for candidate {application.full_name} is now Under Review.", 'success')
-    return redirect(url_for('admin.application_detail', app_id=application.id))
-
-
-@admin_bp.route('/applications/<int:app_id>/send-application-email', methods=['GET', 'POST'])
-@admin_required
-def send_application_success_email_action(app_id):
-    if request.method == 'GET':
-        return redirect(url_for('admin.application_detail', app_id=app_id))
-
-    application = db.session.get(JobApplication, app_id)
-    if not application:
-        flash("Candidate application record not found.", "danger")
-        return redirect(url_for('admin.applications'))
-
-    if application.application_success_email_status == 'SENT':
-        sent_time = application.application_success_email_sent_at.strftime('%b %d, %Y') if application.application_success_email_sent_at else 'earlier'
-        flash(f'Application Successful email has already been sent to this candidate on {sent_time}.', 'warning')
-        return redirect(url_for('admin.application_detail', app_id=application.id))
-
-    try:
-        from services.email_service import send_application_successful_email
-        success, msg = send_application_successful_email(application)
-        if success:
-            flash(f"Application Successful email sent to {application.email} successfully.", 'success')
-        else:
-            flash(f"Failed to send email: {msg}", 'danger')
-    except Exception as e:
-        if current_app:
-            current_app.logger.error(f"Error in send_application_success_email_action: {str(e)}", exc_info=True)
-        flash(f"Unable to dispatch email: {str(e)}", 'danger')
-
-    return redirect(url_for('admin.application_detail', app_id=application.id))
-
-
-@admin_bp.route('/applications/<int:app_id>/mark-shortlisted', methods=['POST'])
-@admin_bp.route('/applications/<int:app_id>/mark-shortlisted-send-offer', methods=['POST'])
-@admin_required
-def mark_application_shortlisted(app_id):
-    """
-    Unified Action: 'Mark as Shortlisted & Send Offer Email'.
-    Performs the full 13-step workflow:
-    1. Verify admin auth
-    2. Verify application exists
-    3. Verify payment is completed (paid or exempt)
-    4. Mark application as SHORTLISTED
-    5. Create/reuse Employee record
-    6. Generate/reuse candidate Offer Letter DOCX
-    7. Convert DOCX to PDF
-    8. Load Shortlisted email template (template_type='offer_letter')
-    9. Populate candidate variables
-    10. Attach candidate Offer Letter PDF (<APPLICATION_ID>_Offer_Letter.pdf)
-    11. Send email through Brevo REST API
-    12. Update email status / EmailLog on Brevo response
-    13. Update UI state
-    """
-    application = db.session.get(JobApplication, app_id) or abort(404)
-
-    # Step 3: Verify payment is completed
-    if application.payment_status not in ['paid', 'exempt']:
-        flash(f"Payment is not completed (Current status: {application.payment_status}). Candidate cannot be shortlisted until payment is completed.", 'warning')
-        return redirect(url_for('admin.application_detail', app_id=application.id))
-
-    # Step 4: Mark application as SHORTLISTED
-    application.status = 'SHORTLISTED'
-    application.application_status = 'SHORTLISTED'
-
-    # Step 5: Create/reuse Employee record
-    if not application.employee:
-        try:
-            emp_id = Employee.generate_unique_employee_id()
-            plaintext_password = Employee.generate_secure_password(12)
-
-            employee = Employee(
-                employee_id=emp_id,
-                application_id=application.id,
-                account_status='active'
-            )
-            employee.set_password(plaintext_password)
-            secret_key = current_app.config.get('SECRET_KEY', 'default-secret-key')
-            employee.set_temp_password(plaintext_password, secret_key)
-            db.session.add(employee)
-            db.session.flush()
-
-            # Store credentials in session for immediate copy/display to admin
-            session['new_employee_credentials'] = {
-                'app_id': application.id,
-                'employee_id': employee.employee_id,
-                'temp_password': plaintext_password
-            }
-        except Exception as e:
-            current_app.logger.warning(f"Error creating employee during shortlist: {str(e)}")
-
-    # Step 6: Generate/reuse candidate Offer Letter DOCX
-    offer_doc = None
-    try:
-        offer_doc, _ = generate_offer_letter_docx(application)
-        if application.employee and offer_doc:
-            offer_doc.employee_id = application.employee.id
-        db.session.commit()
-    except (OfferLetterTemplateNotFoundError, OfferLetterTemplateFileMissingError) as tmpl_err:
-        db.session.commit()
-        flash(str(tmpl_err), 'danger')
-        return redirect(url_for('admin.application_detail', app_id=application.id))
-    except Exception as e:
-        db.session.commit()
-        flash(f"Candidate marked as Shortlisted, but error generating Offer Letter DOCX: {str(e)}", 'danger')
-        return redirect(url_for('admin.application_detail', app_id=application.id))
-
-    # Steps 7-12: Send Shortlisted & Offer Letter Email with PDF attachment via Brevo
-    if offer_doc and offer_doc.email_status == 'sent':
-        flash(f"Candidate {application.full_name} is already Shortlisted and the Offer Letter email was already delivered.", 'info')
-        return redirect(url_for('admin.application_detail', app_id=application.id))
-
-    from services.email_service import send_offer_letter_shortlisted_email
-    email_success, email_msg = send_offer_letter_shortlisted_email(application)
-
-    emp_code = application.employee.employee_id if application.employee else ''
-    if email_success:
-        flash(
-            f"Candidate {application.full_name} successfully marked as Shortlisted! "
-            f"Employee ID ({emp_code}) generated and official Offer Letter email with PDF attachment dispatched "
-            f"to {application.email} via Brevo.",
-            'success'
-        )
-    else:
-        # Candidate remains SHORTLISTED; email delivery failed
-        flash(f"Candidate shortlisted, but email delivery failed: {email_msg}", 'danger')
-
-    return redirect(url_for('admin.application_detail', app_id=application.id))
-
-
-@admin_bp.route('/applications/<int:app_id>/mark-complete', methods=['POST'])
-@admin_required
-def mark_application_offer_complete(app_id):
-    """
-    Stage 4: Mark as Complete.
-    Validates employee and offer letter exist, generates PDF, sends via Brevo,
-    and ONLY sets status to OFFER_COMPLETED after successful email delivery.
-
-    IMPORTANT: The status is NOT set to OFFER_COMPLETED if:
-    - PDF conversion fails
-    - Brevo delivery fails
-    This prevents falsely reporting "Offer marked as Complete" when email was not sent.
-    """
-    application = db.session.get(JobApplication, app_id) or abort(404)
-
-    # Ensure Offer Letter DOCX is generated
-    from services.document_preview_service import _resolve_document_file_path
-    offer_doc = application.offer_letter_doc
-    docx_path = _resolve_document_file_path(offer_doc) if offer_doc else None
-    if not offer_doc or not docx_path or not os.path.exists(docx_path):
-        try:
-            offer_doc, _ = generate_offer_letter_docx(application)
-        except Exception as e:
-            flash(f"Cannot complete offer: {str(e)}", 'danger')
-            return redirect(url_for('admin.application_detail', app_id=application.id))
-
-    # If email was already sent: simply mark as complete and commit
-    if offer_doc and offer_doc.email_status == 'sent':
-        application.status = 'OFFER_COMPLETED'
-        application.application_status = 'OFFER_COMPLETED'
-        application.offer_completed_at = datetime.now(timezone.utc)
-        db.session.commit()
-        flash(f"Application for {application.full_name} is marked as Offer Completed.", 'success')
-        return redirect(url_for('admin.application_detail', app_id=application.id))
-
-    # Attempt to send Offer Letter email with PDF attachment via Brevo
-    from services.offer_letter_service import send_offer_letter_email
-    success, msg = send_offer_letter_email(application)
-
-    if success:
-        # Email sent successfully — NOW mark as OFFER_COMPLETED
-        application.status = 'OFFER_COMPLETED'
-        application.application_status = 'OFFER_COMPLETED'
-        application.offer_completed_at = datetime.now(timezone.utc)
-        db.session.commit()
-        flash(
-            f"Offer marked as Complete! Offer Letter email with PDF attachment sent successfully to {application.email}.",
-            'success'
-        )
-    else:
-        # Email failed — do NOT change status to OFFER_COMPLETED
-        # Status remains SHORTLISTED; email_status on offer_doc is already set to 'failed'
-        # by send_offer_letter_email. Commit that failure status only.
-        try:
-            db.session.commit()
-        except Exception as db_e:
-            db.session.rollback()
-            current_app.logger.error(f"DB error saving email failure state for app {app_id}: {db_e}")
-        flash(
-            f"Offer email was NOT sent. {msg} "
-            f"The offer stage has not been marked as complete. "
-            f"Please use the Retry button after the issue is resolved.",
-            'danger'
-        )
-
-    return redirect(url_for('admin.application_detail', app_id=application.id))
-
-
-@admin_bp.route('/applications/<int:app_id>/mark-hired', methods=['POST'])
-@admin_required
-def mark_application_hired(app_id):
-    """
-    Stage 5: Mark as Hired / Mark as Joining.
-    Validates joining_date, updates status to HIRED, and automatically dispatches
-    the Joining & Employee Credentials Email via Brevo REST API.
-    """
-    application = db.session.get(JobApplication, app_id) or abort(404)
-
-    joining_date = (request.form.get('joining_date') or '').strip()
-    if joining_date:
-        application.joining_date = joining_date
-    elif not application.joining_date:
-        application.joining_date = datetime.now(timezone.utc).strftime("%d/%m/%Y")
-
-    application.status = 'HIRED'
-    application.application_status = 'HIRED'
-    application.hired_at = datetime.now(timezone.utc)
-
-    # Automatically dispatch Joining & Employee Credentials Email if not already sent
-    if application.joining_email_status != 'SENT':
-        from services.email_service import send_joining_credentials_email
-        success, msg = send_joining_credentials_email(application, joining_date=application.joining_date)
-        if success:
-            db.session.commit()
-            flash(f"Candidate {application.full_name} marked as HIRED! Joining details and employee credentials email sent successfully to {application.email}.", 'success')
-        else:
-            db.session.commit()
-            flash(f"Candidate {application.full_name} marked as HIRED. Notice on joining email: {msg}", 'warning')
-    else:
-        db.session.commit()
-        flash(f"Candidate {application.full_name} is marked as HIRED.", 'success')
-
-    return redirect(url_for('admin.application_detail', app_id=application.id))
-
-
-@admin_bp.route('/applications/<int:app_id>/send-joining-email', methods=['POST'])
-@admin_required
-def send_joining_email_action(app_id):
-    """Explicit action to send/resend Joining & Employee Credentials email via Brevo."""
-    application = db.session.get(JobApplication, app_id) or abort(404)
-
-    joining_date = (request.form.get('joining_date') or '').strip() or application.joining_date
-    if not joining_date:
-        joining_date = datetime.now(timezone.utc).strftime("%d/%m/%Y")
-        application.joining_date = joining_date
-
-    # Allow resending
-    from services.email_service import send_joining_credentials_email
-    application.joining_email_status = 'PENDING'
-    success, msg = send_joining_credentials_email(application, joining_date=joining_date)
-    if success:
-        db.session.commit()
-        flash(f"Joining & Employee Credentials email sent successfully to {application.email}.", 'success')
-    else:
-        db.session.commit()
-        flash(f"Failed to send Joining email: {msg}", 'danger')
-
-    return redirect(url_for('admin.application_detail', app_id=application.id))
-
-
-@admin_bp.route('/applications/<int:app_id>/retry-shortlist-offer', methods=['POST'])
-@admin_bp.route('/applications/<int:app_id>/send-shortlist-offer', methods=['POST'])
-@admin_required
-def retry_shortlist_offer_email(app_id):
-    """
-    Admin Retry Action: Resends the Shortlisted & Offer Letter email with PDF attachment via Brevo.
-    Reuses existing Employee, Application ID, DOCX, and regenerated PDF.
-    """
-    from services.document_preview_service import _resolve_document_file_path
-    from services.offer_letter_service import send_offer_letter_email
-    application = db.session.get(JobApplication, app_id) or abort(404)
-
-    # Ensure status is SHORTLISTED or OFFER_COMPLETED or HIRED
-    st = (application.status or application.application_status or '').upper()
-    if st not in ['SHORTLISTED', 'OFFER_COMPLETED', 'HIRED']:
-        flash('Application must be Shortlisted before sending the Offer Letter.', 'danger')
-        return redirect(url_for('admin.application_detail', app_id=application.id))
-
-    # Ensure Offer Letter is generated
-    offer_doc = application.offer_letter_doc
-    docx_path = _resolve_document_file_path(offer_doc) if offer_doc else None
-    if not offer_doc or not docx_path or not os.path.exists(docx_path):
-        try:
-            offer_doc, _ = generate_offer_letter_docx(application)
-        except Exception as e:
-            flash(f"Cannot send Offer Letter: {str(e)}", 'danger')
-            return redirect(url_for('admin.application_detail', app_id=application.id))
-
-    # Check duplicate send
-    if offer_doc.email_status == 'sent':
-        flash('Offer Letter email has already been sent to this candidate.', 'warning')
-        return redirect(url_for('admin.application_detail', app_id=application.id))
-
-    # Send Shortlisted email + Offer Letter attachment via Brevo
-    from services.offer_letter_service import send_offer_letter_email
-    success, msg = send_offer_letter_email(application)
-
-    if not success:
-        if any(phrase in str(msg) for phrase in [
-            "PDF could not be generated",
-            "PDF conversion failed",
-            "LibreOffice is not available",
-            "conversion timed out",
-            "invalid output"
-        ]):
-            flash(f"Offer Letter PDF could not be generated. The email was not sent. ({msg})", 'danger')
-        else:
-            flash(f"Failed to send Offer Letter email: {msg}", 'danger')
-        return redirect(url_for('admin.application_detail', app_id=application.id))
-
-    # Auto-generate Employee credentials if not already existing
-    if not application.employee:
-        try:
-            emp_id = Employee.generate_unique_employee_id()
-            plaintext_password = Employee.generate_secure_password(12)
-
-            employee = Employee(
-                employee_id=emp_id,
-                application_id=application.id,
-                account_status='active'
-            )
-            employee.set_password(plaintext_password)
-            secret_key = current_app.config.get('SECRET_KEY', 'default-secret-key')
-            employee.set_temp_password(plaintext_password, secret_key)
-            db.session.add(employee)
-            db.session.flush()
-
-            # Link Offer Letter doc to employee
-            if offer_doc:
-                offer_doc.employee_id = employee.id
-
-            db.session.commit()
-
-            # Save temporary credentials in session for immediate display to admin
-            session['new_employee_credentials'] = {
-                'app_id': application.id,
-                'employee_id': employee.employee_id,
-                'temp_password': plaintext_password
-            }
-            flash(f"Offer Letter sent successfully! Employee account ({employee.employee_id}) created automatically.", 'success')
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Offer Letter sent, but error creating employee account: {str(e)}", 'warning')
-    else:
-        flash(f"Offer Letter sent successfully to candidate {application.full_name}.", 'success')
-
-    return redirect(url_for('admin.application_detail', app_id=application.id))
-
-
-@admin_bp.route('/applications/<int:app_id>/offer-letter/download', methods=['GET'])
-@admin_required
-def download_application_offer_letter(app_id):
-    """Download candidate-specific generated Offer Letter DOCX."""
-    application = db.session.get(JobApplication, app_id) or abort(404)
-    offer_doc = application.offer_letter_doc
-
-    if not offer_doc:
-        flash('Offer Letter has not been generated yet.', 'warning')
-        return redirect(url_for('admin.application_detail', app_id=application.id))
-
-    fpath = offer_doc.file_path
-    if not fpath or not os.path.exists(fpath):
-        basename = os.path.basename(fpath or offer_doc.file_name or '')
-        local_path = os.path.join(current_app.root_path, 'uploads', 'generated_documents', basename)
-        if os.path.exists(local_path):
-            fpath = local_path
-        else:
-            flash('Offer Letter has not been generated yet.', 'warning')
-            return redirect(url_for('admin.application_detail', app_id=application.id))
-
-    return send_from_directory(
-        os.path.dirname(fpath),
-        os.path.basename(fpath),
-        as_attachment=True,
-        download_name=offer_doc.file_name
-    )
-
-
-@admin_bp.route('/applications/<int:app_id>/offer-letter/preview/file', methods=['GET'])
-@admin_bp.route('/applications/<int:app_id>/offer-letter/preview-file', methods=['GET'])
-@admin_required
-def preview_application_offer_letter_file(app_id):
-    """
-    Admin-only endpoint: serves the raw candidate generated Offer Letter DOCX binary.
-    Strictly enforces admin authentication and read-only access.
-    """
-    application = db.session.get(JobApplication, app_id) or abort(404)
-    offer_doc = application.offer_letter_doc
-
-    if not offer_doc:
-        abort(404)
-
-    fpath = offer_doc.file_path
-    if not fpath or not os.path.exists(fpath):
-        basename = os.path.basename(fpath or offer_doc.file_name or '')
-        local_path = os.path.join(current_app.root_path, 'uploads', 'generated_documents', basename)
-        if os.path.exists(local_path):
-            fpath = local_path
-        else:
-            abort(404)
-
-    return send_from_directory(
-        os.path.dirname(fpath),
-        os.path.basename(fpath),
-        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        as_attachment=False,
-        download_name=offer_doc.file_name
-    )
-
-
-@admin_bp.route('/applications/<int:app_id>/offer-letter/preview/pdf', methods=['GET'])
-@admin_required
-def preview_application_offer_letter_pdf(app_id):
-    """
-    Admin-only endpoint: converts the candidate's generated Offer Letter DOCX to PDF
-    using LibreOffice headless and streams the PDF for inline browser preview.
-    """
-    from services.document_preview_service import convert_offer_letter_to_pdf
-
-    application = db.session.get(JobApplication, app_id) or abort(404)
-    offer_doc = application.offer_letter_doc
-
-    if not offer_doc:
-        st = (application.status or application.application_status or '').upper()
-        if st in ['SHORTLISTED', 'OFFER_COMPLETED', 'HIRED']:
-            try:
-                offer_doc, _ = generate_offer_letter_docx(application)
-            except Exception as e:
-                current_app.logger.error(f"Failed to generate offer doc on preview: {e}")
-                abort(404)
-        else:
-            abort(404)
-
-    success, pdf_path, err_msg = convert_offer_letter_to_pdf(application)
-    if not success or not pdf_path or not os.path.exists(pdf_path):
-        current_app.logger.warning(
-            f"Offer letter PDF conversion unavailable for app {app_id} ({err_msg})."
-        )
-        if request.args.get('format') == 'json' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({
-                'status': 'error',
-                'error_code': 'CONVERSION_FAILED',
-                'message': err_msg or 'Offer letter preview could not be generated right now. Please use Download DOCX.'
-            }), 503
-
-        return render_template(
-            'admin/preview_error.html',
-            app=application,
-            download_url=url_for('admin.download_application_offer_letter', app_id=app_id),
-            error_message="The Offer Letter preview could not be generated right now. Please use Download DOCX to view the file."
-        ), 503
-
-    offer_doc = application.offer_letter_doc
-    base_stem = os.path.splitext(offer_doc.file_name)[0] if (offer_doc and offer_doc.file_name) else f"{application.formatted_code}_Offer_Letter"
-    pdf_filename = f"{base_stem}.pdf"
-    return send_from_directory(
-        os.path.dirname(pdf_path),
-        os.path.basename(pdf_path),
-        mimetype='application/pdf',
-        as_attachment=False,
-        download_name=pdf_filename
-    )
-
-
-@admin_bp.route('/applications/<int:app_id>/offer-letter/preview', methods=['GET'])
-@admin_required
-def preview_application_offer_letter(app_id):
-    """
-    Admin-only endpoint:
-    - If format=pdf: redirects/serves the PDF preview.
-    - If format=raw/file/docx: serves the raw DOCX binary.
-    - If format=json (or AJAX): returns metadata (candidate name, app code, pdf_url, file_url, download_url).
-    - If direct browser GET: renders standalone document_preview.html with embedded PDF viewer.
-    Does NOT modify the original DOCX or database records.
-    """
-    from services.document_preview_service import get_application_offer_letter_preview
-
-    application = db.session.get(JobApplication, app_id) or abort(404)
-    offer_doc = application.offer_letter_doc
-
-    if not offer_doc or not offer_doc.file_path:
-        if request.args.get('format') == 'json' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({
-                'status': 'error',
-                'error_code': 'DOC_NOT_GENERATED',
-                'message': 'Offer Letter has not been generated for this application yet.'
-            }), 400
-        flash('Offer Letter has not been generated for this application yet.', 'warning')
-        return redirect(url_for('admin.application_detail', app_id=app_id))
-
-    # Resolve local path if needed
-    fpath = offer_doc.file_path
-    if not os.path.exists(fpath):
-        basename = os.path.basename(fpath or offer_doc.file_name or '')
-        local_path = os.path.join(current_app.root_path, 'uploads', 'generated_documents', basename)
-        if os.path.exists(local_path):
-            fpath = local_path
-        else:
-            if request.args.get('format') == 'json' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return jsonify({
-                    'status': 'error',
-                    'error_code': 'DOC_NOT_GENERATED',
-                    'message': 'Offer Letter file not found on server.'
-                }), 400
-            flash('Offer Letter file not found on server.', 'warning')
-            return redirect(url_for('admin.application_detail', app_id=app_id))
-
-    # Serve PDF if requested
-    if request.args.get('format') == 'pdf':
-        return redirect(url_for('admin.preview_application_offer_letter_pdf', app_id=app_id))
-
-    # Serve raw binary if requested
-    if request.args.get('format') in ['raw', 'file', 'docx', 'binary']:
-        return send_from_directory(
-            os.path.dirname(fpath),
-            os.path.basename(fpath),
-            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            as_attachment=False,
-            download_name=offer_doc.file_name
-        )
-
-    pdf_url = url_for('admin.preview_application_offer_letter_pdf', app_id=app_id)
-    file_url = url_for('admin.preview_application_offer_letter_file', app_id=app_id)
-    download_url = url_for('admin.download_application_offer_letter', app_id=app_id)
-    preview_data = get_application_offer_letter_preview(app_id)
-
-    is_ajax = (
-        request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
-        request.args.get('format') == 'json' or
-        request.accept_mimetypes.best == 'application/json'
-    )
-
-    if is_ajax:
-        return jsonify(preview_data), 200
-
-    # Standalone full-page preview for direct browser requests
-    return render_template(
-        'admin/document_preview.html',
-        preview=preview_data,
-        app=application,
-        offer_doc=offer_doc,
-        pdf_url=pdf_url,
-        file_url=file_url,
-        download_url=download_url,
-        back_url=url_for('admin.application_detail', app_id=app_id)
-    )
-
-
-@admin_bp.route('/documents/<int:doc_id>/preview/file', methods=['GET'])
-@admin_required
-def preview_document_file_by_id(doc_id):
-    """
-    Admin-only endpoint: serves raw EmployeeDocument DOCX binary.
-    """
-    document = db.session.get(EmployeeDocument, doc_id) or abort(404)
-    fpath = document.file_path
-    if not fpath or not os.path.exists(fpath):
-        abort(404)
-
-    return send_from_directory(
-        os.path.dirname(fpath),
-        os.path.basename(fpath),
-        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        as_attachment=False,
-        download_name=document.file_name
-    )
-
-
-@admin_bp.route('/documents/<int:doc_id>/preview/pdf', methods=['GET'])
-@admin_required
-def preview_document_pdf_by_id(doc_id):
-    """
-    Admin-only endpoint: converts EmployeeDocument DOCX to PDF using LibreOffice headless
-    and streams PDF for inline viewing.
-    """
-    from services.document_preview_service import convert_docx_to_pdf
-
-    document = db.session.get(EmployeeDocument, doc_id) or abort(404)
-    fpath = document.file_path
-    if not fpath or not os.path.exists(fpath):
-        abort(404)
-
-    success, pdf_path, err_msg = convert_docx_to_pdf(fpath)
-    if not success or not pdf_path or not os.path.exists(pdf_path):
-        if request.args.get('format') == 'json' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({
-                'status': 'error',
-                'error_code': 'CONVERSION_FAILED',
-                'message': err_msg or 'Preview is temporarily unavailable. Please download the document to view it.'
-            }), 503
-        download_url = f"/admin/documents/{doc_id}/download" if hasattr(document, 'id') else "#"
-        return render_template(
-            'admin/preview_error.html',
-            app=document.application if document.application else None,
-            download_url=download_url,
-            error_message="The document preview could not be generated right now. Please download the document to view it."
-        ), 503
-
-    pdf_filename = f"{os.path.splitext(document.file_name)[0]}.pdf"
-    return send_from_directory(
-        os.path.dirname(pdf_path),
-        os.path.basename(pdf_path),
-        mimetype='application/pdf',
-        as_attachment=False,
-        download_name=pdf_filename
-    )
-
-
-@admin_bp.route('/documents/<int:doc_id>/preview', methods=['GET'])
-@admin_required
-def preview_document_by_id(doc_id):
-    """
-    Admin-only endpoint: returns preview metadata for any EmployeeDocument by ID.
-    """
-    from services.document_preview_service import get_document_preview_by_id
-
-    preview_data = get_document_preview_by_id(doc_id)
-    if preview_data.get('status') == 'error':
-        if preview_data.get('error_code') == 'NOT_FOUND':
-            abort(404)
-        return jsonify(preview_data), 400
-
-    return jsonify(preview_data), 200
-
-
-@admin_bp.route('/applications/<int:app_id>/status', methods=['POST'])
-@admin_required
-def update_application_status(app_id):
-    application = db.session.get(JobApplication, app_id) or abort(404)
-    new_status = request.form.get('status', '').strip()
-    valid_statuses = [
-        'New', 'Reviewed', 'Shortlisted', 'Offer Completed', 'Hired', 'Rejected',
-        'APPLIED', 'UNDER_REVIEW', 'SHORTLISTED', 'OFFER_COMPLETED', 'HIRED', 'REJECTED',
-        'Applied', 'applied', 'Under Review', 'under_review', 'shortlisted'
-    ]
-
-    if new_status in valid_statuses:
-        status_map = {
-            'New': 'APPLIED',
-            'APPLIED': 'APPLIED',
-            'Applied': 'APPLIED',
-            'applied': 'APPLIED',
-            'Reviewed': 'UNDER_REVIEW',
-            'UNDER_REVIEW': 'UNDER_REVIEW',
-            'Under Review': 'UNDER_REVIEW',
-            'under_review': 'UNDER_REVIEW',
-            'Shortlisted': 'SHORTLISTED',
-            'SHORTLISTED': 'SHORTLISTED',
-            'shortlisted': 'SHORTLISTED',
-            'Offer Completed': 'OFFER_COMPLETED',
-            'OFFER_COMPLETED': 'OFFER_COMPLETED',
-            'Hired': 'HIRED',
-            'HIRED': 'HIRED',
-            'Rejected': 'REJECTED',
-            'REJECTED': 'REJECTED'
-        }
-        mapped_status = status_map.get(new_status, new_status.upper())
-        application.status = mapped_status
-        application.application_status = mapped_status
-        db.session.commit()
-        flash(f"Status for candidate {application.full_name} updated to '{application.status_display}'.", 'success')
-    else:
-        flash('Invalid status provided.', 'danger')
-
-    redirect_to = request.form.get('redirect_to')
-    if redirect_to == 'create_employee' or 'employees/create' in (request.referrer or ''):
-        return redirect(url_for('admin.create_employee', app_id=application.id))
-    return redirect(request.referrer or url_for('admin.application_detail', app_id=application.id))
-
-
-@admin_bp.route('/applications/<int:app_id>/document/<string:doc_type>')
-@admin_required
-def download_document(app_id, doc_type):
-    """Secure, authenticated document download route protecting sensitive candidate documents."""
-    application = db.session.get(JobApplication, app_id) or abort(404)
-    as_attachment = request.args.get('download', '0') == '1'
-
-    if doc_type == 'resume':
-        folder = current_app.config.get('UPLOAD_FOLDER_RESUMES', current_app.config.get('UPLOAD_FOLDER', os.path.join(current_app.root_path, 'uploads', 'resumes')))
-        filename = application.resume_filename
-        if application.resume_path and os.path.exists(application.resume_path):
-            folder = os.path.dirname(application.resume_path)
-            filename = os.path.basename(application.resume_path)
-    elif doc_type == 'aadhaar':
-        folder = current_app.config.get('UPLOAD_FOLDER_DOCUMENTS', os.path.join(current_app.root_path, 'uploads', 'documents'))
-        filename = application.aadhaar_filename
-    elif doc_type == 'pan':
-        folder = current_app.config.get('UPLOAD_FOLDER_DOCUMENTS', os.path.join(current_app.root_path, 'uploads', 'documents'))
-        filename = application.pan_filename
-    elif doc_type == 'college_id':
-        folder = current_app.config.get('UPLOAD_FOLDER_DOCUMENTS', os.path.join(current_app.root_path, 'uploads', 'documents'))
-        filename = application.college_id_filename
-    else:
-        abort(404)
-
-    if not filename:
-        flash(f"No {doc_type} file found for candidate {application.full_name}.", 'warning')
-        return redirect(url_for('admin.application_detail', app_id=application.id))
-
-    safe_filename = os.path.basename(filename)
-    return send_from_directory(
-        folder,
-        safe_filename,
-        as_attachment=as_attachment
-    )
-
-
-@admin_bp.route('/applications/<int:app_id>/resume')
-@admin_required
-def download_resume(app_id):
-    """Resume download legacy alias."""
-    return download_document(app_id, 'resume')
-
-
-@admin_bp.route('/employees', methods=['GET'])
-@admin_required
-def employees():
-    """List all registered employee accounts with search and filtering."""
-    search_query = request.args.get('q', '').strip()
-    status_filter = request.args.get('status', 'all').strip()
-
-    query = Employee.query.join(JobApplication).join(JobPosting)
-
-    if status_filter and status_filter.lower() != 'all':
-        query = query.filter(Employee.account_status.ilike(status_filter))
-
-    if search_query:
-        query = query.filter(
-            (Employee.employee_id.ilike(f'%{search_query}%')) |
-            (JobApplication.full_name.ilike(f'%{search_query}%')) |
-            (JobApplication.email.ilike(f'%{search_query}%')) |
-            (JobApplication.application_code.ilike(f'%{search_query}%')) |
-            (JobPosting.title.ilike(f'%{search_query}%'))
-        )
-
-    all_employees = query.order_by(Employee.created_at.desc()).all()
-    return render_template(
-        'admin/employees.html',
-        employees=all_employees,
-        search_query=search_query,
-        selected_status=status_filter
-    )
-
-
-@admin_bp.route('/applications/<int:app_id>/update-payment-status', methods=['POST'])
-@admin_required
-def update_application_payment_status(app_id):
-    """Admin action to update payment status for an application (e.g. after manual Google Form / QR verification)."""
-    application = db.session.get(JobApplication, app_id) or abort(404)
-    new_payment_status = (request.form.get('payment_status') or '').strip().lower()
-    valid_statuses = ['pending', 'verified', 'paid', 'failed']
-    if new_payment_status in valid_statuses:
-        application.payment_status = new_payment_status
-        db.session.commit()
-        flash(f"Payment status for candidate {application.full_name} updated to '{new_payment_status.upper()}'.", 'success')
-    else:
-        flash('Invalid payment status provided.', 'danger')
-
-    redirect_to = request.form.get('redirect_to')
-    if redirect_to == 'create_employee' or 'employees/create' in (request.referrer or ''):
-        return redirect(url_for('admin.create_employee', app_id=application.id))
-    return redirect(url_for('admin.application_detail', app_id=application.id))
-
-
-@admin_bp.route('/employees/create', methods=['GET', 'POST'])
-@admin_required
-def create_employee():
-    """
-    Admin Manual Employee Creation Workflow:
-    - Select an existing Application ID from the database
-    - Displays candidate details (Application ID, Name, Email, Job, Job Code, Department, Duration, College)
-    - Admin Application Status: Applied, Under Review, Shortlisted
-    - Admin payment verification gate: Payment must be 'verified' or 'paid' before employee creation
-    - If employee already exists: shows existing Employee ID and prevents duplicate creation
-    - If new: generates unique Employee ID (AM####) and secure temporary password
-    - Encrypts and securely stores temporary credentials in EmployeeOnboardingCredential for Internship Portal activation
-    - Displays credentials strictly to authorized Admin
-    """
-    selected_app_id = request.args.get('app_id', type=int)
-    
-    # Retrieve all applications ordered by newest first
-    all_applications = JobApplication.query.order_by(JobApplication.created_at.desc()).all()
-    
-    selected_app = None
-    if selected_app_id:
-        selected_app = db.session.get(JobApplication, selected_app_id)
-    elif all_applications:
-        selected_app = all_applications[0]
-
-    existing_employee = None
-    if selected_app and selected_app.employee:
-        existing_employee = selected_app.employee
-
-    if request.method == 'POST':
-        data = request.get_json() if request.is_json else request.form
-        app_id_raw = data.get('application_id') if data else None
-        try:
-            app_id = int(app_id_raw) if app_id_raw is not None else None
-        except (ValueError, TypeError):
-            app_id = None
-
-        if not app_id:
-            if request.is_json or request.headers.get('Accept') == 'application/json':
-                return jsonify({'error': 'Please select an application record.', 'success': False}), 400
-            flash('Please select an application record.', 'danger')
-            return redirect(url_for('admin.create_employee'))
-
-        application = db.session.get(JobApplication, app_id)
-        if not application:
-            if request.is_json or request.headers.get('Accept') == 'application/json':
-                return jsonify({'error': 'Selected application record not found.', 'success': False}), 404
-            flash('Selected application record not found.', 'danger')
-            return redirect(url_for('admin.create_employee'))
-
-        # Check if this request is updating the payment status from the dropdown
-        action = data.get('action') if data else None
-        if action == 'update_payment_status':
-            new_status = (data.get('payment_status') or '').strip().lower()
-            if new_status in ['pending', 'verified', 'paid', 'failed']:
-                application.payment_status = new_status
-                application.updated_at = datetime.now(timezone.utc)
-                db.session.commit()
-                if request.is_json or request.headers.get('Accept') == 'application/json':
-                    return jsonify({'success': True, 'payment_status': new_status}), 200
-                flash(f"Payment status for candidate {application.full_name} updated to '{new_status.capitalize()}'.", 'success')
-            else:
-                if request.is_json or request.headers.get('Accept') == 'application/json':
-                    return jsonify({'error': 'Invalid payment status provided.', 'success': False}), 400
-                flash('Invalid payment status provided.', 'danger')
-            return redirect(url_for('admin.create_employee', app_id=application.id))
-
-        # Check if this request is updating the application status from the dropdown
-        if action == 'update_application_status':
-            status_val = (data.get('status') or data.get('application_status') or '').strip()
-            status_mapping = {
-                'applied': ('APPLIED', 'Applied'),
-                'new': ('APPLIED', 'Applied'),
-                'under_review': ('UNDER_REVIEW', 'Under Review'),
-                'reviewed': ('UNDER_REVIEW', 'Under Review'),
-                'under review': ('UNDER_REVIEW', 'Under Review'),
-                'shortlisted': ('SHORTLISTED', 'Shortlisted'),
-            }
-            mapped = status_mapping.get(status_val.lower().replace(' ', '_')) or status_mapping.get(status_val.lower())
-            if mapped:
-                db_val, display_val = mapped
-                application.status = db_val
-                application.application_status = db_val
-                application.updated_at = datetime.now(timezone.utc)
-                db.session.commit()
-                if request.is_json or request.headers.get('Accept') == 'application/json':
-                    return jsonify({'success': True, 'application_status': display_val, 'status': db_val}), 200
-                flash(f"Application status for candidate {application.full_name} updated to '{display_val}'.", 'success')
-            else:
-                if request.is_json or request.headers.get('Accept') == 'application/json':
-                    return jsonify({'error': 'Invalid application status provided.', 'success': False}), 400
-                flash('Invalid application status provided.', 'danger')
-            return redirect(url_for('admin.create_employee', app_id=application.id))
-
-        # Idempotency / Duplicate Employee Check
-        existing_emp = Employee.query.filter_by(application_id=application.id).first()
-        if existing_emp:
-            flash(f"Employee Already Exists for this application. Employee ID: {existing_emp.employee_id}.", 'info')
-            return redirect(url_for('admin.create_employee', app_id=application.id))
-
-        # Verified Payment Gate - Critical backend enforcement
-        payment_st = (application.payment_status or '').strip().lower()
-        if payment_st not in ['verified', 'paid']:
-            if request.is_json or request.headers.get('Accept') == 'application/json':
-                return jsonify({
-                    'error': 'Payment must be verified before creating employee credentials.',
-                    'success': False
-                }), 400
-            flash('Payment must be verified before creating employee credentials.', 'danger')
-            return redirect(url_for('admin.create_employee', app_id=application.id))
-
-        try:
-            # Generate unique Employee ID in format AM####
-            emp_id = Employee.generate_unique_employee_id()
-            # Generate cryptographically secure temporary password
-            temp_password = Employee.generate_secure_password(12)
-
-            employee = Employee(
-                employee_id=emp_id,
-                application_id=application.id,
-                account_status='active'
-            )
-            employee.set_password(temp_password)
-            secret_key = current_app.config.get('SECRET_KEY', 'default-secret-key')
-            employee.set_temp_password(temp_password, secret_key)
-            db.session.add(employee)
-
-            # Sync with candidate user account if present (strictly protect admin accounts)
-            if application.user_id:
-                cand_user = db.session.get(User, application.user_id)
-                if cand_user and getattr(cand_user, 'role', '') != 'admin':
-                    cand_user.set_password(temp_password)
-            elif application.email:
-                cand_user = User.query.filter(User.email.ilike(application.email.strip())).first()
-                if cand_user and getattr(cand_user, 'role', '') != 'admin':
-                    application.user_id = cand_user.id
-                    cand_user.set_password(temp_password)
-
-            db.session.commit()
-
-            # Store result in session strictly for authorized Admin one-time view
-            session['new_employee_result'] = {
-                'application_id': application.id,
-                'application_code': application.formatted_code,
-                'employee_id': emp_id,
-                'temp_password': temp_password,
-                'candidate_name': application.full_name,
-                'job_title': application.job.title if application.job else '',
-                'job_code': application.job_code or ''
-            }
-            flash(f"Employee {emp_id} created successfully for candidate {application.full_name}!", 'success')
-            return redirect(url_for('admin.create_employee', app_id=application.id))
-
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f"Error creating employee for application {app_id}: {str(e)}", exc_info=True)
-            flash(f"Failed to create employee: {str(e)}", 'danger')
-            return redirect(url_for('admin.create_employee', app_id=app_id))
-
-    new_cred_result = session.pop('new_employee_result', None)
-
-    return render_template(
-        'admin/create_employee.html',
-        all_applications=all_applications,
-        selected_app=selected_app,
-        existing_employee=existing_employee,
-        new_cred_result=new_cred_result
-    )
-
-
-@admin_bp.route('/employees/<string:employee_id>', methods=['GET'])
-@admin_required
-def view_employee(employee_id):
-    """View employee details (Application ID, Candidate, Job, Duration, Status, Created Date). Never reveals password_hash."""
-    employee = Employee.query.filter_by(employee_id=employee_id).first_or_404()
-    secret_key = current_app.config.get('SECRET_KEY', 'default-secret-key')
-    temp_password = employee.get_temp_password(secret_key) if employee.is_temporary_password_active else ""
-    return render_template(
-        'admin/employee_detail.html',
-        employee=employee,
-        app=employee.application,
-        job=employee.application.job if employee.application else None,
-        temp_password=temp_password,
-        onboarding_credential=employee.onboarding_credential
-    )
-
-
-@admin_bp.route('/employees/<string:employee_id>/reset-password', methods=['POST'])
-@admin_required
-def admin_reset_employee_password(employee_id):
-    """
-    Admin action to reset an employee's password.
-    Securely updates the password hash, permanently purges the temporary password, and marks temporary_password_active = False.
-    """
-    employee = Employee.query.filter_by(employee_id=employee_id).first_or_404()
-    new_password = request.form.get('new_password', '').strip()
-    if not new_password:
-        new_password = Employee.generate_secure_password(12)
-    elif len(new_password) < 6:
-        flash('New password must be at least 6 characters long.', 'danger')
-        return redirect(url_for('admin.view_employee', employee_id=employee.employee_id))
-
-    employee.reset_password(new_password)
-
-    # Sync with linked User account if present
-    if employee.candidate_email:
-        user = User.query.filter(User.email.ilike(employee.candidate_email)).first()
-        if user:
-            user.set_password(new_password)
-            user.must_change_password = False
-            user.password_changed_at = datetime.now(timezone.utc)
-
-    db.session.commit()
-    flash(f"Password for employee {employee.employee_id} has been reset successfully. Temporary password is now deactivated.", 'success')
-    return redirect(url_for('admin.view_employee', employee_id=employee.employee_id))
-
-
-# =====================================================================
-# =====================================================================
-# TEMPLATE MANAGEMENT (EMAIL & DOCUMENT TEMPLATES)
-# =====================================================================
-
-@admin_bp.route('/templates', methods=['GET'])
-@admin_required
-def templates():
-    """Template Management Hub for Email and Dynamic Role/Job Based Document Templates."""
-    # Ensure standard email templates exist
-    app_success_email = EmailTemplate.query.filter_by(template_type='application_successful').first()
-    offer_letter_email = EmailTemplate.query.filter_by(template_type='offer_letter').first()
-    joining_email = EmailTemplate.query.filter_by(template_type='joining_credentials').first()
-
-    # Active Job Postings for Job Code selection dropdown
-    active_jobs = JobPosting.query.filter_by(is_active=True).order_by(JobPosting.job_id.asc(), JobPosting.id.asc()).all()
-
-    # Query all templates (Offer Letter, Email, and master documents)
-    all_templates = DocumentTemplate.query.order_by(DocumentTemplate.is_active.desc(), DocumentTemplate.id.desc()).all()
-    offer_templates = [t for t in all_templates if t.template_type == 'offer_letter' or t.template_type.startswith('offer_letter_')]
-
-    # Other master templates (Experience Letter, Certificate)
-    exp_doc_template = DocumentTemplate.query.filter_by(template_type='experience_letter', is_active=True).order_by(DocumentTemplate.id.desc()).first()
-    exp_template_file_exists = bool(exp_doc_template and exp_doc_template.file_path and os.path.exists(exp_doc_template.file_path))
-
-    cert_doc_template = DocumentTemplate.query.filter_by(template_type='certificate', is_active=True).order_by(DocumentTemplate.id.desc()).first()
-    cert_template_file_exists = bool(cert_doc_template and cert_doc_template.file_path and os.path.exists(cert_doc_template.file_path))
-
-    # Dynamically compile available Job / Domain options from DB
-    domain_set = set()
-    for d in ['AI & ML', 'Application Development', 'Data Analytics', 'Full Stack Development']:
-        domain_set.add(d)
-    for jp in JobPosting.query.all():
-        if jp.department and jp.department.strip():
-            domain_set.add(jp.department.strip())
-    for ot in offer_templates:
-        if ot.job_domain and ot.job_domain.strip():
-            domain_set.add(ot.job_domain.strip())
-    available_domains = sorted(list(domain_set))
-
-    return render_template(
-        'admin/templates.html',
-        app_success_email=app_success_email,
-        offer_letter_email=offer_letter_email,
-        joining_email=joining_email,
-        active_jobs=active_jobs,
-        all_templates=all_templates,
-        offer_templates=offer_templates,
-        available_domains=available_domains,
-        exp_doc_template=exp_doc_template,
-        exp_template_file_exists=exp_template_file_exists,
-        cert_doc_template=cert_doc_template,
-        cert_template_file_exists=cert_template_file_exists,
-        categories=OFFER_LETTER_CATEGORIES
-    )
-
-
-@admin_bp.route('/templates/email/<string:template_type>', methods=['POST'])
-@admin_required
-def update_email_template(template_type):
-    """Update subject and body for an Email Template."""
-    valid_types = ['application_successful', 'offer_letter', 'joining_credentials']
-    if template_type not in valid_types:
-        flash('Invalid email template type.', 'danger')
-        return redirect(url_for('admin.templates'))
-
-    subject = (request.form.get('subject') or '').strip()
-    body = (request.form.get('body') or '').strip()
-
-    if not subject or not body:
-        flash('Subject and Body are required for email templates.', 'danger')
-        return redirect(url_for('admin.templates'))
-
-    email_tmpl = EmailTemplate.query.filter_by(template_type=template_type).first()
-    if not email_tmpl:
-        name_map = {
-            'application_successful': 'Application Successful Confirmation',
-            'offer_letter': 'Offer Letter Delivery',
-            'joining_credentials': 'Joining & Employee Credentials'
-        }
-        email_tmpl = EmailTemplate(
-            template_type=template_type,
-            name=name_map.get(template_type, template_type.title()),
-            subject=subject,
-            body=body
-        )
-        db.session.add(email_tmpl)
-    else:
-        email_tmpl.subject = subject
-        email_tmpl.body = body
-
-    db.session.commit()
-    flash(f"Email template '{email_tmpl.name}' updated successfully.", 'success')
-    return redirect(url_for('admin.templates'))
-
-
-@admin_bp.route('/templates/email/<string:template_type>/preview', methods=['GET'])
-@admin_required
-def preview_email_template(template_type):
-    """Preview rendered HTML email with sample preview values."""
-    valid_types = ['application_successful', 'offer_letter', 'joining_credentials']
-    if template_type not in valid_types:
-        return jsonify({'error': 'Invalid template type'}), 400
-
-    from services.email_service import render_sample_email_preview
-    preview_data = render_sample_email_preview(template_type)
-    return jsonify(preview_data)
-
-
-@admin_bp.route('/templates/email/<string:template_type>/test', methods=['POST'])
-@admin_required
-def send_test_email_route(template_type):
-    """Send a sample test email to an admin-specified recipient without modifying live records."""
-    valid_types = ['application_successful', 'offer_letter', 'joining_credentials']
-    if template_type not in valid_types:
-        flash('Invalid template type.', 'danger')
-        return redirect(url_for('admin.templates'))
-
-    recipient_email = (request.form.get('test_recipient') or '').strip()
-    if not recipient_email:
-        flash('Please specify a recipient email address for testing.', 'danger')
-        return redirect(url_for('admin.templates'))
-
-    from services.email_service import send_test_email
-    success, msg = send_test_email(template_type, recipient_email)
-    if success:
-        flash(f"Test email sent to {recipient_email}: {msg}", 'success')
-    else:
-        flash(f"Failed to send test email: {msg}", 'danger')
-
-    return redirect(url_for('admin.templates'))
-
-
-@admin_bp.route('/templates/document/offer-letter/upload', methods=['POST'])
-@admin_bp.route('/templates/document/<string:template_type>/upload', methods=['POST'])
-@admin_required
-def upload_document_template(template_type='offer_letter'):
-    """
-    Upload / replace a master DOCX template.
-    For Offer Letters: dynamically maps to Job/Domain and Duration with duplicate protection.
-    For other documents (Experience Letter, Certificate): maintains single active master file.
-    """
-    doc_type = (request.form.get('document_type') or template_type or 'offer_letter').strip()
-    
-    uploaded_file = request.files.get('template_file')
-    if not uploaded_file or not uploaded_file.filename:
-        flash('Please select a DOCX template file to upload.', 'danger')
-        return redirect(url_for('admin.templates'))
-
-    original_filename = secure_filename(uploaded_file.filename) or uploaded_file.filename
-    if not original_filename.lower().endswith('.docx'):
-        flash('Only .docx Microsoft Word template files are accepted.', 'danger')
-        return redirect(url_for('admin.templates'))
-
-    templates_dir = os.path.join(current_app.root_path, 'uploads', 'templates')
-    os.makedirs(templates_dir, exist_ok=True)
-
-    unique_suffix = f"{int(time.time())}_{uuid.uuid4().hex[:6]}"
-
-    if doc_type == 'offer_letter' or doc_type.startswith('offer_letter'):
-        job_domain = (request.form.get('job_domain') or '').strip()
-        custom_domain = (request.form.get('custom_job_domain') or '').strip()
-        if custom_domain and (job_domain == '__custom__' or not job_domain):
-            job_domain = custom_domain
-
-        if not job_domain:
-            flash('Please select or specify a Job / Domain for the Offer Letter template.', 'danger')
-            return redirect(url_for('admin.templates'))
-
-        duration = (request.form.get('duration') or 'Both').strip()
-        if duration not in ['Both', '1 Month', '3 Months']:
-            duration = 'Both'
-
-        template_name = (request.form.get('template_name') or '').strip()
-        if not template_name:
-            template_name = f"{job_domain} Offer Letter Template"
-
-        slug = re.sub(r'[^a-zA-Z0-9_]+', '_', job_domain.lower()).strip('_')
-        target_filename = f"offer_letter_{slug}_{unique_suffix}.docx"
-        target_path = os.path.join(templates_dir, target_filename)
-
-        uploaded_file.save(target_path)
-
-        # DUPLICATE PROTECTION:
-        # Deactivate any currently active template with the exact same Job/Domain + Duration
-        DocumentTemplate.query.filter_by(
-            template_type='offer_letter',
-            job_domain=job_domain,
-            duration=duration,
-            is_active=True
-        ).update({'is_active': False})
-
-        # Also deactivate any legacy category active template if matching
-        cat_key = determine_job_category(job_domain)
-        if cat_key and cat_key in OFFER_LETTER_CATEGORIES:
-            legacy_type = OFFER_LETTER_CATEGORIES[cat_key]['type']
-            DocumentTemplate.query.filter_by(template_type=legacy_type, is_active=True).update({'is_active': False})
-
-        new_doc_tmpl = DocumentTemplate(
-            template_type='offer_letter',
-            name=template_name,
-            job_domain=job_domain,
-            duration=duration,
-            filename=uploaded_file.filename,
-            file_path=target_path,
-            is_active=True,
-            created_by=getattr(current_user, 'username', 'Admin') if current_user and current_user.is_authenticated else 'Admin'
-        )
-        db.session.add(new_doc_tmpl)
-        db.session.commit()
-
-        flash(f"Offer Letter template '{template_name}' uploaded successfully and activated for {job_domain} ({duration}).", 'success')
-        return redirect(url_for('admin.templates'))
-
-    else:
-        # Experience Letter or Certificate
-        valid_types = ['experience_letter', 'certificate']
-        if doc_type not in valid_types:
-            flash('Invalid document template type.', 'danger')
-            return redirect(url_for('admin.templates'))
-
-        target_filename = f"{doc_type}_{unique_suffix}.docx"
-        target_path = os.path.join(templates_dir, target_filename)
-        uploaded_file.save(target_path)
-
-        name_map = {
-            'experience_letter': 'Anti-Matrix Master Experience Letter',
-            'certificate': 'Anti-Matrix Master Internship Certificate'
-        }
-
-        DocumentTemplate.query.filter_by(template_type=doc_type, is_active=True).update({'is_active': False})
-
-        new_doc_tmpl = DocumentTemplate(
-            template_type=doc_type,
-            name=name_map.get(doc_type, doc_type.replace('_', ' ').title()),
-            filename=uploaded_file.filename,
-            file_path=target_path,
-            is_active=True,
-            created_by=getattr(current_user, 'username', 'Admin') if current_user and current_user.is_authenticated else 'Admin'
-        )
-        db.session.add(new_doc_tmpl)
-        db.session.commit()
-
-        flash(f"Template '{uploaded_file.filename}' uploaded and set as ACTIVE for {name_map.get(doc_type, doc_type)}.", 'success')
-        return redirect(url_for('admin.templates'))
-
-
-@admin_bp.route('/templates/create', methods=['POST'])
-@admin_required
-def create_template():
-    """
-    Create a new Template assigned directly to a Job Code (JB####).
-    Supports:
-    - Template Type: 'offer_letter' (DOCX) or 'email' (HTML / Markdown / Text / DOCX)
-    - Job Code: Selected from dropdown of active jobs
-    - Template Name: descriptive name
-    - File upload: validated for extension and size (<= 16MB)
-    - Enforces single active template versioning rule per (job_code, template_type)
-    """
-    template_type = (request.form.get('template_type') or 'offer_letter').strip().lower()
-    if template_type not in ['offer_letter', 'email']:
-        flash("Invalid template type. Must be 'Offer Letter' or 'Email'.", 'danger')
-        return redirect(url_for('admin.templates'))
-
-    job_posting_id = request.form.get('job_posting_id')
-    if not job_posting_id:
-        flash("Please select a Job Code for the template.", 'danger')
-        return redirect(url_for('admin.templates'))
-
-    job = db.session.get(JobPosting, int(job_posting_id))
-    if not job:
-        flash("Selected Job Posting was not found.", 'danger')
-        return redirect(url_for('admin.templates'))
-
-    job_code = (getattr(job, 'job_code', None) or getattr(job, 'job_id', None) or f"JB{job.id}").strip().upper()
-
-    uploaded_file = request.files.get('template_file')
-    if not uploaded_file or not uploaded_file.filename:
-        flash("Please select a template file to upload.", 'danger')
-        return redirect(url_for('admin.templates'))
-
-    original_filename = secure_filename(uploaded_file.filename) or uploaded_file.filename
-    ext = os.path.splitext(original_filename)[1].lower()
-
-    if template_type == 'offer_letter':
-        if ext != '.docx':
-            flash("Offer Letter templates must be Microsoft Word (.docx) files.", 'danger')
-            return redirect(url_for('admin.templates'))
-    elif template_type == 'email':
-        if ext not in ['.html', '.htm', '.md', '.txt', '.docx']:
-            flash("Email templates must be .html, .md, .txt, or .docx files.", 'danger')
-            return redirect(url_for('admin.templates'))
-
-    template_name = (request.form.get('template_name') or '').strip()
-    if not template_name:
-        type_label = "Offer Letter" if template_type == 'offer_letter' else "Email"
-        template_name = f"{job_code} — {job.title} {type_label} Template"
-
-    duration = (request.form.get('duration') or 'Both').strip()
-    if duration not in ['Both', '1 Month', '3 Months']:
-        duration = 'Both'
-
-    templates_dir = os.path.join(current_app.root_path, 'uploads', 'templates')
-    os.makedirs(templates_dir, exist_ok=True)
-
-    unique_suffix = f"{int(time.time())}_{uuid.uuid4().hex[:6]}"
-    target_filename = f"{template_type}_{job_code.lower()}_{unique_suffix}{ext}"
-    target_path = os.path.join(templates_dir, target_filename)
-
-    uploaded_file.save(target_path)
-
-    # Extract subject for email templates if provided or in file
-    subject_val = None
-    if template_type == 'email':
-        subject_val = (request.form.get('subject') or '').strip()
-        if not subject_val and ext in ['.html', '.htm', '.md', '.txt']:
-            try:
-                with open(target_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    first_line = f.readline().strip()
-                    if first_line.lower().startswith('subject:'):
-                        subject_val = first_line.split(':', 1)[1].strip()
-            except Exception:
-                pass
-        if not subject_val:
-            subject_val = f"Congratulations! You Have Been Shortlisted — {job.title} | Anti Matrix"
-
-    # VERSIONING RULE: Deactivate any existing active template for this same (job_code, template_type)
-    DocumentTemplate.query.filter_by(
-        template_type=template_type,
-        job_code=job_code,
-        is_active=True
-    ).update({'is_active': False})
-
-    # Also deactivate if matching by job_posting_id
-    DocumentTemplate.query.filter_by(
-        template_type=template_type,
-        job_posting_id=job.id,
-        is_active=True
-    ).update({'is_active': False})
-
-    new_tmpl = DocumentTemplate(
-        template_type=template_type,
-        job_posting_id=job.id,
-        job_code=job_code,
-        name=template_name,
-        filename=uploaded_file.filename,
-        file_path=target_path,
-        duration=duration,
-        job_domain=job.department or job.title,
-        subject=subject_val,
-        is_active=True,
-        created_by=getattr(current_user, 'username', 'Admin') if current_user and current_user.is_authenticated else 'Admin'
-    )
-    db.session.add(new_tmpl)
-    db.session.commit()
-
-    type_name = "Offer Letter" if template_type == 'offer_letter' else "Email"
-    flash(f"{type_name} template '{template_name}' successfully created and activated for Job Code {job_code} ({job.title}).", 'success')
-    return redirect(url_for('admin.templates'))
-
-
-@admin_bp.route('/templates/<int:template_id>/assign-job', methods=['POST'])
-@admin_required
-def assign_job_to_template(template_id):
-    """Assign or reassign an existing template to a specific Job Code."""
-    tmpl = DocumentTemplate.query.get_or_404(template_id)
-    job_posting_id = request.form.get('job_posting_id')
-    if not job_posting_id:
-        flash("Please select a Job Code to assign.", 'danger')
-        return redirect(url_for('admin.templates'))
-
-    job = db.session.get(JobPosting, int(job_posting_id))
-    if not job:
-        flash("Selected Job Posting was not found.", 'danger')
-        return redirect(url_for('admin.templates'))
-
-    job_code = (getattr(job, 'job_code', None) or getattr(job, 'job_id', None) or f"JB{job.id}").strip().upper()
-    tmpl.job_posting_id = job.id
-    tmpl.job_code = job_code
-    tmpl.job_domain = job.department or job.title
-    tmpl.updated_at = datetime.now(timezone.utc)
-
-    make_active = request.form.get('make_active') == '1'
-    if make_active:
-        DocumentTemplate.query.filter_by(
-            template_type=tmpl.template_type,
-            job_code=job_code,
-            is_active=True
-        ).update({'is_active': False})
-        DocumentTemplate.query.filter_by(
-            template_type=tmpl.template_type,
-            job_posting_id=job.id,
-            is_active=True
-        ).update({'is_active': False})
-        tmpl.is_active = True
-
-    db.session.commit()
-
-    flash(f"Template '{tmpl.name}' is now assigned to Job Code {job_code} ({job.title}).", 'success')
-    return redirect(url_for('admin.templates'))
-
-
-@admin_bp.route('/templates/document/<int:template_id>/activate', methods=['POST'])
-@admin_required
-def activate_document_template(template_id):
-    """Activates a template, enforcing single active template rule for (job_code, template_type)."""
-    tmpl = DocumentTemplate.query.get_or_404(template_id)
-
-    if tmpl.job_code:
-        # Deactivate any other active template with the same (job_code, template_type)
-        DocumentTemplate.query.filter(
-            DocumentTemplate.id != tmpl.id,
-            DocumentTemplate.template_type == tmpl.template_type,
-            DocumentTemplate.job_code == tmpl.job_code,
-            DocumentTemplate.is_active == True
-        ).update({'is_active': False})
-        if tmpl.job_posting_id:
-            DocumentTemplate.query.filter(
-                DocumentTemplate.id != tmpl.id,
-                DocumentTemplate.template_type == tmpl.template_type,
-                DocumentTemplate.job_posting_id == tmpl.job_posting_id,
-                DocumentTemplate.is_active == True
-            ).update({'is_active': False})
-    elif tmpl.template_type == 'offer_letter' and tmpl.job_domain:
-        # Deactivate conflicting active template for the same job_domain + duration
-        DocumentTemplate.query.filter(
-            DocumentTemplate.id != tmpl.id,
-            DocumentTemplate.template_type == 'offer_letter',
-            DocumentTemplate.job_domain == tmpl.job_domain,
-            DocumentTemplate.duration == tmpl.duration,
-            DocumentTemplate.is_active == True
-        ).update({'is_active': False})
-    else:
-        # Deactivate other active templates of same template_type
-        DocumentTemplate.query.filter(
-            DocumentTemplate.id != tmpl.id,
-            DocumentTemplate.template_type == tmpl.template_type,
-            DocumentTemplate.is_active == True
-        ).update({'is_active': False})
-
-    tmpl.is_active = True
-    tmpl.updated_at = datetime.now(timezone.utc)
-    db.session.commit()
-
-    flash(f"Template '{tmpl.name}' is now ACTIVE.", 'success')
-    return redirect(url_for('admin.templates'))
-
-
-@admin_bp.route('/templates/document/<int:template_id>/deactivate', methods=['POST'])
-@admin_required
-def deactivate_document_template(template_id):
-    """Deactivates an active template."""
-    tmpl = DocumentTemplate.query.get_or_404(template_id)
-    tmpl.is_active = False
-    tmpl.updated_at = datetime.now(timezone.utc)
-    db.session.commit()
-
-    flash(f"Template '{tmpl.name}' has been deactivated.", 'info')
-    return redirect(url_for('admin.templates'))
-
-
-@admin_bp.route('/templates/document/<int:template_id>/delete', methods=['POST'])
-@admin_required
-def delete_document_template(template_id):
-    """
-    Safely deletes a template record only if not referenced by existing generated documents.
-    Protects historical candidate documents.
-    """
-    tmpl = DocumentTemplate.query.get_or_404(template_id)
-
-    # Check historical reference protection
-    ref_count = EmployeeDocument.query.filter_by(template_id=tmpl.id).count()
-    if ref_count > 0:
-        flash(
-            f"Cannot delete template '{tmpl.name}' because {ref_count} previously generated offer letter(s) reference it. "
-            "Please deactivate the template instead to preserve historical candidate documents.",
-            'danger'
-        )
-        return redirect(url_for('admin.templates'))
-
-    # If file exists on disk and is not shared, remove safely
-    if tmpl.file_path and os.path.exists(tmpl.file_path):
-        try:
-            # Check if any other template uses the exact same path
-            shared = DocumentTemplate.query.filter(DocumentTemplate.id != tmpl.id, DocumentTemplate.file_path == tmpl.file_path).count()
-            if shared == 0:
-                os.remove(tmpl.file_path)
-        except Exception:
-            pass
-
-    tmpl_name = tmpl.name
-    db.session.delete(tmpl)
-    db.session.commit()
-
-    flash(f"Template '{tmpl_name}' deleted successfully.", 'success')
-    return redirect(url_for('admin.templates'))
-
-
-@admin_bp.route('/templates/document/<int:template_id>/download', methods=['GET'])
-@admin_required
-def download_document_template_by_id(template_id):
-    """Download the specific master DOCX template file by ID."""
-    tmpl = DocumentTemplate.query.get_or_404(template_id)
-
-    if not tmpl.file_path or not os.path.exists(tmpl.file_path):
-        flash('Template file is not available on storage.', 'warning')
-        return redirect(url_for('admin.templates'))
-
-    return send_from_directory(
-        os.path.dirname(tmpl.file_path),
-        os.path.basename(tmpl.file_path),
-        as_attachment=True,
-        download_name=tmpl.filename or f"{tmpl.name}.docx"
-    )
-
-
-@admin_bp.route('/templates/document/<int:template_id>/preview-info', methods=['GET'])
-@admin_required
-def preview_document_template_info(template_id):
-    """Returns template metadata and detected placeholders as JSON for the admin preview modal."""
-    tmpl = DocumentTemplate.query.get_or_404(template_id)
-
-    detected_placeholders = []
-    paragraphs_preview = []
-    file_exists = bool(tmpl.file_path and os.path.exists(tmpl.file_path))
-
-    if file_exists:
-        try:
-            doc = docx.Document(tmpl.file_path)
-            all_text = " ".join([p.text for p in doc.paragraphs])
-            for t in doc.tables:
-                for row in t.rows:
-                    for cell in row.cells:
-                        all_text += " " + cell.text
-
-            # Find placeholders in square brackets or double curly braces
-            sq_matches = re.findall(r'\[[A-Za-z0-9_\s/]+\]', all_text)
-            curly_matches = re.findall(r'\{\{[A-Za-z0-9_\s/]+\}\}', all_text)
-            detected_placeholders = sorted(list(set(sq_matches + curly_matches)))
-
-            for p in doc.paragraphs[:6]:
-                if p.text.strip():
-                    paragraphs_preview.append(p.text.strip())
-        except Exception as e:
-            paragraphs_preview.append(f"Could not inspect document text: {str(e)}")
-
-    return jsonify({
-        'id': tmpl.id,
-        'name': tmpl.name,
-        'job_domain': tmpl.job_domain or 'General',
-        'duration': tmpl.duration or 'Both',
-        'is_active': tmpl.is_active,
-        'filename': tmpl.filename,
-        'file_exists': file_exists,
-        'created_at': tmpl.created_at.strftime('%d %b %Y, %I:%M %p') if tmpl.created_at else None,
-        'created_by': tmpl.created_by or 'Admin',
-        'detected_placeholders': detected_placeholders,
-        'paragraphs_preview': paragraphs_preview
-    })
-
-
-@admin_bp.route('/templates/document/<string:template_type>/download', methods=['GET'])
-@admin_required
-def download_document_template(template_type):
-    """Download / preview the active master DOCX template file by type (backward compatibility)."""
-    doc_tmpl = DocumentTemplate.query.filter_by(template_type=template_type, is_active=True).order_by(DocumentTemplate.id.desc()).first()
-    if not doc_tmpl and template_type == 'offer_letter_ai_ml':
-        doc_tmpl = DocumentTemplate.query.filter_by(template_type='offer_letter', is_active=True).order_by(DocumentTemplate.id.desc()).first()
-
-    if not doc_tmpl or not doc_tmpl.file_path or not os.path.exists(doc_tmpl.file_path):
-        flash('Requested master template file is not available on storage. Please upload a template.', 'warning')
-        return redirect(url_for('admin.templates'))
-
-    return send_from_directory(
-        os.path.dirname(doc_tmpl.file_path),
-        os.path.basename(doc_tmpl.file_path),
-        as_attachment=True,
-        download_name=doc_tmpl.filename
-    )
-
-
-# =====================================================================
-# OFFER LETTER GENERATION, PREVIEW, VERIFICATION & SENDING
-# =====================================================================
-
-@admin_bp.route('/employees/<string:employee_id>/offer-letter/generate', methods=['GET', 'POST'])
-@admin_required
-def generate_offer_letter(employee_id):
-    """Generate personalized Offer Letter DOCX for selected Employee using dynamic template mapping."""
-    employee = Employee.query.filter_by(employee_id=employee_id).first_or_404()
-    app_record = employee.application
-    job = employee.job
-
-    if not app_record or not job:
-        flash('Employee is missing linked application or job posting data.', 'danger')
-        return redirect(url_for('admin.view_employee', employee_id=employee.employee_id))
-
-    # Determine internship duration
-    internship_duration = app_record.duration_display or (f"{job.duration.replace('_', ' ').title()}" if job.duration else "1 Month")
-
-    # Dynamic template lookup by employee's job/domain + duration
-    active_template = None
-    template_exists = False
-    template_error_msg = None
-    try:
-        active_template = get_active_offer_letter_template(employee, duration=internship_duration)
-        template_exists = bool(active_template and active_template.file_path and os.path.exists(active_template.file_path))
-    except (OfferLetterTemplateNotFoundError, OfferLetterTemplateFileMissingError) as tmpl_err:
-        active_template = None
-        template_exists = False
-        template_error_msg = str(tmpl_err)
-
-    if request.method == 'POST':
-        if not active_template or not template_exists:
-            err = template_error_msg or f"No active Offer Letter template is configured for {job.department or job.title} — {internship_duration}. Please upload or activate the appropriate template."
-            flash(err, 'danger')
-            return redirect(url_for('admin.generate_offer_letter', employee_id=employee.employee_id))
-
-        custom_params = {
-            'job_title': (request.form.get('job_title') or '').strip() or job.title,
-            'responsibilities': (request.form.get('responsibilities') or '').strip() or None,
-            'key_tasks': (request.form.get('key_tasks') or '').strip() or None,
-            'joining_date': (request.form.get('joining_date') or '').strip() or 'Immediate / As mutually agreed',
-            'work_mode': (request.form.get('work_mode') or '').strip() or (job.location if job.location else 'Remote'),
-            'conditions': (request.form.get('conditions') or '').strip() or 'satisfactory verification of academic credentials and submission of government identity documentation',
-            'acceptance_deadline': (request.form.get('acceptance_deadline') or '').strip() or None
-        }
-
-        try:
-            emp_doc, output_path = generate_offer_letter_docx(employee, custom_params)
-            flash(f"Offer Letter for {employee.candidate_name} ({employee.employee_id}) generated successfully using {active_template.name}!", 'success')
-            return redirect(url_for('admin.verify_offer_letter', employee_id=employee.employee_id))
-        except (OfferLetterTemplateNotFoundError, OfferLetterTemplateFileMissingError) as e:
-            flash(str(e), 'danger')
-            return redirect(url_for('admin.generate_offer_letter', employee_id=employee.employee_id))
-        except Exception as e:
-            flash(f"Error generating Offer Letter: {str(e)}", 'danger')
-            return redirect(url_for('admin.generate_offer_letter', employee_id=employee.employee_id))
-
-    # GET request - Show parameter review form before generating
-    return render_template(
-        'admin/offer_letter_generate.html',
-        employee=employee,
-        app=app_record,
-        job=job,
-        active_template=active_template,
-        template_exists=template_exists,
-        template_error_msg=template_error_msg
-    )
-
-
-@admin_bp.route('/employees/<string:employee_id>/offer-letter/preview', methods=['GET'])
-@admin_required
-def preview_offer_letter(employee_id):
-    """Download / preview the generated employee-specific Offer Letter DOCX."""
-    employee = Employee.query.filter_by(employee_id=employee_id).first_or_404()
-    emp_doc = employee.offer_letter_doc
-
-    if not emp_doc or not os.path.exists(emp_doc.file_path):
-        flash('Offer Letter has not been generated yet. Please generate it first.', 'warning')
-        return redirect(url_for('admin.view_employee', employee_id=employee.employee_id))
-
-    return send_from_directory(
-        os.path.dirname(emp_doc.file_path),
-        os.path.basename(emp_doc.file_path),
-        as_attachment=True,
-        download_name=emp_doc.file_name
-    )
-
-
-@admin_bp.route('/employees/<string:employee_id>/offer-letter/verify', methods=['GET'])
-@admin_required
-def verify_offer_letter(employee_id):
-    """Pre-send verification view with email preview, locked recipient, and confirm button."""
-    employee = Employee.query.filter_by(employee_id=employee_id).first_or_404()
-    app_record = employee.application
-    job = employee.job
-    emp_doc = employee.offer_letter_doc
-
-    if not emp_doc or not os.path.exists(emp_doc.file_path):
-        flash('Offer Letter has not been generated yet. Please generate it first.', 'warning')
-        return redirect(url_for('admin.generate_offer_letter', employee_id=employee.employee_id))
-
-    # Load email template to preview formatted email
-    from services.email_service import replace_variables, markdown_to_html_email, DEFAULT_OFFER_LETTER_SUBJECT, DEFAULT_OFFER_LETTER_BODY
-    email_tmpl = EmailTemplate.query.filter_by(template_type='offer_letter').first()
-    
-    company_email = current_app.config.get('CONTACT_EMAIL', 'info@antimatrix.co.in')
-    website = 'www.antimatrix.co.in'
-    duration = app_record.duration_display or (f"{job.duration.replace('_', ' ').title()}" if job and job.duration else "3 Months")
-    joining_date = 'Immediate / As mutually agreed'
-
-    variables = {
-        'Student Name': employee.candidate_name,
-        'Internship Role': job.title if job else 'Internship Position',
-        'Application ID': app_record.formatted_code,
-        'Internship Duration': duration,
-        'Start Date': joining_date,
-        'Company Email': company_email,
-        'Website': website,
-        'employee_name': employee.candidate_name,
-        'employee_id': employee.employee_id,
-        'job_title': job.title if job else '',
-        'department': job.department if job else '',
-        'application_id': app_record.formatted_code,
-        'internship_duration': duration,
-        'start_date': joining_date,
-        'company_email': company_email,
-        'website': website
-    }
-
-    raw_subject = email_tmpl.subject if email_tmpl else DEFAULT_OFFER_LETTER_SUBJECT
-    raw_body = email_tmpl.body if email_tmpl else DEFAULT_OFFER_LETTER_BODY
-
-    subject_preview = replace_variables(raw_subject, variables)
-    body_preview = replace_variables(raw_body, variables)
-    body_html_preview = markdown_to_html_email(body_preview, title=subject_preview)
-
-    return render_template(
-        'admin/offer_letter_verify.html',
-        employee=employee,
-        app=app_record,
-        job=job,
-        emp_doc=emp_doc,
-        subject_preview=subject_preview,
-        body_preview=body_preview,
-        body_html_preview=body_html_preview
-    )
-
-
-@admin_bp.route('/employees/<string:employee_id>/offer-letter/send', methods=['POST'])
-@admin_required
-def send_offer_letter(employee_id):
-    """Explicit Verify & Send action sending the Offer Letter email with attachment."""
-    employee = Employee.query.filter_by(employee_id=employee_id).first_or_404()
-    emp_doc = employee.offer_letter_doc
-
-    if not emp_doc:
-        flash('No Offer Letter found for this employee. Please generate it first.', 'danger')
-        return redirect(url_for('admin.generate_offer_letter', employee_id=employee.employee_id))
-
-    # ONE-TIME SEND PROTECTION
-    if emp_doc.email_status == 'sent':
-        flash('Offer Letter already sent. Duplicate sending is prevented.', 'warning')
-        return redirect(url_for('admin.view_employee', employee_id=employee.employee_id))
-
-    success, message = send_offer_letter_email(employee)
-    if success:
-        flash(message, 'success')
-    else:
-        flash(message, 'danger')
-
-    return redirect(url_for('admin.view_employee', employee_id=employee.employee_id))
 
 
 # ==============================================================================
@@ -2776,389 +840,432 @@ def clear_all_money_transactions():
     return redirect(url_for('admin.money_management'))
 
 
-# =============================================================================
-# ADMIN INTERNSHIP BENEFITS MANAGEMENT ROUTES
-# =============================================================================
 
-@admin_bp.route('/internship-benefits', methods=['GET'])
+
+# ==============================================================================
+# RETIRED ADMINISTRATIVE MODULES
+# ==============================================================================
+# The following modules have been retired from the Anti-Matrix admin dashboard:
+# - Candidate Applications (Candidate applications and records remain in database)
+# - Employees (Employee records remain in database; active operations moved to Internship Portal)
+# - Document & Email Templates
+# - Internship Benefits
+# - Contact Inquiries
+#
+# Any direct access or legacy bookmark automatically redirects to the Admin Dashboard
+# with an informative notification. All endpoint names are preserved as compatibility
+# aliases to prevent routing BuildErrors.
+# ==============================================================================
+
+# ==============================================================================
+# CANDIDATE APPLICATIONS MODULE
+# ==============================================================================
+
+@admin_bp.route('/applications', strict_slashes=False)
 @admin_required
-def internship_benefits():
-    """Admin view: List all configured internship benefits / descriptions."""
-    from services.internship_benefit_service import ensure_default_internship_benefits
-    ensure_default_internship_benefits()
+def applications():
+    """
+    Candidate Applications Management Hub.
+    Lists candidate applications with search, multi-criteria filtering,
+    and stage tracking (Applied, Under Review, Shortlisted, Rejected).
+    """
+    job_id_filter = request.args.get('job_id', type=int)
+    duration_filter = request.args.get('duration', '').strip()
+    status_filter = request.args.get('status', 'all').strip()
+    payment_filter = request.args.get('payment_status', 'all').strip()
+    search_query = request.args.get('q', '').strip()
 
-    benefits_list = InternshipBenefit.query.order_by(
-        InternshipBenefit.display_order.asc(),
-        InternshipBenefit.id.asc()
-    ).all()
+    query = JobApplication.query.join(JobPosting)
 
-    total_configs = len(benefits_list)
-    active_configs = sum(1 for b in benefits_list if b.is_active)
+    if job_id_filter:
+        query = query.filter(JobApplication.job_id == job_id_filter)
 
-    return render_template(
-        'admin/internship_benefits.html',
-        benefits=benefits_list,
-        total_configs=total_configs,
-        active_configs=active_configs
-    )
+    if duration_filter and duration_filter.lower() != 'all':
+        query = query.filter(JobApplication.duration == duration_filter)
 
-
-@admin_bp.route('/internship-benefits/add', methods=['GET', 'POST'])
-@admin_required
-def add_internship_benefit():
-    """Admin view: Add/configure internship benefits with real-time live preview."""
-    from services.internship_benefit_service import save_or_update_internship_benefit
-
-    # Get already configured durations to inform admin
-    existing_records = InternshipBenefit.query.all()
-    configured_durations = {b.duration_clean for b in existing_records}
-
-    if request.method == 'POST':
-        duration = (request.form.get('duration') or '').strip()
-        title = (request.form.get('title') or '').strip()
-        subtitle = (request.form.get('subtitle') or '').strip()
-        badge_text = (request.form.get('badge_text') or '').strip()
-        is_active = request.form.get('is_active') == 'on' or request.form.get('is_active') == 'true'
-
-        # Collect items: from dynamic inputs 'benefit_items[]' or textarea 'benefits_text'
-        benefit_items = request.form.getlist('benefit_items[]')
-        benefits_text = request.form.get('benefits_text') or ''
-
-        items = []
-        if benefit_items:
-            items = [item.strip() for item in benefit_items if item.strip()]
-        elif benefits_text:
-            items = [line.strip() for line in benefits_text.split('\n') if line.strip()]
-
-        if not duration:
-            flash("Please select an Internship Duration (1 Month or 3 Months).", "danger")
-            return render_template(
-                'admin/internship_benefit_form.html',
-                mode='add',
-                benefit=None,
-                form_data=request.form,
-                configured_durations=configured_durations
-            )
-
-        if not items:
-            flash("Please enter at least one benefit point.", "danger")
-            return render_template(
-                'admin/internship_benefit_form.html',
-                mode='add',
-                benefit=None,
-                form_data=request.form,
-                configured_durations=configured_durations
-            )
-
-        try:
-            saved_benefit, is_new = save_or_update_internship_benefit(
-                duration=duration,
-                title=title,
-                benefits_items=items,
-                subtitle=subtitle,
-                badge_text=badge_text,
-                is_active=is_active
-            )
-            if is_new:
-                flash(f"New {saved_benefit.duration_label} benefits configured successfully!", "success")
-            else:
-                flash(f"Existing {saved_benefit.duration_label} benefits updated successfully (duplicates prevented)!", "success")
-
-            return redirect(url_for('admin.internship_benefits'))
-        except Exception as e:
-            flash(f"Error saving internship benefits: {str(e)}", "danger")
-
-    return render_template(
-        'admin/internship_benefit_form.html',
-        mode='add',
-        benefit=None,
-        form_data={},
-        configured_durations=configured_durations
-    )
-
-
-@admin_bp.route('/internship-benefits/<int:benefit_id>/edit', methods=['GET', 'POST'])
-@admin_required
-def edit_internship_benefit(benefit_id):
-    """Admin view: Edit existing internship benefits with real-time live preview."""
-    from services.internship_benefit_service import save_or_update_internship_benefit
-
-    benefit = db.session.get(InternshipBenefit, benefit_id) or abort(404)
-
-    if request.method == 'POST':
-        duration = (request.form.get('duration') or benefit.duration).strip()
-        title = (request.form.get('title') or '').strip()
-        subtitle = (request.form.get('subtitle') or '').strip()
-        badge_text = (request.form.get('badge_text') or '').strip()
-        is_active = request.form.get('is_active') == 'on' or request.form.get('is_active') == 'true'
-
-        benefit_items = request.form.getlist('benefit_items[]')
-        benefits_text = request.form.get('benefits_text') or ''
-
-        items = []
-        if benefit_items:
-            items = [item.strip() for item in benefit_items if item.strip()]
-        elif benefits_text:
-            items = [line.strip() for line in benefits_text.split('\n') if line.strip()]
-
-        if not items:
-            flash("Please enter at least one benefit point.", "danger")
-            return render_template(
-                'admin/internship_benefit_form.html',
-                mode='edit',
-                benefit=benefit,
-                form_data=request.form
-            )
-
-        try:
-            saved_benefit, _ = save_or_update_internship_benefit(
-                duration=duration,
-                title=title,
-                benefits_items=items,
-                subtitle=subtitle,
-                badge_text=badge_text,
-                is_active=is_active,
-                benefit_id=benefit.id
-            )
-            flash(f"{saved_benefit.duration_label} benefits updated successfully!", "success")
-            return redirect(url_for('admin.internship_benefits'))
-        except Exception as e:
-            flash(f"Error updating internship benefits: {str(e)}", "danger")
-
-    return render_template(
-        'admin/internship_benefit_form.html',
-        mode='edit',
-        benefit=benefit,
-        form_data={
-            'duration': benefit.duration,
-            'title': benefit.title,
-            'subtitle': benefit.subtitle or '',
-            'badge_text': benefit.badge_text or '',
-            'is_active': benefit.is_active
+    if status_filter and status_filter.lower() != 'all':
+        status_map = {
+            'applied': ['Applied', 'APPLIED', 'New'],
+            'under_review': ['Under Review', 'UNDER_REVIEW', 'Reviewed'],
+            'under review': ['Under Review', 'UNDER_REVIEW', 'Reviewed'],
+            'shortlisted': ['Shortlisted', 'SHORTLISTED'],
+            'rejected': ['Rejected', 'REJECTED', 'Not Selected']
         }
-    )
+        allowed_statuses = status_map.get(status_filter.lower(), [status_filter])
+        query = query.filter(JobApplication.status.in_(allowed_statuses))
 
-
-@admin_bp.route('/internship-benefits/<int:benefit_id>/delete', methods=['POST'])
-@admin_required
-def delete_internship_benefit(benefit_id):
-    """Admin action: Delete an internship benefit configuration."""
-    benefit = db.session.get(InternshipBenefit, benefit_id) or abort(404)
-    label = benefit.duration_label
-    try:
-        db.session.delete(benefit)
-        db.session.commit()
-        flash(f"{label} benefits configuration has been deleted.", "info")
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Error deleting benefit configuration: {str(e)}", "danger")
-
-    return redirect(url_for('admin.internship_benefits'))
-
-
-@admin_bp.route('/internship-benefits/reset-defaults', methods=['POST'])
-@admin_required
-def reset_default_internship_benefits():
-    """Admin action: Safe utility to initialize standard default benefits if table is empty or missing defaults."""
-    from services.internship_benefit_service import ensure_default_internship_benefits, DEFAULT_1_MONTH_BENEFITS, DEFAULT_3_MONTH_BENEFITS
-
-    # If already exists, notify admin without destructive reset
-    existing_1m = InternshipBenefit.query.filter_by(duration='1_month').first()
-    existing_3m = InternshipBenefit.query.filter_by(duration='3_months').first()
-
-    added = 0
-    if not existing_1m:
-        b1 = InternshipBenefit(
-            duration='1_month',
-            title='1-Month Internship',
-            subtitle='Accelerated hands-on program with core industry deliverables.',
-            badge_text='Fast-Track',
-            is_active=True,
-            display_order=1
-        )
-        b1.set_benefits_list(DEFAULT_1_MONTH_BENEFITS)
-        db.session.add(b1)
-        added += 1
-
-    if not existing_3m:
-        b3 = InternshipBenefit(
-            duration='3_months',
-            title='3-Month Internship',
-            subtitle='In-depth project development with structured evaluation and mentorship.',
-            badge_text='Comprehensive',
-            is_active=True,
-            display_order=2
-        )
-        b3.set_benefits_list(DEFAULT_3_MONTH_BENEFITS)
-        db.session.add(b3)
-        added += 1
-
-    if added > 0:
-        db.session.commit()
-        flash(f"Created {added} standard default internship benefit configuration(s).", "success")
-    else:
-        flash("Both 1-Month and 3-Month configurations already exist. Existing records were preserved safely.", "info")
-
-    return redirect(url_for('admin.internship_benefits'))
-
-
-# ── CONTACT INQUIRIES MANAGEMENT ───────────────────────────────────────────
-
-INQUIRY_SUBJECT_OPTIONS = [
-    'New Project Inquiry',
-    'Pricing & Packages',
-    'Partnership Opportunity',
-    'Support & Maintenance',
-    'Careers',
-    'Other'
-]
-
-
-@admin_bp.route('/inquiries', methods=['GET'], strict_slashes=False)
-@admin_required
-def inquiries():
-    status_filter = (request.args.get('status') or 'all').strip().lower()
-    subject_filter = (request.args.get('subject') or '').strip()
-    search_query = (request.args.get('q') or '').strip()
-
-    query = ContactInquiry.query
-
-    if status_filter == 'unread':
-        query = query.filter_by(is_processed=False)
-    elif status_filter == 'processed':
-        query = query.filter_by(is_processed=True)
-
-    if subject_filter:
-        query = query.filter(ContactInquiry.subject == subject_filter)
+    if payment_filter and payment_filter.lower() != 'all':
+        if payment_filter.lower() == 'paid':
+            query = query.filter(JobApplication.payment_status.in_(['paid', 'PAID', 'exempt']))
+        elif payment_filter.lower() == 'pending':
+            query = query.filter(JobApplication.payment_status.in_(['pending', 'PENDING']))
+        elif payment_filter.lower() == 'failed':
+            query = query.filter(JobApplication.payment_status.in_(['failed', 'FAILED']))
+        else:
+            query = query.filter(JobApplication.payment_status.ilike(payment_filter))
 
     if search_query:
-        like_pattern = f"%{search_query}%"
         query = query.filter(
-            db.or_(
-                ContactInquiry.name.ilike(like_pattern),
-                ContactInquiry.email.ilike(like_pattern),
-                ContactInquiry.phone.ilike(like_pattern),
-                ContactInquiry.subject.ilike(like_pattern),
-                ContactInquiry.message.ilike(like_pattern)
-            )
+            (JobApplication.full_name.ilike(f'%{search_query}%')) |
+            (JobApplication.email.ilike(f'%{search_query}%')) |
+            (JobApplication.phone.ilike(f'%{search_query}%')) |
+            (JobApplication.college.ilike(f'%{search_query}%')) |
+            (JobApplication.skills.ilike(f'%{search_query}%')) |
+            (JobApplication.application_code.ilike(f'%{search_query}%')) |
+            (JobPosting.title.ilike(f'%{search_query}%')) |
+            (JobPosting.job_code.ilike(f'%{search_query}%')) |
+            (JobPosting.job_id.ilike(f'%{search_query}%')) |
+            (JobPosting.department.ilike(f'%{search_query}%'))
         )
 
-    all_inquiries = query.order_by(ContactInquiry.created_at.desc()).all()
-
-    total_count = ContactInquiry.query.count()
-    unread_count = ContactInquiry.query.filter_by(is_processed=False).count()
-    processed_count = ContactInquiry.query.filter_by(is_processed=True).count()
+    all_applications = query.order_by(JobApplication.created_at.desc()).all()
+    all_jobs = JobPosting.query.order_by(JobPosting.title.asc()).all()
+    total_unfiltered_applications = JobApplication.query.count()
 
     return render_template(
-        'admin/inquiries.html',
-        inquiries=all_inquiries,
-        total_count=total_count,
-        unread_count=unread_count,
-        processed_count=processed_count,
+        'admin/applications.html',
+        applications=all_applications,
+        all_jobs=all_jobs,
+        total_unfiltered_applications=total_unfiltered_applications,
+        selected_job_id=job_id_filter,
+        selected_duration=duration_filter,
         selected_status=status_filter,
-        selected_subject=subject_filter,
-        search_query=search_query,
-        subjects=INQUIRY_SUBJECT_OPTIONS
+        selected_payment_status=payment_filter,
+        search_query=search_query
     )
 
 
-@admin_bp.route('/inquiries/<int:inquiry_id>', methods=['GET'])
+@admin_bp.route('/applications/<int:app_id>', strict_slashes=False)
 @admin_required
-def get_inquiry_detail(inquiry_id):
-    inquiry = db.session.get(ContactInquiry, inquiry_id)
-    if not inquiry:
-        return jsonify({'status': 'error', 'message': 'Inquiry not found'}), 404
+def application_detail(app_id):
+    """
+    Detailed candidate application view with Application ID, contact information,
+    academic credentials, recruitment stage manager, and acknowledgment email tracking.
+    """
+    application = db.session.get(JobApplication, app_id) or abort(404)
+    job = application.job
 
-    return jsonify({
-        'status': 'success',
-        'inquiry': {
-            'id': inquiry.id,
-            'name': inquiry.name,
-            'email': inquiry.email,
-            'phone': inquiry.phone or 'Not provided',
-            'subject': inquiry.subject,
-            'message': inquiry.message,
-            'is_processed': inquiry.is_processed,
-            'created_at': inquiry.created_at.strftime('%b %d, %Y at %I:%M %p') if inquiry.created_at else ''
-        }
-    })
+    return render_template(
+        'admin/application_detail.html',
+        app=application,
+        job=job
+    )
 
 
-@admin_bp.route('/inquiries/<int:inquiry_id>/toggle-status', methods=['POST'])
+@admin_bp.route('/applications/<int:app_id>/stage', methods=['POST'])
+@admin_bp.route('/applications/<int:app_id>/status', methods=['POST'])
 @admin_required
-def toggle_inquiry_status(inquiry_id):
-    inquiry = db.session.get(ContactInquiry, inquiry_id)
-    if not inquiry:
-        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'status': 'error', 'message': 'Inquiry not found'}), 404
-        flash('Inquiry not found.', 'danger')
-        return redirect(url_for('admin.inquiries'))
+def update_application_stage(app_id):
+    """
+    Update candidate's recruitment stage between:
+    - Applied
+    - Under Review
+    - Shortlisted
+    - Rejected
+    """
+    application = db.session.get(JobApplication, app_id) or abort(404)
+    raw_stage = (request.form.get('stage') or request.form.get('status') or '').strip()
 
-    inquiry.is_processed = not inquiry.is_processed
+    stage_map = {
+        'applied': 'Applied',
+        'new': 'Applied',
+        'under review': 'Under Review',
+        'under_review': 'Under Review',
+        'reviewed': 'Under Review',
+        'shortlisted': 'Shortlisted',
+        'rejected': 'Rejected',
+        'not selected': 'Rejected'
+    }
+    normalized = stage_map.get(raw_stage.lower())
+
+    if not normalized:
+        flash(f"Invalid recruitment stage: {raw_stage}", "danger")
+        return redirect(request.referrer or url_for('admin.applications'))
+
+    application.status = normalized
+    application.application_status = normalized
     db.session.commit()
-
-    new_status = 'Processed / Read' if inquiry.is_processed else 'New / Unread'
-    current_app.logger.info(f"[Inquiries] Admin {current_user.email} toggled inquiry #{inquiry.id} status to {new_status}")
-
-    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify({
-            'status': 'success',
-            'is_processed': inquiry.is_processed,
-            'message': f"Inquiry #{inquiry.id} marked as {new_status}."
-        })
-
-    flash(f"Inquiry #{inquiry.id} marked as {new_status}.", 'success')
-    return redirect(url_for('admin.inquiries'))
+    flash(f"Application stage for candidate {application.full_name} updated to '{normalized}'.", "success")
+    return redirect(request.referrer or url_for('admin.application_detail', app_id=application.id))
 
 
-@admin_bp.route('/inquiries/<int:inquiry_id>/delete', methods=['POST'])
+@admin_bp.route('/applications/<int:app_id>/send-acknowledgment', methods=['POST'])
+@admin_bp.route('/applications/<int:app_id>/send-application-email', methods=['POST'])
 @admin_required
-def delete_inquiry(inquiry_id):
-    inquiry = db.session.get(ContactInquiry, inquiry_id)
-    if not inquiry:
-        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'status': 'error', 'message': 'Inquiry not found'}), 404
-        flash('Inquiry not found.', 'danger')
-        return redirect(url_for('admin.inquiries'))
+def send_application_success_email_action(app_id):
+    """
+    Manual administrator trigger to send or resend the official acknowledgment email.
+    """
+    application = db.session.get(JobApplication, app_id) or abort(404)
 
-    sender_name = inquiry.name
-    db.session.delete(inquiry)
-    db.session.commit()
+    try:
+        from services.email_service import send_application_successful_email
+        success, msg = send_application_successful_email(application)
+        if success:
+            flash(f"Acknowledgment email sent successfully to {application.email}.", "success")
+        else:
+            flash(f"Failed to send email: {msg}", "danger")
+    except Exception as e:
+        current_app.logger.error(f"Error sending acknowledgment email for app {app_id}: {e}")
+        flash(f"Unable to dispatch email: {e}", "danger")
 
-    current_app.logger.info(f"[Inquiries] Admin {current_user.email} deleted inquiry #{inquiry_id} from {sender_name}")
-
-    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify({
-            'status': 'success',
-            'message': f"Inquiry from {sender_name} deleted successfully."
-        })
-
-    flash(f"Inquiry from {sender_name} deleted successfully.", 'success')
-    return redirect(url_for('admin.inquiries'))
+    return redirect(request.referrer or url_for('admin.application_detail', app_id=application.id))
 
 
-@admin_bp.route('/inquiries/mark-all-read', methods=['POST'])
+@admin_bp.route('/applications/clear-all', methods=['POST'])
+@admin_bp.route('/applications/delete-all', methods=['POST'])
 @admin_required
-def mark_all_inquiries_read():
-    unread_inquiries = ContactInquiry.query.filter_by(is_processed=False).all()
-    count = len(unread_inquiries)
-    for inq in unread_inquiries:
-        inq.is_processed = True
-    db.session.commit()
+def clear_all_applications():
+    """
+    Clear all candidate applications upon typing DELETE.
+    Safely preserves job postings, templates, and financial records.
+    """
+    confirmation = (request.form.get('confirmation') or '').strip()
+    if confirmation != 'DELETE':
+        flash('Deletion cancelled. You must type DELETE to confirm.', 'danger')
+        return redirect(url_for('admin.applications'))
 
-    current_app.logger.info(f"[Inquiries] Admin {current_user.email} marked all {count} unread inquiries as read.")
-    flash(f"Marked {count} inquiry message(s) as read.", 'success')
-    return redirect(url_for('admin.inquiries'))
+    total_apps = JobApplication.query.count()
+    if total_apps == 0:
+        flash('There are no candidate applications to delete.', 'info')
+        return redirect(url_for('admin.applications'))
+
+    try:
+        apps = JobApplication.query.all()
+        for app in apps:
+            for path_attr in ['resume_path', 'aadhaar_path', 'pan_path', 'college_id_path']:
+                fpath = getattr(app, path_attr, None)
+                if fpath and os.path.exists(fpath):
+                    try:
+                        os.remove(fpath)
+                    except Exception:
+                        pass
+
+        MoneyTransaction.query.filter(MoneyTransaction.application_id.isnot(None)).update({'application_id': None})
+        Payment.query.delete()
+        JobApplication.query.delete()
+        db.session.commit()
+        flash('All candidate applications and associated files have been cleared successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error clearing applications: {e}")
+        flash('Unable to clear candidate applications. No changes were made.', 'danger')
+
+    return redirect(url_for('admin.applications'))
 
 
-@admin_bp.route('/inquiries/delete-all', methods=['POST'])
+@admin_bp.route('/applications/<int:app_id>/document/<string:doc_type>')
 @admin_required
-def delete_all_inquiries():
-    count = ContactInquiry.query.count()
-    ContactInquiry.query.delete()
+def download_document(app_id, doc_type):
+    """Secure, authenticated document download route."""
+    application = db.session.get(JobApplication, app_id) or abort(404)
+    as_attachment = request.args.get('download', '0') == '1'
+
+    if doc_type == 'resume':
+        folder = current_app.config.get('UPLOAD_FOLDER_RESUMES', os.path.join(current_app.root_path, 'uploads', 'resumes'))
+        filename = application.resume_filename
+        if application.resume_path and os.path.exists(application.resume_path):
+            folder = os.path.dirname(application.resume_path)
+            filename = os.path.basename(application.resume_path)
+    elif doc_type == 'aadhaar':
+        folder = current_app.config.get('UPLOAD_FOLDER_DOCUMENTS', os.path.join(current_app.root_path, 'uploads', 'documents'))
+        filename = application.aadhaar_filename
+    elif doc_type == 'pan':
+        folder = current_app.config.get('UPLOAD_FOLDER_DOCUMENTS', os.path.join(current_app.root_path, 'uploads', 'documents'))
+        filename = application.pan_filename
+    elif doc_type == 'college_id':
+        folder = current_app.config.get('UPLOAD_FOLDER_DOCUMENTS', os.path.join(current_app.root_path, 'uploads', 'documents'))
+        filename = application.college_id_filename
+    else:
+        abort(404)
+
+    if not filename:
+        flash(f"No {doc_type} file found for candidate {application.full_name}.", 'warning')
+        return redirect(url_for('admin.application_detail', app_id=application.id))
+
+    return send_from_directory(folder, os.path.basename(filename), as_attachment=as_attachment)
+
+
+@admin_bp.route('/applications/<int:app_id>/resume')
+@admin_required
+def download_resume(app_id):
+    return download_document(app_id, 'resume')
+
+
+# ==============================================================================
+# TEMPLATES MANAGEMENT MODULE
+# ==============================================================================
+
+@admin_bp.route('/templates', methods=['GET'], strict_slashes=False)
+@admin_required
+def templates():
+    """
+    Template Management Hub.
+    Allows viewing, editing, and previewing automated recruitment email templates.
+    """
+    from services.email_service import (
+        DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT,
+        DEFAULT_APPLICATION_SUCCESSFUL_BODY
+    )
+
+    app_success_email = EmailTemplate.query.filter_by(template_type='application_successful').first()
+    if not app_success_email:
+        app_success_email = EmailTemplate(
+            template_type='application_successful',
+            name='Application Acknowledgment',
+            subject=DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT,
+            body=DEFAULT_APPLICATION_SUCCESSFUL_BODY
+        )
+        try:
+            db.session.add(app_success_email)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    return render_template(
+        'admin/templates.html',
+        app_success_email=app_success_email
+    )
+
+
+@admin_bp.route('/templates/email/<string:template_type>', methods=['POST'])
+@admin_required
+def update_email_template(template_type):
+    """
+    Update subject and body for an email template.
+    """
+    valid_types = ['application_successful', 'application_acknowledgment']
+    if template_type not in valid_types:
+        flash('Invalid email template type.', 'danger')
+        return redirect(url_for('admin.templates'))
+
+    subject = (request.form.get('subject') or '').strip()
+    body = (request.form.get('body') or '').strip()
+
+    if not subject or not body:
+        flash('Subject and Body are required for email templates.', 'danger')
+        return redirect(url_for('admin.templates'))
+
+    email_tmpl = EmailTemplate.query.filter_by(template_type='application_successful').first()
+    if not email_tmpl:
+        email_tmpl = EmailTemplate(
+            template_type='application_successful',
+            name='Application Acknowledgment',
+            subject=subject,
+            body=body
+        )
+        db.session.add(email_tmpl)
+    else:
+        email_tmpl.subject = subject
+        email_tmpl.body = body
+
     db.session.commit()
+    flash(f"Application Acknowledgment email template updated successfully.", 'success')
+    return redirect(url_for('admin.templates'))
 
-    current_app.logger.info(f"[Inquiries] Admin {current_user.email} permanently deleted all {count} contact inquiries.")
-    flash(f"Permanently deleted all {count} contact inquiries.", 'info')
-    return redirect(url_for('admin.inquiries'))
 
+@admin_bp.route('/templates/email/<string:template_type>/preview', methods=['GET'])
+@admin_required
+def preview_email_template(template_type):
+    """
+    Preview rendered HTML email with sample candidate data.
+    """
+    from services.email_service import render_sample_email_preview
+    actual_type = 'application_successful' if template_type in ['application_successful', 'application_acknowledgment'] else template_type
+    preview_data = render_sample_email_preview(actual_type)
+    return jsonify(preview_data)
+
+
+@admin_bp.route('/templates/email/<string:template_type>/test', methods=['POST'])
+@admin_required
+def send_test_email_route(template_type):
+    """
+    Send sample test acknowledgment email to admin-specified address.
+    """
+    recipient_email = (request.form.get('test_recipient') or '').strip()
+    if not recipient_email:
+        flash('Please specify a recipient email address for testing.', 'danger')
+        return redirect(url_for('admin.templates'))
+
+    from services.email_service import send_test_email
+    actual_type = 'application_successful' if template_type in ['application_successful', 'application_acknowledgment'] else template_type
+    success, msg = send_test_email(actual_type, recipient_email)
+    if success:
+        flash(f"Test email sent to {recipient_email}: {msg}", 'success')
+    else:
+        flash(f"Failed to send test email: {msg}", 'danger')
+
+    return redirect(url_for('admin.templates'))
+
+
+# ==============================================================================
+# RETIRED MODULES COMPATIBILITY STUBS
+# ==============================================================================
+
+def _retired_module_redirect():
+    flash("This administrative module has been retired.", "info")
+    return redirect(url_for('admin.dashboard'))
+
+
+# --- Employees (Retired) ---
+@admin_bp.route('/employees', methods=['GET', 'POST'], strict_slashes=False)
+@admin_bp.route('/employees/<path:subpath>', methods=['GET', 'POST'], strict_slashes=False)
+@admin_required
+def employees(subpath=None, *args, **kwargs):
+    return _retired_module_redirect()
+
+
+@admin_bp.route('/employees/create', methods=['GET', 'POST'], strict_slashes=False)
+@admin_required
+def create_employee(*args, **kwargs):
+    return _retired_module_redirect()
+
+
+@admin_bp.route('/employees/<string:employee_id>', methods=['GET', 'POST'], strict_slashes=False)
+@admin_required
+def view_employee(employee_id=None, *args, **kwargs):
+    return _retired_module_redirect()
+
+
+# --- Internship Benefits (Retired) ---
+@admin_bp.route('/internship-benefits', methods=['GET', 'POST'], strict_slashes=False)
+@admin_bp.route('/internship-benefits/<path:subpath>', methods=['GET', 'POST'], strict_slashes=False)
+@admin_required
+def internship_benefits(subpath=None, *args, **kwargs):
+    return _retired_module_redirect()
+
+
+# --- Contact Inquiries (Retired) ---
+@admin_bp.route('/inquiries', methods=['GET', 'POST'], strict_slashes=False)
+@admin_bp.route('/inquiries/<path:subpath>', methods=['GET', 'POST'], strict_slashes=False)
+@admin_required
+def inquiries(subpath=None, *args, **kwargs):
+    return _retired_module_redirect()
+
+
+# Compatibility aliases for legacy endpoint resolution:
+_RETIRED_ENDPOINTS = [
+    'mark_application_under_review', 'mark_application_shortlisted',
+    'mark_application_offer_complete', 'mark_application_hired',
+    'send_joining_email_action', 'retry_shortlist_offer_email',
+    'download_application_offer_letter', 'preview_application_offer_letter_file',
+    'preview_application_offer_letter_pdf', 'preview_application_offer_letter',
+    'preview_document_file_by_id', 'preview_document_pdf_by_id',
+    'preview_document_by_id', 'update_application_payment_status',
+    'admin_reset_employee_password', 'upload_document_template',
+    'create_template', 'assign_job_to_template', 'activate_document_template',
+    'deactivate_document_template', 'delete_document_template',
+    'download_document_template_by_id', 'preview_document_template_info',
+    'download_document_template', 'generate_offer_letter', 'preview_offer_letter',
+    'verify_offer_letter', 'send_offer_letter', 'add_internship_benefit',
+    'edit_internship_benefit', 'delete_internship_benefit',
+    'reset_default_internship_benefits', 'get_inquiry_detail',
+    'toggle_inquiry_status', 'delete_inquiry', 'mark_all_inquiries_read',
+    'delete_all_inquiries'
+]
+
+def _retired_stub(*args, **kwargs):
+    return _retired_module_redirect()
+
+for _ep in _RETIRED_ENDPOINTS:
+    admin_bp.add_url_rule(f'/_retired/{_ep}', endpoint=_ep, view_func=_retired_stub, methods=['GET', 'POST'])
