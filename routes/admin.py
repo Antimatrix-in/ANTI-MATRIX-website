@@ -549,6 +549,31 @@ def money_management():
             pass
         all_categories = sorted(list(set(STANDARD_INCOME_CATEGORIES + STANDARD_EXPENSE_CATEGORIES)))
 
+    # Partner Earnings Records Table queries
+    partner_id_filter = request.args.get('partner_filter', '').strip() or None
+    q_partner = request.args.get('q_partner', '').strip() or None
+    sort_partner = request.args.get('sort_partner', 'newest').strip() or 'newest'
+
+    try:
+        from services.money_service import filter_partner_earnings_records, get_active_partners
+        partner_records = filter_partner_earnings_records(
+            partner_id=partner_id_filter,
+            date_filter=date_filter,
+            start_date=start_date,
+            end_date=end_date,
+            search_query=q_partner,
+            sort_by=sort_partner
+        ).all()
+        active_partners = get_active_partners()
+    except Exception as e:
+        current_app.logger.warning(f"[MoneyManagement] Partner records query note: {e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        partner_records = []
+        active_partners = []
+
     # Base counts for admin navigation badges
     try:
         total_jobs = JobPosting.query.count()
@@ -597,7 +622,12 @@ def money_management():
         total_jobs=total_jobs,
         total_applications=total_applications,
         new_applications=new_applications,
-        total_employees=total_employees
+        total_employees=total_employees,
+        partner_records=partner_records,
+        active_partners=active_partners,
+        partner_id_filter=partner_id_filter,
+        q_partner=q_partner,
+        sort_partner=sort_partner
     )
 
 
@@ -943,6 +973,114 @@ def clear_all_money_transactions():
         flash(f"Error clearing transactions: {err}", 'danger')
 
     return redirect(url_for('admin.money_management'))
+
+
+# ==============================================================================
+# PARTNER EARNINGS RECORD ENDPOINTS
+# ==============================================================================
+
+@admin_bp.route('/partner-earnings/create', methods=['POST'], endpoint='create_partner_earnings_record', strict_slashes=False)
+@admin_bp.route('/partner_earnings/create', methods=['POST'], endpoint='create_partner_earnings_record_alias', strict_slashes=False)
+@admin_required
+def create_partner_earnings_record_route():
+    """
+    Creates and records a verified partner earnings contribution.
+    """
+    from services.money_service import create_partner_earnings_record
+
+    partner_id = request.form.get('partner_id')
+    amount = request.form.get('amount')
+    earnings_date = request.form.get('earnings_date')
+    description = request.form.get('description')
+    reference = request.form.get('reference')
+    notes = request.form.get('notes')
+    date_filter = request.form.get('date_filter', 'all')
+
+    success, record, err = create_partner_earnings_record(
+        partner_id=partner_id,
+        amount=amount,
+        earnings_date=earnings_date,
+        description=description,
+        reference=reference,
+        notes=notes,
+        created_by=getattr(current_user, 'id', None)
+    )
+
+    if success:
+        flash(f"Earnings record of ₹{record.amount:,.2f} recorded successfully for {record.partner.name}.", 'success')
+    else:
+        flash(err or "Failed to record partner earnings.", 'danger')
+
+    return redirect(url_for('admin.money_management', date=date_filter))
+
+
+@admin_bp.route('/partner-earnings/<int:record_id>/edit', methods=['POST'], endpoint='edit_partner_earnings_record', strict_slashes=False)
+@admin_bp.route('/partner_earnings/<int:record_id>/edit', methods=['POST'], endpoint='edit_partner_earnings_record_alias', strict_slashes=False)
+@admin_required
+def edit_partner_earnings_record_route(record_id):
+    """
+    Updates an existing partner earnings contribution entry.
+    """
+    from services.money_service import update_partner_earnings_record
+
+    partner_id = request.form.get('partner_id')
+    amount = request.form.get('amount')
+    earnings_date = request.form.get('earnings_date')
+    description = request.form.get('description')
+    reference = request.form.get('reference')
+    notes = request.form.get('notes')
+    date_filter = request.form.get('date_filter', 'all')
+
+    success, record, err = update_partner_earnings_record(
+        record_id=record_id,
+        partner_id=partner_id,
+        amount=amount,
+        earnings_date=earnings_date,
+        description=description,
+        reference=reference,
+        notes=notes
+    )
+
+    if success:
+        flash(f"Partner earnings record updated successfully for {record.partner.name}.", 'success')
+    else:
+        flash(err or "Failed to update partner earnings record.", 'danger')
+
+    return redirect(url_for('admin.money_management', date=date_filter))
+
+
+@admin_bp.route('/partner-earnings/<int:record_id>/delete', methods=['POST'], endpoint='delete_partner_earnings_record', strict_slashes=False)
+@admin_bp.route('/partner_earnings/<int:record_id>/delete', methods=['POST'], endpoint='delete_partner_earnings_record_alias', strict_slashes=False)
+@admin_required
+def delete_partner_earnings_record_route(record_id):
+    """
+    Permanently deletes a partner earnings contribution entry.
+    """
+    from services.money_service import delete_partner_earnings_record
+
+    date_filter = request.form.get('date_filter', 'all')
+    success, err = delete_partner_earnings_record(record_id)
+
+    if success:
+        flash("Partner earnings record deleted successfully.", 'success')
+    else:
+        flash(err or "Failed to delete partner earnings record.", 'danger')
+
+    return redirect(url_for('admin.money_management', date=date_filter))
+
+
+@admin_bp.route('/partner-earnings/<int:record_id>', methods=['GET'], endpoint='get_partner_earnings_record', strict_slashes=False)
+@admin_bp.route('/partner_earnings/<int:record_id>', methods=['GET'], endpoint='get_partner_earnings_record_alias', strict_slashes=False)
+@admin_required
+def get_partner_earnings_record_detail(record_id):
+    """
+    Returns JSON details of a single partner earnings record for modal editing.
+    """
+    from models import PartnerEarningsRecord
+    record = db.session.get(PartnerEarningsRecord, record_id)
+    if not record:
+        return jsonify({'error': 'Earnings record not found'}), 404
+    return jsonify(record.to_dict())
 
 
 

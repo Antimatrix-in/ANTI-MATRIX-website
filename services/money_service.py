@@ -2,8 +2,9 @@ import logging
 from datetime import datetime, timezone, date, timedelta
 from sqlalchemy import inspect, text
 from flask import current_app
-from models import db, MoneyTransaction, Payment, JobApplication
+from models import db, MoneyTransaction, Payment, JobApplication, PartnerEarningsRecord
 from models.partner import Partner
+from models.partner_earnings_record import PartnerEarningsRecord
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +224,14 @@ def ensure_money_management_schema():
         # 3. Initialize default partners
         ensure_default_partners_initialized()
 
+        # 4. Create partner_earnings_records table if not exists
+        if 'partner_earnings_records' not in table_names:
+            try:
+                PartnerEarningsRecord.__table__.create(db.engine, checkfirst=True)
+                logger.info("[MoneyService] 'partner_earnings_records' table created successfully.")
+            except Exception as e:
+                logger.warning(f"[MoneyService] Table creation note for partner_earnings_records: {e}")
+
         _MONEY_SCHEMA_INITIALIZED = True
         return True
     except Exception as e:
@@ -337,7 +346,23 @@ def get_partner_earnings_summary(date_filter='all', start_date=None, end_date=No
     # Retrieve all active partners
     partners = get_active_partners()
 
-    # Query all income transactions within the period
+    # 1. Query partner earnings records within the period
+    records_query = PartnerEarningsRecord.query
+    if start_d:
+        records_query = records_query.filter(PartnerEarningsRecord.earnings_date >= start_d)
+    if end_d:
+        records_query = records_query.filter(PartnerEarningsRecord.earnings_date <= end_d)
+    all_period_records = records_query.all()
+
+    # Aggregate by partner_id
+    partner_income_map = {}
+    partner_txn_count_map = {}
+    for rec in all_period_records:
+        amt = float(rec.amount or 0)
+        partner_income_map[rec.partner_id] = partner_income_map.get(rec.partner_id, 0.0) + amt
+        partner_txn_count_map[rec.partner_id] = partner_txn_count_map.get(rec.partner_id, 0) + 1
+
+    # 2. Query company income transactions for unassigned income and any linked transactions
     income_query = MoneyTransaction.query.filter(MoneyTransaction.transaction_type == 'INCOME')
     if start_d:
         income_query = income_query.filter(MoneyTransaction.transaction_date >= start_d)
@@ -345,9 +370,6 @@ def get_partner_earnings_summary(date_filter='all', start_date=None, end_date=No
         income_query = income_query.filter(MoneyTransaction.transaction_date <= end_d)
     all_period_income = income_query.all()
 
-    # Aggregate by partner_id
-    partner_income_map = {}
-    partner_txn_count_map = {}
     unassigned_income = 0.0
     for txn in all_period_income:
         amt = float(txn.amount or 0)
@@ -374,6 +396,7 @@ def get_partner_earnings_summary(date_filter='all', start_date=None, end_date=No
             'total_amount': tot,
             'formatted_amount': format_inr(tot),
             'transaction_count': cnt,
+            'record_count': cnt,
             'bar_height_pct': 0.0,
             'is_top_contributor': False
         })
@@ -404,7 +427,7 @@ def get_partner_earnings_summary(date_filter='all', start_date=None, end_date=No
         for p in partner_list:
             if p['total_amount'] > 0:
                 pct = round((p['total_amount'] / scale_max) * 100.0, 1)
-                p['bar_height_pct'] = max(6.0, min(100.0, pct))
+                p['bar_height_pct'] = max(12.0, min(100.0, pct))
             else:
                 p['bar_height_pct'] = 0.0
 
@@ -431,14 +454,186 @@ def get_partner_earnings_summary(date_filter='all', start_date=None, end_date=No
         'partners': partner_list,
         'max_earnings': max_earnings,
         'total_partner_earnings': total_partner_earnings,
+        'formatted_total_earnings': format_inr(total_partner_earnings),
         'unassigned_income': unassigned_income,
+        'formatted_unassigned_income': format_inr(unassigned_income),
         'has_earnings': has_earnings,
         'y_ticks': y_ticks,
         'date_filter': date_filter_clean,
         'date_filter_label': date_filter_label,
         'start_date': start_d.strftime('%Y-%m-%d') if start_d else '',
-        'end_date': end_d.strftime('%Y-%m-%d') if end_d else ''
+        'end_date': end_d.strftime('%Y-%m-%d') if end_d else '',
+        'total_records_count': len(all_period_records)
     }
+
+
+# ==============================================================================
+# PARTNER EARNINGS RECORD MANAGEMENT CRUD
+# ==============================================================================
+
+def filter_partner_earnings_records(partner_id=None, date_filter='all', start_date=None, end_date=None, search_query=None, sort_by='newest'):
+    """
+    Filters PartnerEarningsRecord query by partner, date range, search terms, and sort order.
+    """
+    query = PartnerEarningsRecord.query.join(Partner, PartnerEarningsRecord.partner_id == Partner.id)
+
+    if partner_id and str(partner_id).isdigit() and int(partner_id) > 0:
+        query = query.filter(PartnerEarningsRecord.partner_id == int(partner_id))
+
+    start_d, end_d = get_date_range_for_filter(date_filter, start_date, end_date)
+    if start_d:
+        query = query.filter(PartnerEarningsRecord.earnings_date >= start_d)
+    if end_d:
+        query = query.filter(PartnerEarningsRecord.earnings_date <= end_d)
+
+    if search_query:
+        q = f"%{search_query.strip()}%"
+        query = query.filter(
+            (Partner.name.ilike(q)) |
+            (PartnerEarningsRecord.description.ilike(q)) |
+            (PartnerEarningsRecord.reference.ilike(q)) |
+            (PartnerEarningsRecord.notes.ilike(q))
+        )
+
+    if sort_by == 'oldest':
+        query = query.order_by(PartnerEarningsRecord.earnings_date.asc(), PartnerEarningsRecord.id.asc())
+    elif sort_by == 'highest':
+        query = query.order_by(PartnerEarningsRecord.amount.desc(), PartnerEarningsRecord.earnings_date.desc())
+    elif sort_by == 'lowest':
+        query = query.order_by(PartnerEarningsRecord.amount.asc(), PartnerEarningsRecord.earnings_date.desc())
+    else:  # newest default
+        query = query.order_by(PartnerEarningsRecord.earnings_date.desc(), PartnerEarningsRecord.id.desc())
+
+    return query
+
+
+def create_partner_earnings_record(partner_id, amount, earnings_date=None, description=None, reference=None, notes=None, created_by=None):
+    """
+    Creates and persists a new PartnerEarningsRecord in the database.
+    Validates partner existence, positive numeric amount, and valid date.
+    Returns (success: bool, record: PartnerEarningsRecord or None, error_message: str or None).
+    """
+    try:
+        if not partner_id:
+            return False, None, "Partner is required."
+        
+        partner = db.session.get(Partner, int(partner_id))
+        if not partner:
+            return False, None, f"Partner with ID {partner_id} not found."
+
+        try:
+            val_amount = float(amount)
+            if val_amount <= 0:
+                return False, None, "Earnings amount must be greater than zero."
+        except (ValueError, TypeError):
+            return False, None, "Please enter a valid numeric earnings amount."
+
+        if isinstance(earnings_date, str):
+            clean_date = earnings_date.strip()
+            if clean_date:
+                try:
+                    parsed_date = datetime.strptime(clean_date, '%Y-%m-%d').date()
+                except ValueError:
+                    return False, None, "Invalid earnings date format. Expected YYYY-MM-DD."
+            else:
+                parsed_date = datetime.now(timezone.utc).date()
+        elif isinstance(earnings_date, date):
+            parsed_date = earnings_date
+        else:
+            parsed_date = datetime.now(timezone.utc).date()
+
+        record = PartnerEarningsRecord(
+            partner_id=partner.id,
+            amount=val_amount,
+            earnings_date=parsed_date,
+            description=(description or '').strip() or None,
+            reference=(reference or '').strip() or None,
+            notes=(notes or '').strip() or None,
+            created_by=created_by
+        )
+        db.session.add(record)
+        db.session.commit()
+        logger.info(f"[MoneyService] Created PartnerEarningsRecord ID {record.id} for Partner {partner.name} amount ₹{val_amount:,.2f}")
+        return True, record, None
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"[MoneyService] Error creating partner earnings record: {e}", exc_info=True)
+        return False, None, str(e)
+
+
+def update_partner_earnings_record(record_id, partner_id, amount, earnings_date=None, description=None, reference=None, notes=None):
+    """
+    Updates an existing PartnerEarningsRecord in place.
+    Returns (success: bool, record: PartnerEarningsRecord or None, error_message: str or None).
+    """
+    try:
+        record = db.session.get(PartnerEarningsRecord, int(record_id))
+        if not record:
+            return False, None, f"Earnings record with ID {record_id} not found."
+
+        if not partner_id:
+            return False, None, "Partner is required."
+        
+        partner = db.session.get(Partner, int(partner_id))
+        if not partner:
+            return False, None, f"Partner with ID {partner_id} not found."
+
+        try:
+            val_amount = float(amount)
+            if val_amount <= 0:
+                return False, None, "Earnings amount must be greater than zero."
+        except (ValueError, TypeError):
+            return False, None, "Please enter a valid numeric earnings amount."
+
+        if isinstance(earnings_date, str):
+            clean_date = earnings_date.strip()
+            if clean_date:
+                try:
+                    parsed_date = datetime.strptime(clean_date, '%Y-%m-%d').date()
+                except ValueError:
+                    return False, None, "Invalid earnings date format. Expected YYYY-MM-DD."
+            else:
+                parsed_date = record.earnings_date
+        elif isinstance(earnings_date, date):
+            parsed_date = earnings_date
+        else:
+            parsed_date = record.earnings_date
+
+        record.partner_id = partner.id
+        record.amount = val_amount
+        record.earnings_date = parsed_date
+        record.description = (description or '').strip() or None
+        record.reference = (reference or '').strip() or None
+        record.notes = (notes or '').strip() or None
+        record.updated_at = datetime.now(timezone.utc)
+
+        db.session.commit()
+        logger.info(f"[MoneyService] Updated PartnerEarningsRecord ID {record.id} for Partner {partner.name} amount ₹{val_amount:,.2f}")
+        return True, record, None
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"[MoneyService] Error updating partner earnings record: {e}", exc_info=True)
+        return False, None, str(e)
+
+
+def delete_partner_earnings_record(record_id):
+    """
+    Permanently deletes a PartnerEarningsRecord.
+    Returns (success: bool, error_message: str or None).
+    """
+    try:
+        record = db.session.get(PartnerEarningsRecord, int(record_id))
+        if not record:
+            return False, f"Earnings record with ID {record_id} not found."
+
+        db.session.delete(record)
+        db.session.commit()
+        logger.info(f"[MoneyService] Deleted PartnerEarningsRecord ID {record_id}.")
+        return True, None
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"[MoneyService] Error deleting partner earnings record: {e}", exc_info=True)
+        return False, str(e)
 
 
 def record_cashfree_income(application, payment, payment_details=None, env=None):
@@ -585,6 +780,7 @@ def get_financial_summary(env_filter='all', date_filter='all', start_date=None, 
         'total_income': filtered_income,
         'total_expense': filtered_expense,
         'balance': filtered_balance,
+        'net_profit': filtered_balance,
         'transaction_count': len(filtered_txns),
         'formatted_income': format_inr(filtered_income),
         'formatted_expense': format_inr(filtered_expense),
