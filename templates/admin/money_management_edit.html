@@ -150,6 +150,19 @@
               <input type="text" id="editPurpose" name="purpose" class="form-input" value="{{ txn.purpose or '' }}" placeholder="Enter transaction purpose" />
             </div>
 
+            <!-- Attributed Partner (Optional) -->
+            <div class="form-group">
+              <label class="form-label" for="editPartner" style="font-weight: 600;">
+                Attributed Partner (Optional)
+              </label>
+              <select id="editPartner" name="partner_id" class="form-input admin-select" style="width: 100%;">
+                <option value="">-- General Company / Unassigned --</option>
+                {% for partner in partners %}
+                  <option value="{{ partner.id }}" {{ 'selected' if txn.partner_id == partner.id else '' }}>{{ partner.name }} ({{ partner.role_title }})</option>
+                {% endfor %}
+              </select>
+            </div>
+
             <!-- Payment Method -->
             <div class="form-group">
               <label class="form-label" for="editPaymentMethod" style="font-weight: 600;">

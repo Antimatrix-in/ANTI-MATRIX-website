@@ -434,8 +434,9 @@ def money_management():
     Displays Google Pay-style chronological transactions, summaries, and filters.
     """
     from services.money_service import (
-        get_financial_summary, filter_transactions,
-        STANDARD_INCOME_CATEGORIES, STANDARD_EXPENSE_CATEGORIES, PAYMENT_METHODS
+        get_financial_summary, filter_transactions, get_partner_earnings_summary,
+        STANDARD_INCOME_CATEGORIES, STANDARD_EXPENSE_CATEGORIES, PAYMENT_METHODS,
+        format_inr
     )
 
     type_filter = (request.args.get('type') or 'all').strip().lower()
@@ -446,6 +447,13 @@ def money_management():
     category_filter = (request.args.get('category') or 'all').strip()
     search_query = (request.args.get('q') or '').strip()
     sort_by = (request.args.get('sort') or 'newest').strip().lower()
+
+    # Dynamic partner earnings summary for descending bar chart
+    partner_summary = get_partner_earnings_summary(
+        date_filter=date_filter,
+        start_date=start_date,
+        end_date=end_date
+    )
 
     # Dynamic backend summary calculations (database-driven)
     summary = get_financial_summary(
@@ -492,6 +500,8 @@ def money_management():
 
     return render_template(
         'admin/money_management.html',
+        partner_summary=partner_summary,
+        format_inr=format_inr,
         summary=summary,
         transactions=transactions,
         type_filter=type_filter,
@@ -523,7 +533,8 @@ def add_money_transaction():
     POST: Processes and stores the manual transaction with audit logging.
     """
     from services.money_service import (
-        STANDARD_INCOME_CATEGORIES, STANDARD_EXPENSE_CATEGORIES, PAYMENT_METHODS
+        STANDARD_INCOME_CATEGORIES, STANDARD_EXPENSE_CATEGORIES, PAYMENT_METHODS,
+        get_active_partners
     )
 
     if request.method == 'POST':
@@ -537,6 +548,8 @@ def add_money_transaction():
         description = (request.form.get('description') or '').strip()
         payment_method = (request.form.get('payment_method') or 'Bank Transfer').strip()
         reference = (request.form.get('reference') or '').strip()
+        partner_id_raw = (request.form.get('partner_id') or '').strip()
+        partner_id = int(partner_id_raw) if partner_id_raw.isdigit() else None
 
         # Handle custom category
         if category.lower() in ['other', 'custom', 'other income', 'other expense'] and custom_category:
@@ -592,6 +605,7 @@ def add_money_transaction():
                 description=description,
                 payment_method=payment_method,
                 reference=reference,
+                partner_id=partner_id,
                 source='MANUAL',
                 provider='MANUAL',
                 environment='MANUAL',
@@ -609,6 +623,7 @@ def add_money_transaction():
             return redirect(url_for('admin.add_money_transaction'))
 
     # GET Request: Prepare form context
+    partners = get_active_partners()
     total_jobs = JobPosting.query.count()
     total_applications = JobApplication.query.count()
     new_applications = JobApplication.query.filter_by(status='New').count()
@@ -622,6 +637,7 @@ def add_money_transaction():
 
     return render_template(
         'admin/money_management_add.html',
+        partners=partners,
         income_categories=STANDARD_INCOME_CATEGORIES,
         expense_categories=STANDARD_EXPENSE_CATEGORIES,
         payment_methods=PAYMENT_METHODS,
@@ -654,7 +670,7 @@ def edit_money_transaction(txn_id):
     """
     from services.money_service import (
         STANDARD_INCOME_CATEGORIES, STANDARD_EXPENSE_CATEGORIES, PAYMENT_METHODS,
-        validate_manual_admin_mutation
+        validate_manual_admin_mutation, get_active_partners
     )
 
     txn = db.session.get(MoneyTransaction, txn_id)
@@ -678,6 +694,8 @@ def edit_money_transaction(txn_id):
         description = (request.form.get('description') or '').strip()
         payment_method = (request.form.get('payment_method') or txn.payment_method or 'Manual').strip()
         reference = (request.form.get('reference') or '').strip()
+        partner_id_raw = (request.form.get('partner_id') or '').strip()
+        partner_id = int(partner_id_raw) if partner_id_raw.isdigit() else None
 
         if category.lower() in ['other', 'custom', 'other income', 'other expense'] and custom_category:
             category = custom_category
@@ -716,6 +734,7 @@ def edit_money_transaction(txn_id):
         txn.description = description
         txn.payment_method = payment_method
         txn.reference = reference
+        txn.partner_id = partner_id
         txn.updated_at = datetime.now(timezone.utc)
 
         try:
@@ -728,6 +747,7 @@ def edit_money_transaction(txn_id):
             return redirect(url_for('admin.edit_money_transaction', txn_id=txn_id))
 
     # GET Request: Prepare pre-populated form context
+    partners = get_active_partners()
     total_jobs = JobPosting.query.count()
     total_applications = JobApplication.query.count()
     new_applications = JobApplication.query.filter_by(status='New').count()
@@ -746,6 +766,7 @@ def edit_money_transaction(txn_id):
     return render_template(
         'admin/money_management_edit.html',
         txn=txn,
+        partners=partners,
         is_custom_category=is_custom_category,
         income_categories=STANDARD_INCOME_CATEGORIES,
         expense_categories=STANDARD_EXPENSE_CATEGORIES,

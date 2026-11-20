@@ -474,6 +474,26 @@ def create_app(config_name=None):
                 ensure_default_templates_and_mappings()
             except Exception as tmpl_init_err:
                 logger.warning(f"Email templates/mappings initialization note: {tmpl_init_err}")
+
+            # Ensure partners table exists
+            if 'partners' not in inspector.get_table_names():
+                from models.partner import Partner
+                Partner.__table__.create(db.engine, checkfirst=True)
+
+            # Ensure money_transactions has partner_id column
+            if 'money_transactions' in inspector.get_table_names():
+                mt_cols = [c['name'] for c in inspector.get_columns('money_transactions')]
+                if 'partner_id' not in mt_cols:
+                    with db.engine.connect() as conn:
+                        conn.execute(text("ALTER TABLE money_transactions ADD COLUMN partner_id INTEGER REFERENCES partners(id)"))
+                        conn.commit()
+
+            # Ensure core partners are safely initialized
+            try:
+                from services.money_service import ensure_default_partners_initialized
+                ensure_default_partners_initialized()
+            except Exception as partner_init_err:
+                logger.warning(f"Partner initialization note: {partner_init_err}")
         except Exception as e:
             app.logger.warning(f"Database auto-migration note: {str(e)}")
 

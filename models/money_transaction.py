@@ -31,6 +31,7 @@ class MoneyTransaction(db.Model):
     application_id = db.Column(db.Integer, db.ForeignKey('job_applications.id', ondelete='SET NULL'), nullable=True, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
     job_id = db.Column(db.Integer, db.ForeignKey('job_postings.id', ondelete='SET NULL'), nullable=True, index=True)
+    partner_id = db.Column(db.Integer, db.ForeignKey('partners.id', ondelete='SET NULL'), nullable=True, index=True)
     
     # Environment tagging
     environment = db.Column(db.String(30), default='PRODUCTION', nullable=False)  # 'PRODUCTION', 'SANDBOX', 'TEST', 'MANUAL'
@@ -45,6 +46,7 @@ class MoneyTransaction(db.Model):
     user = db.relationship('User', foreign_keys=[user_id], lazy=True)
     admin_creator = db.relationship('User', foreign_keys=[created_by_admin_id], lazy=True)
     job = db.relationship('JobPosting', foreign_keys=[job_id], lazy=True)
+    partner = db.relationship('Partner', backref=db.backref('transactions', lazy=True), foreign_keys=[partner_id])
 
     @property
     def is_income(self):
@@ -124,6 +126,8 @@ class MoneyTransaction(db.Model):
             'application_id': self.application_id,
             'application_code': self.application.formatted_code if self.application else None,
             'candidate_name': self.application.full_name if self.application else (self.user.name if self.user else None),
+            'partner_id': self.partner_id,
+            'partner_name': self.partner.name if self.partner else None,
             'environment': self.environment,
             'environment_display': self.environment_display,
             'is_manual': self.is_manual,

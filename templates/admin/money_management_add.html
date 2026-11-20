@@ -150,6 +150,19 @@
               <input type="text" id="addPurpose" name="purpose" class="form-input" placeholder="Enter transaction purpose (e.g. Website domain renewal for antimatrix.co.in)" />
             </div>
 
+            <!-- Attributed Partner (Optional) -->
+            <div class="form-group">
+              <label class="form-label" for="addPartner" style="font-weight: 600;">
+                Attributed Partner (Optional)
+              </label>
+              <select id="addPartner" name="partner_id" class="form-input admin-select" style="width: 100%;">
+                <option value="">-- General Company / Unassigned --</option>
+                {% for partner in partners %}
+                  <option value="{{ partner.id }}">{{ partner.name }} ({{ partner.role_title }})</option>
+                {% endfor %}
+              </select>
+            </div>
+
             <!-- Payment Method -->
             <div class="form-group">
               <label class="form-label" for="addPaymentMethod" style="font-weight: 600;">

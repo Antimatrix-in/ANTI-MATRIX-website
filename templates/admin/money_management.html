@@ -4,8 +4,859 @@
 {% block title %}Money Management | Anti-Matrix{% endblock %}
 
 {% block content %}
+<style>
+  /* ==============================================================================
+     MONEY MANAGEMENT DASHBOARD STYLES
+     ============================================================================== */
+
+  .money-container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 var(--space-xl);
+  }
+
+  /* Admin Header */
+  .admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .admin-header h1 {
+    font-size: 1.85rem;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+  .admin-header p {
+    color: #64748b;
+    font-size: 0.925rem;
+    margin: 0.35rem 0 0 0;
+  }
+
+  /* Admin Navigation Tabs */
+  .admin-nav-tabs {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 2rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .admin-nav-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .admin-nav-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.75rem 1.15rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #64748b;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+  .admin-nav-tab:hover {
+    color: #0f172a;
+  }
+  .admin-nav-tab.active {
+    color: #059669;
+    border-bottom-color: #059669;
+  }
+
+  /* ==============================================================================
+     PARTNER EARNINGS OVERVIEW — MAIN CHART CARD
+     ============================================================================== */
+
+  .partner-chart-card {
+    background: #ffffff;
+    border-radius: 18px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+    padding: 2rem 2.25rem 1.75rem;
+    margin-bottom: 2rem;
+    position: relative;
+  }
+
+  .partner-chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .partner-chart-title-area {
+    max-width: 480px;
+  }
+  .partner-chart-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.2rem 0.6rem;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.45rem;
+  }
+  .partner-chart-title {
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+  .partner-chart-subtitle {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin: 0.35rem 0 0 0;
+  }
+
+  /* Date Filter Pills */
+  .chart-date-pills {
+    display: inline-flex;
+    align-items: center;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 4px;
+    gap: 3px;
+    flex-wrap: wrap;
+  }
+  .chart-pill {
+    padding: 0.42rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #64748b;
+    text-decoration: none;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .chart-pill:hover {
+    color: #0f172a;
+    background: #f1f5f9;
+  }
+  .chart-pill.active {
+    background: #059669;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
+  }
+
+  /* Custom Date Range Inline Row */
+  .chart-custom-date-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  /* Chart Layout & Y-Axis Canvas */
+  .chart-viewport {
+    position: relative;
+    width: 100%;
+    margin-top: 1rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.5rem;
+  }
+
+  .chart-canvas {
+    min-width: 640px;
+    position: relative;
+    padding-left: 95px; /* Room for Y-axis labels */
+    height: 380px;
+  }
+
+  /* Y-Axis scale and horizontal grid lines */
+  .chart-y-axis {
+    position: absolute;
+    left: 0;
+    top: 60px; /* Aligns with top of bar track */
+    bottom: 50px; /* Aligns with bottom of bar track */
+    width: 100%;
+    pointer-events: none;
+  }
+  .chart-y-tick {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    transform: translateY(50%);
+  }
+  .chart-y-label {
+    width: 82px;
+    text-align: right;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    padding-right: 12px;
+    font-family: var(--font-mono, monospace);
+  }
+  .chart-grid-line {
+    flex: 1;
+    height: 1px;
+    background: #f1f5f9;
+  }
+
+  /* Bars Container */
+  .chart-bars-track-area {
+    position: absolute;
+    left: 95px;
+    right: 10px;
+    top: 60px;
+    bottom: 50px;
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-end;
+    gap: 1.5rem;
+  }
+
+  .partner-bar-column {
+    flex: 1;
+    max-width: 130px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    position: relative;
+  }
+
+  /* Partner Profile Info (Positioned Above the Bar Track) */
+  .partner-profile-header {
+    position: absolute;
+    top: -65px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 120px;
+    pointer-events: auto;
+  }
+
+  .partner-avatar-wrapper {
+    position: relative;
+    margin-bottom: 4px;
+  }
+  .partner-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    border: 3px solid #ffffff;
+    box-shadow: 0 3px 8px rgba(5, 150, 105, 0.22);
+    overflow: hidden;
+  }
+  .partner-avatar.rank-1 {
+    border-color: #fef08a;
+    box-shadow: 0 4px 12px rgba(234, 179, 8, 0.35);
+  }
+  .partner-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .partner-crown-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #fef08a;
+    color: #854d0e;
+    border: 1px solid #facc15;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .partner-name {
+    font-size: 0.825rem;
+    font-weight: 700;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 110px;
+  }
+  .partner-role {
+    font-size: 0.7rem;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 110px;
+  }
+
+  /* The Vertical Bar */
+  .partner-bar-wrapper {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    position: relative;
+  }
+
+  .partner-bar {
+    width: 58%;
+    max-width: 52px;
+    min-width: 38px;
+    background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+    border-radius: 10px 10px 0 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgba(5, 150, 105, 0.2);
+  }
+  .partner-bar:hover {
+    background: linear-gradient(180deg, #34d399 0%, #059669 100%);
+    box-shadow: 0 6px 18px rgba(5, 150, 105, 0.35);
+    transform: translateY(-2px);
+  }
+  .partner-bar.zero-height {
+    height: 2px !important;
+    background: #cbd5e1;
+    box-shadow: none;
+    border-radius: 2px;
+  }
+
+  /* Currency Label Inside or Above Bar */
+  .bar-amount-label {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 0.775rem;
+    font-weight: 700;
+    font-family: var(--font-mono, monospace);
+    pointer-events: none;
+  }
+  .bar-amount-label.above {
+    bottom: calc(100% + 7px);
+    color: #0f172a;
+    background: #ffffff;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .bar-amount-label.inside {
+    top: 8px;
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+
+  /* Chart Tooltip */
+  .chart-tooltip {
+    position: absolute;
+    bottom: calc(100% + 14px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0f172a;
+    color: #ffffff;
+    border-radius: 8px;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.775rem;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    pointer-events: none;
+    z-index: 20;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
+  }
+  .chart-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: #0f172a transparent transparent transparent;
+  }
+  .partner-bar:hover .chart-tooltip {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  /* Chart Baseline X-Axis */
+  .chart-x-axis-base {
+    position: absolute;
+    left: 95px;
+    right: 10px;
+    bottom: 50px;
+    height: 2px;
+    background: #cbd5e1;
+    border-radius: 1px;
+  }
+
+  /* ==============================================================================
+     4 COMPACT KPI SUMMARY CARDS
+     ============================================================================== */
+
+  .money-summary-grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+  }
+  @media (max-width: 992px) {
+    .money-summary-grid-4 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (max-width: 540px) {
+    .money-summary-grid-4 {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .kpi-card {
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    padding: 1.25rem 1.4rem;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.07);
+  }
+
+  .kpi-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.65rem;
+  }
+  .kpi-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .kpi-icon-wrap {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .kpi-card.income .kpi-icon-wrap {
+    background: #ecfdf5;
+    color: #059669;
+  }
+  .kpi-card.expense .kpi-icon-wrap {
+    background: #fef2f2;
+    color: #ef4444;
+  }
+  .kpi-card.balance .kpi-icon-wrap {
+    background: #eff6ff;
+    color: #3b82f6;
+  }
+  .kpi-card.txns .kpi-icon-wrap {
+    background: #faf5ff;
+    color: #8b5cf6;
+  }
+
+  .kpi-value {
+    font-size: 1.55rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-family: var(--font-mono, monospace);
+    line-height: 1.2;
+    margin-bottom: 0.2rem;
+  }
+  .kpi-card.income .kpi-value { color: #059669; }
+  .kpi-card.expense .kpi-value { color: #ef4444; }
+  .kpi-card.balance .kpi-value { color: #3b82f6; }
+  .kpi-card.txns .kpi-value { color: #8b5cf6; }
+
+  .kpi-sub {
+    font-size: 0.75rem;
+    color: #94a3b8;
+  }
+
+  /* ==============================================================================
+     TRANSACTION HISTORY & LEDGER
+     ============================================================================== */
+
+  .money-toolbar {
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    padding: 1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+    margin-bottom: 1.5rem;
+  }
+  .money-toolbar-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .money-pills-group {
+    display: inline-flex;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 2px;
+    gap: 2px;
+  }
+  .money-pill-btn {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #64748b;
+    text-decoration: none;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+  }
+  .money-pill-btn:hover {
+    color: #0f172a;
+    background: #f1f5f9;
+  }
+  .money-pill-btn.active {
+    background: #0f172a;
+    color: #ffffff;
+  }
+
+  /* Transaction Items */
+  .gpay-transactions-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .gpay-txn-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 1.15rem 1.4rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+  }
+  .gpay-txn-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+    transform: translateY(-1px);
+  }
+  .gpay-txn-left {
+    display: flex;
+    align-items: center;
+    gap: 1.1rem;
+    flex: 1;
+    min-width: 0;
+  }
+  .gpay-txn-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .gpay-txn-avatar.income {
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+  }
+  .gpay-txn-avatar.expense {
+    background: #fef2f2;
+    color: #ef4444;
+    border: 1px solid #fecaca;
+  }
+
+  .gpay-txn-content {
+    flex: 1;
+    min-width: 0;
+  }
+  .gpay-txn-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 0.25rem;
+  }
+  .gpay-txn-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .gpay-txn-desc {
+    font-size: 0.825rem;
+    color: #64748b;
+    margin-bottom: 0.35rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 600px;
+  }
+  .gpay-txn-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 0.775rem;
+    color: #94a3b8;
+  }
+  .gpay-txn-meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .gpay-txn-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+    margin-left: 1rem;
+    flex-shrink: 0;
+  }
+  .gpay-txn-amount {
+    font-size: 1.15rem;
+    font-weight: 800;
+    font-family: var(--font-mono, monospace);
+  }
+  .gpay-txn-amount.income { color: #059669; }
+  .gpay-txn-amount.expense { color: #ef4444; }
+
+  .gpay-txn-status {
+    font-size: 0.725rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .gpay-txn-status.income { color: #059669; }
+  .gpay-txn-status.expense { color: #ef4444; }
+
+  .gpay-txn-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 4px;
+  }
+
+  /* Environment Badges */
+  .badge-env-production, .badge-production {
+    font-size: 0.7rem;
+    padding: 0.12rem 0.45rem;
+    background: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  .badge-env-sandbox, .badge-sandbox {
+    font-size: 0.7rem;
+    padding: 0.12rem 0.45rem;
+    background: #fffbeb;
+    color: #b45309;
+    border: 1px solid #fde68a;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  .badge-env-manual, .badge-manual {
+    font-size: 0.7rem;
+    padding: 0.12rem 0.45rem;
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+
+  /* Partner Tag Badge on Transaction Item */
+  .badge-partner-tag {
+    font-size: 0.7rem;
+    padding: 0.12rem 0.5rem;
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+    border-radius: 12px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Empty State */
+  .gpay-empty-state {
+    text-align: center;
+    padding: 3.5rem 1.5rem;
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px dashed #cbd5e1;
+  }
+  .gpay-empty-state-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #f1f5f9;
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+  }
+
+  /* Modal System */
+  .modal-backdrop-wrapper {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    padding: 1rem;
+  }
+  .modal-card {
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    width: 100%;
+    overflow: hidden;
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .modal-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .modal-close {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+  }
+  .modal-close:hover {
+    color: #0f172a;
+    background: #f1f5f9;
+  }
+  .modal-body {
+    padding: 1.5rem;
+    max-height: 75vh;
+    overflow-y: auto;
+  }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    background: #f8fafc;
+    border-top: 1px solid #f1f5f9;
+  }
+  .modal-icon-danger {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #fee2e2;
+    color: #dc2626;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-warning-box {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1rem;
+  }
+  .btn-danger-solid {
+    background: #dc2626;
+    color: #ffffff;
+    border: none;
+    padding: 0.55rem 1.15rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+  }
+  .btn-danger-solid:hover { background: #b91c1c; }
+  .btn-danger-solid:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .txn-detail-grid {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 0.65rem 1rem;
+    font-size: 0.875rem;
+  }
+  .txn-detail-label {
+    font-weight: 600;
+    color: #64748b;
+  }
+  .txn-detail-value {
+    color: #0f172a;
+    word-break: break-all;
+  }
+</style>
+
 <section class="section" style="padding-top: calc(var(--nav-height, 80px) + 2rem); background: var(--color-bg); min-height: 85vh; padding-bottom: 4rem;">
-  <div class="container" style="max-width: 1280px; margin: 0 auto; padding: 0 var(--space-xl);">
+  <div class="money-container">
     
     <!-- Admin Header -->
     <div class="admin-header">
@@ -16,7 +867,7 @@
         <h1 style="display: flex; align-items: center; gap: 10px; margin-top: 0.2rem;">
           {{ icon('wallet', size=28, color='#059669') }} Money Management
         </h1>
-        <p>Track income, expenses, and current balance.</p>
+        <p>Track partner contributions, cash flow, and financial records.</p>
       </div>
       <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center;">
         <a href="{{ url_for('admin.add_money_transaction') }}" class="btn btn-primary" style="gap: 6px;">
@@ -44,46 +895,219 @@
       </a>
     </div>
 
-    <!-- Financial Summary Cards (3 Equal-Width Cards) -->
-    <div class="money-summary-grid">
+    <!-- ==============================================================================
+         1. PARTNER EARNINGS OVERVIEW — MAIN CHART CARD
+         ============================================================================== -->
+    <div class="partner-chart-card">
       
-      <!-- Total Income Card -->
-      <div class="money-stat-card income">
-        <div class="money-stat-header">
-          <span class="money-stat-label">TOTAL INCOME</span>
-          <div class="money-stat-icon-wrapper">
-            {{ icon('arrow-down-left', size=20) }}
+      <!-- Top Card Header & Date Filter Pills -->
+      <div class="partner-chart-header">
+        <div class="partner-chart-title-area">
+          <div class="partner-chart-badge">
+            {{ icon('trending-up', size=12, color='#047857') }} Partner Earnings Overview
           </div>
+          <h2 class="partner-chart-title">Partner Earnings Overview</h2>
+          <p class="partner-chart-subtitle">Total contribution by partners (highest to lowest)</p>
         </div>
-        <div class="money-stat-value" style="margin-bottom: 0;">₹{{ "{:,.2f}".format(summary.total_income) }}</div>
+
+        <!-- Date Filter Pills -->
+        <div class="chart-date-pills">
+          <a href="{{ url_for('admin.money_management', date='this_month', type=type_filter, env=env_filter, category=category_filter, q=search_query, sort=sort_by) }}" class="chart-pill {{ 'active' if date_filter == 'this_month' else '' }}">
+            This Month
+          </a>
+          <a href="{{ url_for('admin.money_management', date='last_month', type=type_filter, env=env_filter, category=category_filter, q=search_query, sort=sort_by) }}" class="chart-pill {{ 'active' if date_filter == 'last_month' else '' }}">
+            Last Month
+          </a>
+          <a href="{{ url_for('admin.money_management', date='this_year', type=type_filter, env=env_filter, category=category_filter, q=search_query, sort=sort_by) }}" class="chart-pill {{ 'active' if date_filter == 'this_year' else '' }}">
+            This Year
+          </a>
+          <a href="{{ url_for('admin.money_management', date='last_year', type=type_filter, env=env_filter, category=category_filter, q=search_query, sort=sort_by) }}" class="chart-pill {{ 'active' if date_filter == 'last_year' else '' }}">
+            Last Year
+          </a>
+          <a href="{{ url_for('admin.money_management', date='all', type=type_filter, env=env_filter, category=category_filter, q=search_query, sort=sort_by) }}" class="chart-pill {{ 'active' if date_filter in ['all', ''] else '' }}">
+            All Time
+          </a>
+          <button type="button" class="chart-pill {{ 'active' if date_filter == 'custom' else '' }}" onclick="toggleChartCustomDate()">
+            Custom Range
+          </button>
+        </div>
       </div>
 
-      <!-- Total Expense Card -->
-      <div class="money-stat-card expense">
-        <div class="money-stat-header">
-          <span class="money-stat-label">TOTAL EXPENSE</span>
-          <div class="money-stat-icon-wrapper">
-            {{ icon('arrow-up-right', size=20) }}
-          </div>
-        </div>
-        <div class="money-stat-value" style="margin-bottom: 0;">₹{{ "{:,.2f}".format(summary.total_expense) }}</div>
+      <!-- Custom Date Range Form (revealed when Custom Range is active) -->
+      <div id="chartCustomDateBox" class="chart-custom-date-box" style="display: {{ 'flex' if date_filter == 'custom' else 'none' }};">
+        <form method="GET" action="{{ url_for('admin.money_management') }}" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin: 0; width: 100%;">
+          <input type="hidden" name="date" value="custom"/>
+          <input type="hidden" name="type" value="{{ type_filter }}"/>
+          <input type="hidden" name="env" value="{{ env_filter }}"/>
+          <input type="hidden" name="category" value="{{ category_filter }}"/>
+          <input type="hidden" name="q" value="{{ search_query }}"/>
+          <input type="hidden" name="sort" value="{{ sort_by }}"/>
+
+          <span style="font-size: 0.8rem; font-weight: 700; color: #475569;">Select Custom Date Range:</span>
+          <input type="date" name="start_date" class="form-input" value="{{ start_date or '' }}" style="width: auto; padding: 0.35rem 0.65rem; font-size: 0.825rem;" required/>
+          <span style="color: #64748b; font-size: 0.8rem;">to</span>
+          <input type="date" name="end_date" class="form-input" value="{{ end_date or '' }}" style="width: auto; padding: 0.35rem 0.65rem; font-size: 0.825rem;" required/>
+          <button type="submit" class="btn btn-primary btn-sm" style="padding: 0.35rem 0.85rem; font-size: 0.825rem;">
+            Apply Date Range
+          </button>
+          <a href="{{ url_for('admin.money_management', date='all', type=type_filter, env=env_filter) }}" class="btn btn-ghost btn-sm" style="font-size: 0.825rem;">
+            Cancel
+          </a>
+        </form>
       </div>
 
-      <!-- Balance Card -->
-      <div class="money-stat-card balance">
-        <div class="money-stat-header">
-          <span class="money-stat-label">AVAILABLE BALANCE</span>
-          <div class="money-stat-icon-wrapper">
-            {{ icon('wallet', size=20) }}
+      <!-- Active Period Label Note -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; font-size: 0.8rem; color: #64748b;">
+        <span>Showing earnings for: <strong style="color: #0f172a;">{{ partner_summary.date_filter_label }}</strong></span>
+        {% if partner_summary.unassigned_income > 0 %}
+          <span style="color: #64748b;">
+            Unassigned Income: <strong style="color: #059669;">{{ format_inr(partner_summary.unassigned_income) }}</strong>
+          </span>
+        {% endif %}
+      </div>
+
+      <!-- Chart Viewport (Horizontal Scroll on Mobile/Overflow) -->
+      <div class="chart-viewport">
+        <div class="chart-canvas">
+          
+          <!-- Y-Axis Grid Lines & Currency Labels -->
+          <div class="chart-y-axis">
+            {% for tick in partner_summary.y_ticks %}
+              <div class="chart-y-tick" style="bottom: {{ tick.percent }}%;">
+                <span class="chart-y-label">{{ tick.label }}</span>
+                <div class="chart-grid-line"></div>
+              </div>
+            {% endfor %}
           </div>
+
+          <!-- Solid Baseline at 0% -->
+          <div class="chart-x-axis-base"></div>
+
+          <!-- Vertical Bars Area -->
+          <div class="chart-bars-track-area">
+            {% for p in partner_summary.partners %}
+              <div class="partner-bar-column">
+                
+                <!-- Partner Profile Info Header (Positioned at top) -->
+                <div class="partner-profile-header">
+                  <div class="partner-avatar-wrapper">
+                    <div class="partner-avatar {{ 'rank-1' if p.is_top_contributor and p.total_amount > 0 else '' }}">
+                      {% if p.profile_picture %}
+                        <img src="{{ p.profile_picture }}" alt="{{ p.name }}" class="partner-avatar-img"/>
+                      {% else %}
+                        <span>{{ p.initials }}</span>
+                      {% endif %}
+                    </div>
+                    {% if p.is_top_contributor and p.total_amount > 0 %}
+                      <div class="partner-crown-badge" title="Top Contributor">
+                        {{ icon('award', size=11, color='#854d0e') }}
+                      </div>
+                    {% endif %}
+                  </div>
+                  <div class="partner-name" title="{{ p.name }}">{{ p.name }}</div>
+                  <div class="partner-role" title="{{ p.role_title }}">{{ p.role_title }}</div>
+                </div>
+
+                <!-- Vertical Bar Track -->
+                <div class="partner-bar-wrapper">
+                  
+                  <!-- Formatted Amount (Above bar if bar is small or 0) -->
+                  {% if p.total_amount == 0 or p.bar_height_pct < 24 %}
+                    <span class="bar-amount-label above" style="bottom: calc({{ p.bar_height_pct }}% + 8px);">
+                      {{ p.formatted_amount }}
+                    </span>
+                  {% endif %}
+
+                  <!-- Bar Rectangle -->
+                  <div class="partner-bar {{ 'zero-height' if p.total_amount == 0 else '' }}" 
+                       style="height: {{ p.bar_height_pct }}%;">
+                    
+                    <!-- Formatted Amount Inside Bar (if bar is tall enough) -->
+                    {% if p.total_amount > 0 and p.bar_height_pct >= 24 %}
+                      <span class="bar-amount-label inside">{{ p.formatted_amount }}</span>
+                    {% endif %}
+
+                    <!-- Hover Tooltip -->
+                    <div class="chart-tooltip">
+                      <div style="font-weight: 700; margin-bottom: 2px;">{{ p.name }}</div>
+                      <div style="color: #94a3b8; font-size: 0.72rem; margin-bottom: 4px;">{{ p.role_title }}</div>
+                      <div style="color: #34d399; font-weight: 800; font-size: 0.9rem;">{{ p.formatted_amount }}</div>
+                      <div style="color: #cbd5e1; font-size: 0.7rem; margin-top: 2px;">
+                        {{ p.transaction_count }} transaction{{ 's' if p.transaction_count != 1 else '' }}
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+              </div>
+            {% endfor %}
+          </div>
+
         </div>
-        <div class="money-stat-value" style="margin-bottom: 0;">₹{{ "{:,.2f}".format(summary.balance) }}</div>
       </div>
 
     </div>
 
-    <!-- Transaction History Section Title & Actions -->
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; margin-bottom: var(--space-md); flex-wrap: wrap; gap: var(--space-sm);">
+    <!-- ==============================================================================
+         2. FINANCIAL SUMMARY CARDS (4 COMPACT KPI CARDS)
+         ============================================================================== -->
+    <div class="money-summary-grid-4">
+      
+      <!-- Total Income Card -->
+      <div class="kpi-card income">
+        <div class="kpi-header">
+          <span class="kpi-label">TOTAL INCOME</span>
+          <div class="kpi-icon-wrap">
+            {{ icon('arrow-down-left', size=18) }}
+          </div>
+        </div>
+        <div class="kpi-value">{{ format_inr(summary.total_income) }}</div>
+        <div class="kpi-sub">Across filtered ledger entries</div>
+      </div>
+
+      <!-- Total Expense Card -->
+      <div class="kpi-card expense">
+        <div class="kpi-header">
+          <span class="kpi-label">TOTAL EXPENSE</span>
+          <div class="kpi-icon-wrap">
+            {{ icon('arrow-up-right', size=18) }}
+          </div>
+        </div>
+        <div class="kpi-value">{{ format_inr(summary.total_expense) }}</div>
+        <div class="kpi-sub">Across filtered ledger entries</div>
+      </div>
+
+      <!-- Net Balance Card -->
+      <div class="kpi-card balance">
+        <div class="kpi-header">
+          <span class="kpi-label">NET BALANCE</span>
+          <div class="kpi-icon-wrap">
+            {{ icon('wallet', size=18) }}
+          </div>
+        </div>
+        <div class="kpi-value">{{ format_inr(summary.balance) }}</div>
+        <div class="kpi-sub">Total income minus expenses</div>
+      </div>
+
+      <!-- Total Transactions Card -->
+      <div class="kpi-card txns">
+        <div class="kpi-header">
+          <span class="kpi-label">TRANSACTIONS</span>
+          <div class="kpi-icon-wrap">
+            {{ icon('receipt', size=18) }}
+          </div>
+        </div>
+        <div class="kpi-value">{{ summary.transaction_count }}</div>
+        <div class="kpi-sub">Recorded ledger transactions</div>
+      </div>
+
+    </div>
+
+    <!-- ==============================================================================
+         3. TRANSACTION HISTORY SECTION TITLE & ACTIONS
+         ============================================================================== -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; margin-bottom: 1rem; flex-wrap: wrap; gap: var(--space-sm);">
       <div>
         <h2 style="font-size: 1.25rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px; margin: 0;">
           {{ icon('receipt', size=18, color='#059669') }} Transaction History
@@ -129,7 +1153,7 @@
       </div>
 
       <!-- Bottom Row: Date Filter, Category, Search & Sort -->
-      <div class="money-toolbar-row" style="padding-top: var(--space-sm); border-top: 1px solid #f1f5f9;">
+      <div class="money-toolbar-row" style="padding-top: var(--space-sm); border-top: 1px solid #f1f5f9; margin-top: 0.75rem;">
         
         <form method="GET" action="{{ url_for('admin.money_management') }}" style="display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; width: 100%; margin: 0;">
           <input type="hidden" name="type" value="{{ type_filter }}"/>
@@ -138,10 +1162,13 @@
           <!-- Date Quick Filter -->
           <div style="display: flex; align-items: center; gap: 6px;">
             <select name="date" class="form-input admin-select" style="width: auto; min-width: 120px; font-size: 0.825rem; padding: 0.45rem 0.75rem;" onchange="handleDateFilterChange(this.value)">
-              <option value="all" {{ 'selected' if date_filter == 'all' else '' }}>All Dates</option>
+              <option value="all" {{ 'selected' if date_filter in ['all', ''] else '' }}>All Dates</option>
               <option value="today" {{ 'selected' if date_filter == 'today' else '' }}>Today</option>
               <option value="this_week" {{ 'selected' if date_filter == 'this_week' else '' }}>This Week</option>
               <option value="this_month" {{ 'selected' if date_filter == 'this_month' else '' }}>This Month</option>
+              <option value="last_month" {{ 'selected' if date_filter == 'last_month' else '' }}>Last Month</option>
+              <option value="this_year" {{ 'selected' if date_filter == 'this_year' else '' }}>This Year</option>
+              <option value="last_year" {{ 'selected' if date_filter == 'last_year' else '' }}>Last Year</option>
               <option value="custom" {{ 'selected' if date_filter == 'custom' else '' }}>Custom Range...</option>
             </select>
           </div>
@@ -185,7 +1212,7 @@
           <button type="submit" class="btn btn-outline btn-sm" style="font-size: 0.825rem; padding: 0.45rem 0.85rem;">
             Apply
           </button>
-          {% if type_filter != 'all' or env_filter != 'all' or date_filter != 'all' or category_filter != 'all' or search_query %}
+          {% if type_filter != 'all' or env_filter != 'all' or (date_filter and date_filter != 'all') or category_filter != 'all' or search_query %}
             <a href="{{ url_for('admin.money_management') }}" class="btn btn-ghost btn-sm" style="font-size: 0.825rem;" title="Reset all filters">
               Reset
             </a>
@@ -216,6 +1243,13 @@
                 <div class="gpay-txn-title-row">
                   <span class="gpay-txn-title">{{ txn.purpose or txn.category }}</span>
                   <span class="{{ txn.environment_badge_class }}">{{ txn.environment_display }}</span>
+                  
+                  {% if txn.partner %}
+                    <span class="badge-partner-tag" title="Attributed Partner">
+                      {{ icon('user', size=11, color='#166534') }} {{ txn.partner.name }}
+                    </span>
+                  {% endif %}
+
                   {% if txn.payment_method %}
                     <span class="badge" style="font-size: 0.7rem; padding: 0.12rem 0.45rem; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;">
                       {{ txn.payment_method }}
@@ -259,7 +1293,7 @@
                 {{ 'Credited' if txn.is_income else 'Debited' }}
               </div>
 
-              <div class="gpay-txn-date">
+              <div class="gpay-txn-date" style="font-size: 0.75rem; color: #94a3b8;">
                 {{ txn.formatted_datetime_display }}
               </div>
 
@@ -290,14 +1324,14 @@
         </div>
         <h3 style="font-size: 1.15rem; color: #0f172a; margin-bottom: 0.35rem; font-weight: 700;">No Transactions Found</h3>
         <p style="color: #64748b; font-size: 0.9rem; max-width: 480px; margin: 0 auto var(--space-lg); line-height: 1.5;">
-          {% if type_filter != 'all' or env_filter != 'all' or date_filter != 'all' or category_filter != 'all' or search_query %}
+          {% if type_filter != 'all' or env_filter != 'all' or (date_filter and date_filter != 'all') or category_filter != 'all' or search_query %}
             No transactions match your selected filter criteria. Try clearing filters or searching for another keyword.
           {% else %}
             No financial income or expense transactions have been recorded yet. Click the button below to record your first transaction.
           {% endif %}
         </p>
         <div style="display: flex; gap: var(--space-md); justify-content: center;">
-          {% if type_filter != 'all' or env_filter != 'all' or date_filter != 'all' or category_filter != 'all' or search_query %}
+          {% if type_filter != 'all' or env_filter != 'all' or (date_filter and date_filter != 'all') or category_filter != 'all' or search_query %}
             <a href="{{ url_for('admin.money_management') }}" class="btn btn-outline btn-sm">Clear Filters</a>
           {% endif %}
           <a href="{{ url_for('admin.add_money_transaction') }}" class="btn btn-primary btn-sm">
@@ -386,6 +1420,9 @@
           <div class="txn-detail-label">Source:</div>
           <div class="txn-detail-value" id="detailSource"></div>
 
+          <div class="txn-detail-label">Attributed Partner:</div>
+          <div class="txn-detail-value" id="detailPartner"></div>
+
           <div class="txn-detail-label">Date & Time:</div>
           <div class="txn-detail-value" id="detailDateTime"></div>
 
@@ -462,7 +1499,7 @@
           </div>
         </div>
 
-        {% if type_filter != 'all' or env_filter != 'all' or date_filter != 'all' or category_filter != 'all' or search_query %}
+        {% if type_filter != 'all' or env_filter != 'all' or (date_filter and date_filter != 'all') or category_filter != 'all' or search_query %}
           <div style="padding: 0.65rem 0.85rem; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; margin-bottom: 1rem; font-size: 0.8rem; color: #92400e;">
             <strong>Note on Active Filters:</strong> This will clear <strong>ALL</strong> ledger transactions, not only the filtered records currently displayed on your screen.
           </div>
@@ -490,6 +1527,13 @@
      CLIENT JAVASCRIPT FOR MONEY MANAGEMENT
      ============================================================================== -->
 <script>
+  function toggleChartCustomDate() {
+    const box = document.getElementById('chartCustomDateBox');
+    if (box) {
+      box.style.display = box.style.display === 'none' ? 'flex' : 'none';
+    }
+  }
+
   function handleDateFilterChange(val) {
     const rangeDiv = document.getElementById('customDateRange');
     if (rangeDiv) {
@@ -586,6 +1630,7 @@
 
       document.getElementById('detailEnvironment').innerHTML = `<span class="${data.is_cashfree ? (['SANDBOX','TEST'].includes(data.environment) ? 'badge-env-sandbox' : 'badge-env-production') : 'badge-env-manual'}">${data.environment_display}</span>`;
       document.getElementById('detailSource').textContent = data.is_cashfree ? 'Automatically recorded from Cashfree' : 'Manually recorded by Admin';
+      document.getElementById('detailPartner').textContent = data.partner_name || 'General Company / Unassigned';
       document.getElementById('detailDateTime').textContent = data.formatted_datetime || data.transaction_date;
       document.getElementById('detailCategory').textContent = data.category;
       document.getElementById('detailPaymentMethod').textContent = data.payment_method || 'N/A';
