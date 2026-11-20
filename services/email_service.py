@@ -1263,3 +1263,65 @@ def send_test_email(template_type, recipient_email):
             current_app.logger.error(f"Database error saving test EmailLog: {str(db_err)}")
 
     return success, msg
+
+
+# =====================================================================
+# 5. SIGNUP EMAIL OTP VERIFICATION EMAIL
+# =====================================================================
+
+DEFAULT_SIGNUP_OTP_SUBJECT = "Verify Your Anti-Matrix Account"
+
+DEFAULT_SIGNUP_OTP_BODY = """Hello {{candidate_name}},
+
+Thank you for registering with Anti-Matrix.
+
+Your email verification code is:
+
+{{otp}}
+
+This code expires in 5 minutes. Please do not share it with anyone.
+
+Regards,
+Anti-Matrix Team"""
+
+
+def render_signup_otp_email(candidate_name, otp_code):
+    """
+    Renders the official Account Verification OTP email.
+    """
+    variables = {
+        'candidate_name': candidate_name or 'Applicant',
+        'otp': str(otp_code)
+    }
+    subject = replace_variables(DEFAULT_SIGNUP_OTP_SUBJECT, variables, strip_unresolved=True)
+    body_text = replace_variables(DEFAULT_SIGNUP_OTP_BODY, variables, strip_unresolved=True)
+    body_html = markdown_to_html_email(body_text, title=subject)
+    return {
+        'subject': subject,
+        'body_text': body_text,
+        'body_html': body_html
+    }
+
+
+def send_signup_otp_email(recipient_email, candidate_name, otp_code):
+    """
+    Sends the 6-digit signup OTP verification code to the candidate.
+    Never logs the plaintext OTP in log messages.
+    """
+    recipient_email = (recipient_email or "").strip().lower()
+    if not recipient_email:
+        return False, "Recipient email is missing.", None
+
+    rendered = render_signup_otp_email(candidate_name, otp_code)
+    if current_app:
+        current_app.logger.info(f"Dispatching account verification OTP email to {recipient_email}")
+
+    success, msg, provider_id = send_brevo_email(
+        recipient_email=recipient_email,
+        recipient_name=candidate_name or recipient_email,
+        subject=rendered['subject'],
+        body_text=rendered['body_text'],
+        body_html=rendered['body_html']
+    )
+    return success, msg, provider_id
+

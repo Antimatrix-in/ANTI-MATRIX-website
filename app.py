@@ -150,6 +150,16 @@ def create_app(config_name=None):
             inspector = inspect(db.engine)
             dialect_is_sqlite = (db.engine.dialect.name == 'sqlite')
 
+            # Ensure email_verified exists on users table
+            if 'users' in inspector.get_table_names():
+                u_cols = [c['name'] for c in inspector.get_columns('users')]
+                if 'email_verified' not in u_cols:
+                    with db.engine.connect() as conn:
+                        default_val = "FALSE" if not dialect_is_sqlite else "0"
+                        bool_type = "BOOLEAN" if not dialect_is_sqlite else "INTEGER"
+                        conn.execute(text(f"ALTER TABLE users ADD COLUMN email_verified {bool_type} DEFAULT {default_val}"))
+                        conn.commit()
+
             if 'job_applications' in inspector.get_table_names():
                 cols = [c['name'] for c in inspector.get_columns('job_applications')]
                 if 'user_id' not in cols:

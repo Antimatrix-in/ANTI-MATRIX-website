@@ -19,12 +19,17 @@ class User(UserMixin, db.Model):
     provider = db.Column(db.String(50), default='email', nullable=False)  # 'email', 'google', 'github'
     provider_id = db.Column(db.String(255), nullable=True, index=True)
     phone = db.Column(db.String(50), nullable=True)
+    email_verified = db.Column(db.Boolean, default=False, nullable=True)
     last_login = db.Column(db.DateTime, nullable=True)
 
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
     applications = db.relationship('JobApplication', backref='user', lazy=True)
+
+    @property
+    def is_verified(self):
+        return bool(self.email_verified)
 
     @property
     def phone_number(self):

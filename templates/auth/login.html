@@ -30,11 +30,19 @@
       <p class="auth-subtitle">Sign in to your Anti-Matrix account</p>
     </div>
 
+    {% if redirect_target and '/careers/apply' in redirect_target %}
+      <div class="auth-application-alert" style="background: rgba(5, 150, 105, 0.08); border: 1px solid rgba(5, 150, 105, 0.25); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 10px; font-size: 0.875rem; color: #065f46; font-weight: 500;">
+        {{ icon('briefcase', size=18, color='#059669') }}
+        <span>Please log in or create an account to continue your job application.</span>
+      </div>
+    {% endif %}
+
     {# Login Form #}
-    <form id="login-form" class="auth-form" action="{{ url_for('auth.login') }}" method="POST" noValidate aria-label="Login form">
+    <form id="login-form" class="auth-form" action="{{ url_for('auth.login', next=redirect_target) if redirect_target else url_for('auth.login') }}" method="POST" noValidate aria-label="Login form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       {% if redirect_target %}
         <input type="hidden" name="redirect" value="{{ redirect_target }}"/>
+        <input type="hidden" name="next" value="{{ redirect_target }}"/>
       {% endif %}
 
       <div class="form-group">
@@ -108,7 +116,7 @@
 
     <p class="auth-switch">
       Don't have an account?
-      <a href="{{ url_for('auth.signup', next=redirect_target) if redirect_target else url_for('auth.signup') }}" class="auth-link"> Create one free</a>
+      <a href="{{ url_for('auth.signup', next=redirect_target) if redirect_target else url_for('auth.signup') }}" class="auth-link"> Create Account</a>
     </p>
   </div>
 </div>

@@ -1,8 +1,11 @@
 import re
+import secrets
+from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, current_app
 from flask_login import login_user, logout_user, login_required, current_user
-from models import db, User, Employee, JobApplication
+from models import db, User, Employee, JobApplication, EmailVerificationOTP
+from services.email_service import send_signup_otp_email
 from services.oauth_service import (
     oauth,
     is_google_configured,
@@ -39,6 +42,62 @@ def get_safe_redirect(target_url, default='/'):
         return default
 
 
+_AUTH_SCHEMA_INITIALIZED = False
+
+
+def ensure_auth_otp_schema():
+    """
+    Safely inspects and self-heals database schema for authentication & OTP verification.
+    Ensures:
+    1. 'email_verification_otps' table exists.
+    2. 'email_verified' column exists on 'users' table.
+    Works seamlessly across PostgreSQL and SQLite, preventing 500 crashes on production VPS.
+    """
+    global _AUTH_SCHEMA_INITIALIZED
+    if _AUTH_SCHEMA_INITIALIZED:
+        return True
+
+    try:
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        table_names = inspector.get_table_names()
+
+        # 1. Ensure email_verification_otps table exists
+        if 'email_verification_otps' not in table_names:
+            try:
+                EmailVerificationOTP.__table__.create(db.engine, checkfirst=True)
+                if current_app:
+                    current_app.logger.info("[AuthService] 'email_verification_otps' table created successfully.")
+            except Exception as e:
+                if current_app:
+                    current_app.logger.warning(f"[AuthService] Table creation note for email_verification_otps: {e}")
+
+        # 2. Ensure email_verified column exists on users table
+        if 'users' in table_names:
+            u_cols = [c['name'] for c in inspector.get_columns('users')]
+            if 'email_verified' not in u_cols:
+                with db.engine.begin() as conn:
+                    dialect_name = db.engine.dialect.name
+                    if dialect_name == 'postgresql':
+                        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE"))
+                    else:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT 0"))
+                if current_app:
+                    current_app.logger.info("[AuthService] Added email_verified column to users table.")
+
+        _AUTH_SCHEMA_INITIALIZED = True
+        return True
+    except Exception as e:
+        if current_app:
+            current_app.logger.warning(f"[AuthService] Schema initialization note: {e}")
+        return False
+
+
+@auth_bp.before_request
+def auto_heal_auth_schema():
+    ensure_auth_otp_schema()
+
+
 @auth_bp.after_request
 def add_auth_cache_control(response):
     """
@@ -65,6 +124,13 @@ def login():
         if getattr(current_user, 'role', '') == 'admin' and (not raw_target or redirect_target == '/'):
             return redirect(url_for('admin.dashboard'))
         return redirect(redirect_target)
+
+    # Contextual guidance for job application redirect
+    if request.method == 'GET' and raw_target and '/careers/apply' in raw_target:
+        flashes = session.get('_flashes', [])
+        has_msg = any('continue your job application' in str(f[1]) for f in flashes)
+        if not has_msg:
+            flash('Please log in or create an account to continue your job application.', 'info')
 
     if request.method == 'POST':
         is_json = request.is_json
@@ -234,6 +300,319 @@ def login():
     return render_template('auth/login.html', redirect_target=redirect_target, errors={})
 
 
+@auth_bp.route('/auth/send-otp', methods=['POST'], strict_slashes=False)
+@auth_bp.route('/signup/send-otp', methods=['POST'], strict_slashes=False)
+def send_otp():
+    """
+    Step 1: Validate applicant details, generate a cryptographically secure 6-digit OTP,
+    store its secure hash, enforce rate limits and cooldown, and email the verification code.
+    """
+    is_json = request.is_json
+    data = request.get_json() if is_json else request.form
+
+    name = (data.get('name') or '').strip()
+    email = (data.get('email') or '').strip().lower()
+
+    errors = {}
+    if not name:
+        errors['name'] = 'Full name is required'
+
+    if not email:
+        errors['email'] = 'Email is required'
+    elif not EMAIL_REGEX.match(email):
+        errors['email'] = 'Enter a valid email address'
+
+    if errors:
+        return jsonify({
+            'status': 'error',
+            'errors': errors,
+            'message': next(iter(errors.values()))
+        }), 400
+
+    # Check whether the email is already registered
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        return jsonify({
+            'status': 'error',
+            'already_registered': True,
+            'message': 'An account with this email already exists. Please log in.',
+            'errors': {'email': 'An account with this email already exists. Please log in.'}
+        }), 400
+
+    # Rate limiting: Cooldown check (60 seconds)
+    latest_otp = EmailVerificationOTP.query.filter_by(
+        email=email,
+        is_used=False
+    ).order_by(EmailVerificationOTP.created_at.desc()).first()
+
+    if latest_otp and not latest_otp.can_resend:
+        rem = latest_otp.remaining_resend_seconds
+        return jsonify({
+            'status': 'error',
+            'message': f'Please wait {rem} seconds before requesting a new code.',
+            'retry_after': rem
+        }), 429
+
+    # Rate limiting: Maximum 10 requests per hour per email
+    now_utc = datetime.now(timezone.utc)
+    one_hour_ago = now_utc - timedelta(hours=1)
+    hourly_count = EmailVerificationOTP.query.filter(
+        EmailVerificationOTP.email == email,
+        EmailVerificationOTP.created_at >= one_hour_ago
+    ).count()
+
+    if hourly_count >= 10:
+        return jsonify({
+            'status': 'error',
+            'message': 'Too many verification code requests. Please try again later.'
+        }), 429
+
+    # Invalidate previous unverified OTP records for this email
+    try:
+        EmailVerificationOTP.query.filter_by(
+            email=email,
+            is_used=False
+        ).update({'is_used': True})
+        db.session.commit()
+    except Exception as inv_err:
+        db.session.rollback()
+        current_app.logger.warning(f"Note on invalidating prior OTPs: {inv_err}")
+
+    # Generate 6-digit OTP and store hashed
+    otp_code = EmailVerificationOTP.generate_otp_code()
+    otp_record = EmailVerificationOTP(
+        email=email,
+        candidate_name=name,
+        attempts=0,
+        is_verified=False,
+        is_used=False,
+        expires_at=now_utc + timedelta(minutes=5),
+        resend_available_at=now_utc + timedelta(seconds=60)
+    )
+    otp_record.set_otp(otp_code)
+    db.session.add(otp_record)
+    try:
+        db.session.commit()
+    except Exception as db_err:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to save OTP record: {db_err}")
+        return jsonify({
+            'status': 'error',
+            'message': 'Unable to process verification code. Please try again.'
+        }), 500
+
+    # Send verification code email
+    success, msg, _ = send_signup_otp_email(email, name, otp_code)
+    if not success:
+        current_app.logger.error(f"Email delivery failed for OTP to {email}: {msg}")
+        return jsonify({
+            'status': 'error',
+            'message': 'Unable to send verification code email. Please check your email address or try again shortly.'
+        }), 500
+
+    return jsonify({
+        'status': 'success',
+        'message': "We've sent a verification code to your email address. Enter the code below to verify your email.",
+        'email': email,
+        'resend_in': 60
+    })
+
+
+@auth_bp.route('/auth/resend-otp', methods=['POST'], strict_slashes=False)
+@auth_bp.route('/signup/resend-otp', methods=['POST'], strict_slashes=False)
+def resend_otp():
+    """
+    Step 2 Resend: Invalidate prior code, enforce 60-second cooldown, generate new code,
+    and email to applicant.
+    """
+    is_json = request.is_json
+    data = request.get_json() if is_json else request.form
+
+    email = (data.get('email') or '').strip().lower()
+
+    if not email or not EMAIL_REGEX.match(email):
+        return jsonify({
+            'status': 'error',
+            'message': 'Enter a valid email address.'
+        }), 400
+
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        return jsonify({
+            'status': 'error',
+            'already_registered': True,
+            'message': 'An account with this email already exists. Please log in.'
+        }), 400
+
+    latest_otp = EmailVerificationOTP.query.filter_by(
+        email=email
+    ).order_by(EmailVerificationOTP.created_at.desc()).first()
+
+    if not latest_otp:
+        return jsonify({
+            'status': 'error',
+            'message': 'Please enter your name and email to request a verification code.'
+        }), 400
+
+    # Cooldown check
+    if not latest_otp.can_resend:
+        rem = latest_otp.remaining_resend_seconds
+        return jsonify({
+            'status': 'error',
+            'message': f'Please wait {rem} seconds before requesting a new code.',
+            'retry_after': rem
+        }), 429
+
+    now_utc = datetime.now(timezone.utc)
+    one_hour_ago = now_utc - timedelta(hours=1)
+    hourly_count = EmailVerificationOTP.query.filter(
+        EmailVerificationOTP.email == email,
+        EmailVerificationOTP.created_at >= one_hour_ago
+    ).count()
+
+    if hourly_count >= 10:
+        return jsonify({
+            'status': 'error',
+            'message': 'Too many verification code requests. Please try again later.'
+        }), 429
+
+    # Invalidate previous OTPs
+    try:
+        EmailVerificationOTP.query.filter_by(
+            email=email,
+            is_used=False
+        ).update({'is_used': True})
+        db.session.commit()
+    except Exception as inv_err:
+        db.session.rollback()
+        current_app.logger.warning(f"Note on invalidating prior OTPs on resend: {inv_err}")
+
+    candidate_name = latest_otp.candidate_name or 'Applicant'
+    otp_code = EmailVerificationOTP.generate_otp_code()
+    new_otp = EmailVerificationOTP(
+        email=email,
+        candidate_name=candidate_name,
+        attempts=0,
+        is_verified=False,
+        is_used=False,
+        expires_at=now_utc + timedelta(minutes=5),
+        resend_available_at=now_utc + timedelta(seconds=60)
+    )
+    new_otp.set_otp(otp_code)
+    db.session.add(new_otp)
+    try:
+        db.session.commit()
+    except Exception as db_err:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to save resend OTP record: {db_err}")
+        return jsonify({
+            'status': 'error',
+            'message': 'Unable to generate a new verification code. Please try again.'
+        }), 500
+
+    success, msg, _ = send_signup_otp_email(email, candidate_name, otp_code)
+    if not success:
+        current_app.logger.error(f"Email delivery failed on resend OTP to {email}: {msg}")
+        return jsonify({
+            'status': 'error',
+            'message': 'Unable to send verification code email. Please try again shortly.'
+        }), 500
+
+    return jsonify({
+        'status': 'success',
+        'message': 'A new verification code has been sent to your email address.',
+        'email': email,
+        'resend_in': 60
+    })
+
+
+@auth_bp.route('/auth/verify-otp', methods=['POST'], strict_slashes=False)
+@auth_bp.route('/signup/verify-otp', methods=['POST'], strict_slashes=False)
+def verify_otp():
+    """
+    Step 2 Verify: Verify candidate OTP code using constant-time check, enforce 5-minute expiry,
+    track attempts up to 5, and issue a secure single-use verification token.
+    """
+    is_json = request.is_json
+    data = request.get_json() if is_json else request.form
+
+    email = (data.get('email') or '').strip().lower()
+    otp_code = (data.get('otp') or '').strip()
+
+    if not email or not otp_code:
+        return jsonify({
+            'status': 'error',
+            'message': 'Email address and 6-digit verification code are required.'
+        }), 400
+
+    if not re.match(r'^\d{6}$', otp_code):
+        return jsonify({
+            'status': 'error',
+            'message': 'Verification code must be exactly 6 digits.'
+        }), 400
+
+    record = EmailVerificationOTP.query.filter_by(
+        email=email,
+        is_verified=False,
+        is_used=False
+    ).order_by(EmailVerificationOTP.created_at.desc()).first()
+
+    if not record:
+        return jsonify({
+            'status': 'error',
+            'message': 'No active verification code found. Please request a new code.'
+        }), 400
+
+    # Expiration check (5 minutes)
+    if record.is_expired:
+        return jsonify({
+            'status': 'error',
+            'expired': True,
+            'message': 'Verification code has expired. Please request a new code.'
+        }), 400
+
+    # Max 5 attempts check
+    if record.attempts >= 5:
+        return jsonify({
+            'status': 'error',
+            'lockout': True,
+            'message': 'Maximum verification attempts exceeded. Please request a new code.'
+        }), 400
+
+    # Increment attempts
+    record.attempts += 1
+    db.session.commit()
+
+    # Constant-time comparison
+    if not record.check_otp(otp_code):
+        remaining = 5 - record.attempts
+        if remaining <= 0:
+            return jsonify({
+                'status': 'error',
+                'lockout': True,
+                'message': 'Maximum verification attempts exceeded. Please request a new code.',
+                'remaining_attempts': 0
+            }), 400
+        return jsonify({
+            'status': 'error',
+            'message': f'Incorrect verification code. {remaining} attempt(s) remaining.',
+            'remaining_attempts': remaining
+        }), 400
+
+    # Verification successful: generate single-use verification token
+    verification_token = secrets.token_hex(32)
+    record.is_verified = True
+    record.verification_token = verification_token
+    db.session.commit()
+
+    return jsonify({
+        'status': 'success',
+        'message': 'Email verified successfully!',
+        'email': email,
+        'verification_token': verification_token
+    })
+
+
 @auth_bp.route('/signup', methods=['GET', 'POST'], strict_slashes=False)
 def signup():
     raw_target = (
@@ -247,17 +626,24 @@ def signup():
     if current_user.is_authenticated:
         return redirect(redirect_target)
 
+    # Contextual guidance for job application redirect
+    if request.method == 'GET' and raw_target and '/careers/apply' in raw_target:
+        flashes = session.get('_flashes', [])
+        has_msg = any('continue your job application' in str(f[1]) for f in flashes)
+        if not has_msg:
+            flash('Please log in or create an account to continue your job application.', 'info')
+
     if request.method == 'POST':
         is_json = request.is_json
         data = request.get_json() if is_json else request.form
 
         name = (data.get('name') or '').strip()
-        email = (data.get('email') or '').strip()
+        email = (data.get('email') or '').strip().lower()
         password = data.get('password') or ''
-        confirm = data.get('confirm') or ''
         terms = bool(data.get('terms', False))
         if isinstance(data.get('terms'), str):
             terms = data.get('terms') in ('true', '1', 'on', 'yes')
+        verification_token = (data.get('verification_token') or '').strip()
 
         post_target = data.get('redirect') or data.get('next') or raw_target
         redirect_target = get_safe_redirect(post_target)
@@ -276,47 +662,74 @@ def signup():
         elif len(password) < 8:
             errors['password'] = 'Password must be at least 8 characters'
 
-        if not confirm:
-            errors['confirm'] = 'Please confirm your password'
-        elif confirm != password:
-            errors['confirm'] = 'Passwords do not match'
-
         if not terms:
             errors['terms'] = 'You must accept the terms to continue'
 
-        if errors:
-            if is_json:
-                return jsonify({'status': 'error', 'errors': errors}), 400
-            for field, err in errors.items():
-                flash(err, 'error')
-            return render_template('auth/signup.html', errors=errors, name=name, email=email, redirect_target=redirect_target)
+        # Server-side verification enforcement: require valid verified OTP token
+        verified_otp = None
+        if not verification_token:
+            errors['verification'] = 'Email verification is required before creating an account'
+        else:
+            verified_otp = EmailVerificationOTP.query.filter_by(
+                email=email,
+                verification_token=verification_token,
+                is_verified=True,
+                is_used=False
+            ).first()
+            if not verified_otp:
+                errors['verification'] = 'Email verification is required before creating an account. Please verify your email.'
 
         # Check existing user
-        user = User.query.filter_by(email=email.lower().strip()).first()
-        if user:
-            user.name = name
-            user.set_password(password)
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            errors['email'] = 'An account with this email already exists. Please log in.'
+
+        if errors:
+            msg = next(iter(errors.values()))
+            if is_json:
+                return jsonify({
+                    'status': 'error',
+                    'errors': errors,
+                    'message': msg,
+                    'already_registered': bool(existing_user)
+                }), 400
+            for field, err in errors.items():
+                flash(err, 'error')
+            return render_template(
+                'auth/signup.html',
+                errors=errors,
+                name=name,
+                email=email,
+                redirect_target=redirect_target
+            ), 400
+
+        # Mark OTP verification token as used (single-use protection)
+        if verified_otp:
+            verified_otp.is_used = True
             db.session.commit()
-        else:
+
+        # Create account in existing User model with email marked verified
+        sync_users_sequence()
+        user = User(
+            name=name,
+            email=email,
+            email_verified=True
+        )
+        user.set_password(password)
+        db.session.add(user)
+        try:
+            db.session.commit()
+        except Exception as signup_err:
+            db.session.rollback()
             sync_users_sequence()
             user = User(
                 name=name,
-                email=email.lower().strip()
+                email=email,
+                email_verified=True
             )
             user.set_password(password)
             db.session.add(user)
-            try:
-                db.session.commit()
-            except Exception as signup_err:
-                db.session.rollback()
-                sync_users_sequence()
-                user = User(
-                    name=name,
-                    email=email.lower().strip()
-                )
-                user.set_password(password)
-                db.session.add(user)
-                db.session.commit()
+            db.session.commit()
 
         login_user(user)
 
