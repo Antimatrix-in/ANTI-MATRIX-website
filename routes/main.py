@@ -185,6 +185,24 @@ def apply_job(job_id):
         flash('This position is currently not accepting new applications.', 'warning')
         return redirect(url_for('main.careers'))
 
+    # 1. Server-Side Authentication Enforcement (Mandatory across all workflows)
+    if not current_user.is_authenticated:
+        flash('Please log in or create an account to continue your job application.', 'info')
+        return redirect(url_for('auth.login', next=request.path))
+
+    # 2. On GET: Prevent accidental re-navigation if applicant already applied for this role
+    if request.method == 'GET':
+        existing_for_job = JobApplication.query.filter(
+            JobApplication.job_id == job.id,
+            ((JobApplication.user_id == current_user.id) | (JobApplication.email == current_user.email.lower()))
+        ).first()
+
+        if existing_for_job:
+            flash(f"You have already applied for this position ({job.title}). Application ID: {existing_for_job.formatted_code}.", 'info')
+            if is_manual_application_workflow() or existing_for_job.payment_status == 'paid':
+                return redirect(url_for('main.job_apply_success', app_id=existing_for_job.id))
+            return redirect(url_for('main.my_applications'))
+
     benefits_map = get_active_internship_benefits(job.id)
     benefits_1m = benefits_map.get('1_month')
     benefits_3m = benefits_map.get('3_months')
@@ -194,11 +212,11 @@ def apply_job(job_id):
         # NEW SIMPLE MANUAL APPLICATION WORKFLOW (5 Required Fields)
         # =====================================================================
         if request.method == 'POST':
-            full_name = (request.form.get('full_name') or '').strip()
-            email = (request.form.get('email') or '').strip()
+            full_name = (request.form.get('full_name') or f"{request.form.get('first_name', '')} {request.form.get('last_name', '')}").strip()
+            email = (request.form.get('email') or (current_user.email if current_user.is_authenticated else '')).strip()
             phone = (request.form.get('phone') or request.form.get('phone_number') or '').strip()
             raw_duration = (request.form.get('duration') or '').strip()
-            college = (request.form.get('college') or '').strip()
+            college = (request.form.get('college') or request.form.get('degree') or request.form.get('education_level') or 'Not Specified').strip()
 
             clean_email = normalize_email(email)
             clean_phone = normalize_phone(phone)

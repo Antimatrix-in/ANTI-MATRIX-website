@@ -36,6 +36,10 @@ class DuplicateApplicationPreventionTestCase(unittest.TestCase):
             is_active=True
         )
         db.session.add(self.job)
+
+        self.default_user = User(name='Default Applicant', email='default.applicant@antimatrix.ai')
+        self.default_user.set_password('ApplicantPass123!')
+        db.session.add(self.default_user)
         db.session.commit()
 
     def tearDown(self):
@@ -43,6 +47,22 @@ class DuplicateApplicationPreventionTestCase(unittest.TestCase):
         self.app_context.pop()
 
     def submit_application(self, full_name, email, phone, college="IIT Bombay", duration="1_month"):
+        clean_email = email.strip().lower()
+        user = User.query.filter_by(email=clean_email).first()
+        if not user:
+            try:
+                user = User(name=full_name, email=clean_email)
+                user.set_password('Password123!')
+                db.session.add(user)
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                user = self.default_user
+
+        with self.client.session_transaction() as sess:
+            sess['_user_id'] = str(user.id)
+            sess['_fresh'] = True
+
         resume_file = (io.BytesIO(b'%PDF-1.4 Mock resume'), 'resume.pdf')
         data = {
             'full_name': full_name,
