@@ -311,11 +311,20 @@ class TestRecruitmentStatusEmails(unittest.TestCase):
             self.assertEqual(retry_response.status_code, 200)
             self.assertIn(b"Notification re-sent successfully", retry_response.data)
 
-            # EmailLog now contains SENT status
+            # EmailLog preserves failed attempt and records new SENT status
+            all_logs = EmailLog.query.filter_by(
+                reference_id=self.application.formatted_code,
+                template_type='candidate_under_review'
+            ).all()
+            self.assertEqual(len(all_logs), 2)
+            statuses = [l.status for l in all_logs]
+            self.assertIn('FAILED', statuses)
+            self.assertIn('SENT', statuses)
+
             log_retried = EmailLog.query.filter_by(
                 reference_id=self.application.formatted_code,
                 template_type='candidate_under_review'
-            ).first()
+            ).order_by(EmailLog.id.desc()).first()
             self.assertIsNotNone(log_retried)
             self.assertEqual(log_retried.status, 'SENT')
             self.assertEqual(log_retried.provider_message_id, 'brevo_msg_retry_099')

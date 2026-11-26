@@ -209,7 +209,8 @@
                     {% if log.template_type == 'candidate_under_review' %}Under Review
                     {% elif log.template_type == 'candidate_shortlisted' %}Shortlisted
                     {% elif log.template_type == 'candidate_rejected' %}Rejected
-                    {% elif log.template_type == 'candidate_application_submitted' %}Application Acknowledgment
+                    {% elif log.template_type == 'candidate_application_submitted' or log.template_type == 'application_successful' %}Application Acknowledgment
+                    {% elif log.template_type == 'offer_letter' %}Offer Letter
                     {% else %}{{ log.template_type }}{% endif %}
                   </strong>
                   {% if log.status == 'SENT' %}

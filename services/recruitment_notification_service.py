@@ -107,16 +107,25 @@ def _render_template(text, application):
 # IDEMPOTENCY CHECK
 # =====================================================================
 
+EVENT_LOG_ALIASES = {
+    'candidate_under_review': ['candidate_under_review', 'under_review_notification', 'under_review'],
+    'candidate_shortlisted':  ['candidate_shortlisted', 'offer_letter', 'shortlisted'],
+    'candidate_rejected':     ['candidate_rejected', 'rejection_notification', 'rejected'],
+    'candidate_application_submitted': ['application_successful', 'candidate_application_submitted', 'acknowledgment'],
+}
+
+
 def _already_sent(reference_id, event_key):
     """
-    Returns True if a SENT EmailLog entry exists for this (reference_id, event_key).
-    Uses event_key as template_type in EmailLog for status notifications.
+    Returns True if a SENT EmailLog entry exists for this reference_id and event_key (or its known aliases).
+    Uses event_key / template_type in EmailLog to ensure idempotency and prevent duplicates.
     """
     try:
-        existing = EmailLog.query.filter_by(
-            reference_id=reference_id,
-            template_type=event_key,
-            status='SENT'
+        keys_to_check = EVENT_LOG_ALIASES.get(event_key, [event_key])
+        existing = EmailLog.query.filter(
+            EmailLog.reference_id == reference_id,
+            EmailLog.template_type.in_(keys_to_check),
+            EmailLog.status == 'SENT'
         ).first()
         return existing is not None
     except Exception as e:
@@ -307,55 +316,83 @@ def send_recruitment_status_email(application, new_status, old_status):
 # RETRY HELPER (called by admin retry route)
 # =====================================================================
 
+# Supported retry event aliases mapping input event keys/slugs to their canonical handler
+RETRY_EVENT_HANDLERS = {
+    # 1. Application Acknowledgment
+    'candidate_application_submitted': 'acknowledgment',
+    'application_successful':          'acknowledgment',
+    'acknowledgment':                  'acknowledgment',
+
+    # 2. Under Review
+    'candidate_under_review':          'Under Review',
+    'under_review_notification':       'Under Review',
+    'under_review':                    'Under Review',
+
+    # 3. Shortlisted / Offer Letter
+    'candidate_shortlisted':           'Shortlisted',
+    'offer_letter':                    'Shortlisted',
+    'shortlisted':                     'Shortlisted',
+
+    # 4. Rejected
+    'candidate_rejected':              'Rejected',
+    'rejection_notification':          'Rejected',
+    'rejected':                        'Rejected',
+}
+
+
 def retry_recruitment_status_email(application, event_key):
     """
-    Retry a previously-failed status email notification.
+    Retry a previously-failed or pending email notification.
+    Preserves audit history of failed attempts in EmailLog while preventing duplicates.
 
-    Removes the FAILED EmailLog entry so the idempotency check allows a
-    new send attempt, then calls send_recruitment_status_email().
+    Supported events:
+      - Acknowledgment: 'application_successful', 'candidate_application_submitted'
+      - Under Review:   'candidate_under_review', 'under_review_notification'
+      - Shortlisted:    'candidate_shortlisted', 'offer_letter'
+      - Rejected:       'candidate_rejected', 'rejection_notification'
 
     Args:
         application: JobApplication ORM instance.
-        event_key:   Recruitment event key (e.g. 'candidate_under_review').
+        event_key:   Event key or template slug (e.g. 'application_successful', 'candidate_under_review').
 
     Returns:
         (success: bool, message: str)
     """
-    # Validate event key
-    valid_keys = set(STATUS_TO_EVENT_KEY.values())
-    if event_key not in valid_keys:
-        return False, f"Invalid event key: '{event_key}'."
+    if not application:
+        return False, "Invalid application record."
 
-    # Map event_key back to new_status for the dispatch call
-    event_to_status = {v: k for k, v in STATUS_TO_EVENT_KEY.items()}
-    new_status = event_to_status.get(event_key)
-    if not new_status:
-        return False, f"Cannot resolve status for event key '{event_key}'."
+    clean_key = (event_key or '').strip().lower()
+    handler = RETRY_EVENT_HANDLERS.get(clean_key)
+    if not handler:
+        return False, (
+            f"Invalid event key: '{event_key}'. "
+            f"Supported events: Acknowledgment (application_successful), "
+            f"Under Review (candidate_under_review), Shortlisted (candidate_shortlisted), "
+            f"Rejected (candidate_rejected)."
+        )
 
-    # Remove FAILED log entry to allow retry (do NOT remove SENT entries — keep idempotency)
-    try:
-        failed_log = EmailLog.query.filter_by(
-            reference_id=application.formatted_code,
-            template_type=event_key,
-            status='FAILED'
-        ).first()
-        if failed_log:
-            db.session.delete(failed_log)
-            db.session.commit()
-    except Exception as e:
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
-        if current_app:
-            current_app.logger.warning(
-                f"[RecruitmentNotification] Could not remove FAILED log before retry: {e}"
-            )
+    # Case 1: Acknowledgment Email Retry
+    if handler == 'acknowledgment':
+        from services.email_service import send_application_successful_email
+        # Duplicate check: prevent resending if already successfully sent
+        current_st = (application.application_success_email_status or '').strip().upper()
+        if current_st == 'SENT':
+            return False, "Acknowledgment email has already been sent successfully for this application."
 
-    # Trigger send with a synthetic old_status that is different from new_status
-    # so the status-change guard doesn't skip the send
+        success, msg = send_application_successful_email(application)
+        return success, msg
+
+    # Case 2: Status Notification Retry (Under Review, Shortlisted, Rejected)
+    target_status = handler  # 'Under Review', 'Shortlisted', or 'Rejected'
+    target_event_key = STATUS_TO_EVENT_KEY.get(target_status)
+
+    # Check if a successful send already exists in EmailLog (Duplicate Prevention)
+    if _already_sent(application.formatted_code, target_event_key):
+        return False, f"{target_status} notification has already been sent successfully for this application."
+
+    # Call send_recruitment_status_email with old_status='' so status-change guard allows retry
     return send_recruitment_status_email(
         application=application,
-        new_status=new_status,
-        old_status=''  # Different from new_status → triggers the send
+        new_status=target_status,
+        old_status=''
     )

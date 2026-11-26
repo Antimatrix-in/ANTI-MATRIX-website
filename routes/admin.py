@@ -51,7 +51,8 @@ def _ensure_admin_schemas_on_request():
     try:
         from services.email_scheduler_service import ensure_scheduler_running, process_due_acknowledgment_emails
         ensure_scheduler_running(current_app._get_current_object())
-        process_due_acknowledgment_emails(delay_minutes=5)
+        if not current_app.config.get('TESTING'):
+            process_due_acknowledgment_emails(delay_minutes=5)
     except Exception as sched_err:
         current_app.logger.warning(f"[AdminSchedulerCheck] Note: {sched_err}")
 

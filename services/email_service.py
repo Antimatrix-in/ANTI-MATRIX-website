@@ -424,6 +424,13 @@ def send_brevo_email(recipient_email, recipient_name, subject, body_text, body_h
                 err_data = response.json()
                 if 'message' in err_data:
                     err_msg += f": {err_data['message']}"
+                if response.status_code == 401 and 'unrecognised ip' in err_data.get('message', '').lower():
+                    if current_app:
+                        current_app.logger.critical(
+                            "[BrevoIPAuth] Brevo rejected API call due to IP authorization restriction. "
+                            "Ensure the server's outbound IPv6 (2a02:4780:12:dd7f::1) and IPv4 (145.223.23.169) "
+                            "are added to Brevo Account -> Security -> Authorized IP addresses."
+                        )
             except Exception:
                 pass
             return False, err_msg, None
