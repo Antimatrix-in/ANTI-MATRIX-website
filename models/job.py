@@ -455,7 +455,7 @@ class JobApplication(db.Model):
 
     @property
     def ack_email_scheduled_at(self):
-        """Calculated scheduled delivery timestamp (created_at + 5 minutes)."""
+        """Calculated scheduled delivery timestamp (created_at + 5 minutes) in UTC."""
         if self.created_at:
             cr = self.created_at
             if cr.tzinfo is None:
@@ -464,14 +464,32 @@ class JobApplication(db.Model):
         return None
 
     @property
+    def ack_email_scheduled_at_ist(self):
+        """Calculated scheduled delivery timestamp converted to Asia/Kolkata (IST)."""
+        dt = self.ack_email_scheduled_at
+        if not dt:
+            return None
+        ist_tz = timezone(timedelta(hours=5, minutes=30))
+        return dt.astimezone(ist_tz)
+
+    @property
     def ack_email_sent_at(self):
-        """Timestamp when acknowledgment email was sent."""
+        """Timestamp when acknowledgment email was sent in UTC."""
         if self.application_success_email_sent_at:
             s = self.application_success_email_sent_at
             if s.tzinfo is None:
                 s = s.replace(tzinfo=timezone.utc)
             return s
         return None
+
+    @property
+    def ack_email_sent_at_ist(self):
+        """Timestamp when acknowledgment email was sent converted to Asia/Kolkata (IST)."""
+        dt = self.ack_email_sent_at
+        if not dt:
+            return None
+        ist_tz = timezone(timedelta(hours=5, minutes=30))
+        return dt.astimezone(ist_tz)
 
     @property
     def ack_email_attempts(self):

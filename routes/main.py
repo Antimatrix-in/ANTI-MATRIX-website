@@ -199,6 +199,11 @@ def ensure_core_database_schema():
 @main_bp.before_app_request
 def auto_heal_core_schema():
     ensure_core_database_schema()
+    try:
+        from services.email_scheduler_service import ensure_scheduler_running
+        ensure_scheduler_running(current_app._get_current_object())
+    except Exception as sched_err:
+        pass
 
 
 @main_bp.route('/')

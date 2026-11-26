@@ -143,14 +143,24 @@
           <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
             <span style="color: var(--color-text-dim);">Scheduled Delivery:</span>
             <span style="font-weight: 600; color: var(--color-text);">
-              {{ app.ack_email_scheduled_at.strftime('%H:%M:%S UTC') if app.ack_email_scheduled_at else 'N/A' }}
+              {% if app.ack_email_scheduled_at_ist %}
+                {{ app.ack_email_scheduled_at_ist.strftime('%I:%M:%S %p IST') }} <span style="font-size: 0.75rem; color: var(--color-text-dim); font-weight: normal;">({{ app.ack_email_scheduled_at.strftime('%H:%M:%S UTC') }})</span>
+              {% elif app.ack_email_scheduled_at %}
+                {{ app.ack_email_scheduled_at.strftime('%H:%M:%S UTC') }}
+              {% else %}
+                N/A
+              {% endif %}
             </span>
           </div>
           {% if app.ack_email_sent_at %}
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
               <span style="color: var(--color-text-dim);">Delivered At:</span>
               <span style="font-weight: 600; color: #059669;">
-                {{ app.ack_email_sent_at.strftime('%d %b %Y, %H:%M:%S UTC') }}
+                {% if app.ack_email_sent_at_ist %}
+                  {{ app.ack_email_sent_at_ist.strftime('%d %b %Y, %I:%M:%S %p IST') }} <span style="font-size: 0.75rem; color: #059669; font-weight: normal;">({{ app.ack_email_sent_at.strftime('%H:%M:%S UTC') }})</span>
+                {% else %}
+                  {{ app.ack_email_sent_at.strftime('%d %b %Y, %H:%M:%S UTC') }}
+                {% endif %}
               </span>
             </div>
           {% endif %}
@@ -209,7 +219,7 @@
                   {% endif %}
                 </div>
                 <div style="color: var(--color-text-dim); font-size: 0.775rem; display: flex; justify-content: space-between;">
-                  <span>{{ log.sent_at.strftime('%d %b %Y, %H:%M:%S UTC') if log.sent_at else 'N/A' }}</span>
+                  <span>{{ log.sent_at_ist.strftime('%d %b %Y, %I:%M:%S %p IST') if log.sent_at_ist else (log.sent_at.strftime('%d %b %Y, %H:%M:%S UTC') if log.sent_at else 'N/A') }}</span>
                   {% if log.provider_message_id %}
                     <span style="font-family: monospace; font-size: 0.72rem; color: #64748b;" title="{{ log.provider_message_id }}">ID: {{ log.provider_message_id[:16] }}...</span>
                   {% endif %}

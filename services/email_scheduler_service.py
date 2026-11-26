@@ -33,9 +33,10 @@ def get_due_applications(delay_minutes=None):
     """
     Returns candidate applications whose acknowledgment email is due.
     Checks the configured delay in EmailTemplateMapping if delay_minutes is None.
-    An application is due if:
-    1. application_success_email_status is 'Pending' (or 'PENDING' / 'Failed' for retry)
-    2. created_at <= (now - delay_minutes)
+    Uses UTC consistently for database storage and comparisons.
+    Ensures safe, offset-aware UTC datetime comparisons:
+    1. application_success_email_status is in ('Pending', 'PENDING', 'Failed', 'FAILED')
+    2. ack_email_scheduled_at <= now_utc (guaranteed offset-aware UTC comparison)
     """
     if delay_minutes is None:
         try:
@@ -49,13 +50,19 @@ def get_due_applications(delay_minutes=None):
             delay_minutes = 5
 
     now_utc = datetime.now(timezone.utc)
-    cutoff = now_utc - timedelta(minutes=delay_minutes)
 
-    query = JobApplication.query.filter(
-        JobApplication.application_success_email_status.in_(['Pending', 'PENDING', 'Failed', 'FAILED']),
-        JobApplication.created_at <= cutoff
-    )
-    return query.all()
+    # Fetch candidate applications with pending or failed acknowledgment status
+    candidates = JobApplication.query.filter(
+        JobApplication.application_success_email_status.in_(['Pending', 'PENDING', 'Failed', 'FAILED'])
+    ).all()
+
+    due = []
+    for app_record in candidates:
+        sched = app_record.ack_email_scheduled_at
+        if sched and sched <= now_utc:
+            due.append(app_record)
+
+    return due
 
 
 def process_due_acknowledgment_emails(app=None, delay_minutes=None):
@@ -100,15 +107,8 @@ def _execute_email_processing(delay_minutes=None):
         if mapping.template:
             effective_template_type = mapping.template.template_type or 'application_successful'
 
-    now_utc = datetime.now(timezone.utc)
-    cutoff = now_utc - timedelta(minutes=effective_delay)
-
-    # Fetch candidate applications where email is due
-    due_apps = JobApplication.query.filter(
-        JobApplication.application_success_email_status.in_(['Pending', 'PENDING', 'Failed', 'FAILED']),
-        JobApplication.created_at <= cutoff
-    ).all()
-
+    # Fetch candidate applications where email is due using normalized UTC comparison
+    due_apps = get_due_applications(delay_minutes=effective_delay)
     sent_count = 0
 
     for app_record in due_apps:
@@ -240,43 +240,67 @@ def _execute_email_processing(delay_minutes=None):
     return sent_count
 
 
-_scheduler_started = False
+_scheduler_worker_pid = None
+_scheduler_thread = None
 _scheduler_lock = threading.Lock()
 
 
-def start_email_scheduler_worker(app, interval_seconds=20):
+def start_email_scheduler_worker(app=None, interval_seconds=20):
     """
-    Starts a background daemon thread that runs periodic checks
-    for due candidate acknowledgment emails.
-    Guarded to run only once per process.
+    Fork-safe, multi-worker resilient background email scheduler.
+    Spawns a daemon thread in the current OS process if not already running.
+    Tracks os.getpid() so if Gunicorn forks worker processes, each worker
+    or the active process starts its own worker cleanly without deadlocks.
     """
-    global _scheduler_started
-    with _scheduler_lock:
-        if _scheduler_started:
-            return
-        if app.config.get('TESTING'):
-            return
-        if os.environ.get('WERKZEUG_RUN_MAIN') == 'false':
-            return
-        _scheduler_started = True
+    global _scheduler_worker_pid, _scheduler_thread
 
-    def _worker():
-        time.sleep(3)  # Brief delay for application startup
-        while True:
-            try:
-                with app.app_context():
-                    process_due_acknowledgment_emails(app, delay_minutes=5)
-            except Exception as e:
+    current_pid = os.getpid()
+    with _scheduler_lock:
+        if _scheduler_thread is not None and _scheduler_thread.is_alive() and _scheduler_worker_pid == current_pid:
+            return
+
+        if app and app.config.get('TESTING'):
+            return
+
+        _scheduler_worker_pid = current_pid
+
+        def _worker():
+            time.sleep(2)  # Brief initial delay
+            while True:
                 try:
                     if app:
-                        app.logger.warning(f"Delayed email scheduler worker error: {e}")
-                except Exception:
-                    pass
-            time.sleep(interval_seconds)
+                        with app.app_context():
+                            process_due_acknowledgment_emails(app, delay_minutes=5)
+                    elif current_app:
+                        with current_app.app_context():
+                            process_due_acknowledgment_emails(current_app, delay_minutes=5)
+                except Exception as e:
+                    try:
+                        log_obj = app.logger if app else (current_app.logger if current_app else None)
+                        if log_obj:
+                            log_obj.warning(f"[AckEmailWorker] Background processing note: {e}")
+                    except Exception:
+                        pass
+                time.sleep(interval_seconds)
 
-    thread = threading.Thread(
-        target=_worker,
-        daemon=True,
-        name="AntiMatrixAckEmailWorker"
-    )
-    thread.start()
+        _scheduler_thread = threading.Thread(
+            target=_worker,
+            daemon=True,
+            name=f"AntiMatrixAckEmailWorker-{current_pid}"
+        )
+        _scheduler_thread.start()
+
+
+def ensure_scheduler_running(app=None):
+    """
+    Convenience helper to ensure scheduler worker is running in the current process.
+    Can be invoked from before_request hooks or request lifecycle handlers.
+    """
+    try:
+        target_app = app or (current_app._get_current_object() if current_app else None)
+        if target_app:
+            start_email_scheduler_worker(target_app)
+    except Exception as e:
+        if current_app:
+            current_app.logger.warning(f"[SchedulerCheck] Could not verify scheduler: {e}")
+

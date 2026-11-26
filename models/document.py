@@ -191,5 +191,17 @@ class EmailLog(db.Model):
     sent_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
+    @property
+    def sent_at_ist(self):
+        """Timestamp converted to Asia/Kolkata (IST)."""
+        if not self.sent_at:
+            return None
+        s = self.sent_at
+        if s.tzinfo is None:
+            s = s.replace(tzinfo=timezone.utc)
+        from datetime import timedelta
+        ist_tz = timezone(timedelta(hours=5, minutes=30))
+        return s.astimezone(ist_tz)
+
     def __repr__(self):
         return f"<EmailLog id={self.id} to='{self.recipient_email}' type='{self.template_type}' status='{self.status}'>"
