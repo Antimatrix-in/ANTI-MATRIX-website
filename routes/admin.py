@@ -13,7 +13,7 @@ from flask_login import current_user
 from werkzeug.utils import secure_filename
 from models import (
     db, JobPosting, JobApplication, Payment, User, Employee,
-    DocumentTemplate, EmailTemplate, EmployeeDocument, MoneyTransaction,
+    DocumentTemplate, EmailTemplate, EmailLog, EmployeeDocument, MoneyTransaction,
     InternshipBenefit, ContactInquiry
 )
 
@@ -1188,10 +1188,15 @@ def application_detail(app_id):
     application = db.session.get(JobApplication, app_id) or abort(404)
     job = application.job
 
+    email_logs = EmailLog.query.filter_by(
+        reference_id=application.formatted_code
+    ).order_by(EmailLog.sent_at.desc()).all()
+
     return render_template(
         'admin/application_detail.html',
         app=application,
-        job=job
+        job=job,
+        email_logs=email_logs
     )
 
 
@@ -1225,10 +1230,47 @@ def update_application_stage(app_id):
         flash(f"Invalid recruitment stage: {raw_stage}", "danger")
         return redirect(request.referrer or url_for('admin.applications'))
 
+    old_stage = application.stage
+
+    if old_stage == normalized:
+        flash(f"Application stage is already '{normalized}'.", "info")
+        return redirect(request.referrer or url_for('admin.application_detail', app_id=application.id))
+
     application.status = normalized
     application.application_status = normalized
     db.session.commit()
     flash(f"Application stage for candidate {application.full_name} updated to '{normalized}'.", "success")
+
+    # Automatic recruitment status notification email trigger
+    try:
+        from services.recruitment_notification_service import send_recruitment_status_email
+        email_sent, email_msg = send_recruitment_status_email(application, normalized, old_stage)
+        if email_sent:
+            flash(f"Notification email sent to {application.email}.", "info")
+        elif email_msg and "Already sent" not in email_msg and "No email configured" not in email_msg and "No status change" not in email_msg:
+            flash(f"Note: Status notification email could not be sent — {email_msg}", "warning")
+    except Exception as email_err:
+        current_app.logger.error(f"[StatusEmail] Failed to dispatch status email for app {app_id}: {email_err}")
+
+    return redirect(request.referrer or url_for('admin.application_detail', app_id=application.id))
+
+
+@admin_bp.route('/applications/<int:app_id>/retry-notification', methods=['POST'])
+@admin_required
+def retry_application_notification(app_id):
+    """
+    Retry a failed or missed recruitment status notification email.
+    """
+    application = db.session.get(JobApplication, app_id) or abort(404)
+    event_key = (request.form.get('event_key') or '').strip()
+
+    from services.recruitment_notification_service import retry_recruitment_status_email
+    success, msg = retry_recruitment_status_email(application, event_key)
+    if success:
+        flash(f"Notification re-sent successfully to {application.email}.", "success")
+    else:
+        flash(f"Notification retry failed: {msg}", "danger")
+
     return redirect(request.referrer or url_for('admin.application_detail', app_id=application.id))
 
 

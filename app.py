@@ -2,7 +2,7 @@ import logging
 import os
 import sys
 from datetime import datetime, timezone
-from flask import Flask, render_template, jsonify, send_from_directory, abort, request, redirect, url_for, flash
+from flask import Flask, render_template, jsonify, send_from_directory, abort, request, redirect, url_for, flash, current_app
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect, CSRFError
 from config import config, INTERNSHIP_FEES, INTERNSHIP_PRICING
@@ -60,10 +60,23 @@ def create_app(config_name=None):
     @login_manager.user_loader
     def load_user(user_id):
         try:
-            return db.session.get(User, int(user_id))
-        except (ValueError, TypeError):
+            user_id_int = int(user_id)
+        except (ValueError, TypeError) as val_err:
+            try:
+                log_fn = current_app.logger.debug if current_app else logger.debug
+                log_fn(f"[AuthLoader] Invalid non-integer user_id format: {user_id!r}")
+            except Exception:
+                pass
             return None
+
+        try:
+            return db.session.get(User, user_id_int)
         except Exception as e:
+            try:
+                log_fn = current_app.logger.error if current_app else logger.error
+                log_fn(f"[AuthLoader] Database error during session user lookup for user_id={user_id_int}: {e}")
+            except Exception:
+                logger.error(f"[AuthLoader] Database error during session user lookup for user_id={user_id_int}: {e}")
             try:
                 db.session.rollback()
             except Exception:

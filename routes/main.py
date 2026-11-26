@@ -93,7 +93,10 @@ def ensure_core_database_schema():
     2. 'email_verification_otps' table exists.
     3. 'partners' and 'partner_earnings_records' tables exist.
     4. 'money_transactions' table has 'partner_id' column.
-    Runs once per process lifetime, safely self-healing PostgreSQL without requiring app.py overwrite or service restart.
+    Runs once per process lifetime when all operations succeed, safely self-healing PostgreSQL
+    without requiring app.py overwrite or service restart.
+    If any operation fails or encounters an error, _CORE_SCHEMA_INITIALIZED remains False,
+    leaving the schema eligible for retry on the next request.
     """
     global _CORE_SCHEMA_INITIALIZED
     if _CORE_SCHEMA_INITIALIZED:
@@ -105,6 +108,8 @@ def ensure_core_database_schema():
         table_names = inspector.get_table_names()
         dialect_name = db.engine.dialect.name
         is_sqlite = (dialect_name == 'sqlite')
+
+        all_operations_succeeded = True
 
         # 1. Ensure email_verified column exists on users table
         if 'users' in table_names:
@@ -119,8 +124,11 @@ def ensure_core_database_schema():
                     if current_app:
                         current_app.logger.info("[MainSchema] Added email_verified column to users table.")
             except Exception as u_err:
+                all_operations_succeeded = False
                 if current_app:
                     current_app.logger.warning(f"[MainSchema] User column check note: {u_err}")
+        else:
+            all_operations_succeeded = False
 
         # 2. Ensure email_verification_otps table exists
         if 'email_verification_otps' not in table_names:
@@ -130,6 +138,7 @@ def ensure_core_database_schema():
                 if current_app:
                     current_app.logger.info("[MainSchema] Created email_verification_otps table.")
             except Exception as otp_err:
+                all_operations_succeeded = False
                 if current_app:
                     current_app.logger.warning(f"[MainSchema] OTP table creation note: {otp_err}")
 
@@ -141,6 +150,7 @@ def ensure_core_database_schema():
                 if current_app:
                     current_app.logger.info("[MainSchema] Created partners table.")
             except Exception as p_err:
+                all_operations_succeeded = False
                 if current_app:
                     current_app.logger.warning(f"[MainSchema] Partner table creation note: {p_err}")
 
@@ -152,6 +162,7 @@ def ensure_core_database_schema():
                 if current_app:
                     current_app.logger.info("[MainSchema] Created partner_earnings_records table.")
             except Exception as per_err:
+                all_operations_succeeded = False
                 if current_app:
                     current_app.logger.warning(f"[MainSchema] PartnerEarningsRecord table creation note: {per_err}")
 
@@ -166,11 +177,19 @@ def ensure_core_database_schema():
                         else:
                             conn.execute(text("ALTER TABLE money_transactions ADD COLUMN partner_id INTEGER REFERENCES partners(id)"))
             except Exception as mt_err:
+                all_operations_succeeded = False
                 if current_app:
                     current_app.logger.warning(f"[MainSchema] MoneyTransaction partner_id note: {mt_err}")
+        else:
+            all_operations_succeeded = False
 
-        _CORE_SCHEMA_INITIALIZED = True
-        return True
+        if all_operations_succeeded:
+            _CORE_SCHEMA_INITIALIZED = True
+            return True
+        else:
+            if current_app:
+                current_app.logger.warning("[MainSchema] Core schema healing has pending or incomplete operations; leaving eligible for retry.")
+            return False
     except Exception as e:
         if current_app:
             current_app.logger.warning(f"[MainSchema] Core schema auto-heal note: {e}")

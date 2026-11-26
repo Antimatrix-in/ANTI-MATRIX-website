@@ -175,6 +175,69 @@
         </form>
       </div>
 
+      <!-- CARD 3: Automatic Recruitment Status Notifications -->
+      <div class="card" style="padding: var(--space-xl); border-color: var(--color-border); background: #ffffff;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+          <h3 style="font-size: 1.1rem; font-weight: 700; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 8px;">
+            {{ icon('mail', size=16, color='var(--color-primary-light)') }} Status Notifications
+          </h3>
+          <span style="font-size: 0.8rem; color: var(--color-text-dim);">
+            {{ email_logs|length if email_logs else 0 }} logged
+          </span>
+        </div>
+        
+        <p style="font-size: 0.85rem; color: var(--color-text-dim); margin-bottom: var(--space-md);">
+          Automatic notifications triggered when stage changes to Under Review, Shortlisted, or Rejected.
+        </p>
+
+        {% if email_logs %}
+          <div style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto;">
+            {% for log in email_logs %}
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: 0.82rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <strong style="color: #0f172a;">
+                    {% if log.template_type == 'candidate_under_review' %}Under Review
+                    {% elif log.template_type == 'candidate_shortlisted' %}Shortlisted
+                    {% elif log.template_type == 'candidate_rejected' %}Rejected
+                    {% elif log.template_type == 'candidate_application_submitted' %}Application Acknowledgment
+                    {% else %}{{ log.template_type }}{% endif %}
+                  </strong>
+                  {% if log.status == 'SENT' %}
+                    <span class="badge-status active" style="font-size: 0.75rem;">Sent</span>
+                  {% else %}
+                    <span class="badge-status" style="font-size: 0.75rem; background: #fef2f2; color: #dc2626;">Failed</span>
+                  {% endif %}
+                </div>
+                <div style="color: var(--color-text-dim); font-size: 0.775rem; display: flex; justify-content: space-between;">
+                  <span>{{ log.sent_at.strftime('%d %b %Y, %H:%M:%S UTC') if log.sent_at else 'N/A' }}</span>
+                  {% if log.provider_message_id %}
+                    <span style="font-family: monospace; font-size: 0.72rem; color: #64748b;" title="{{ log.provider_message_id }}">ID: {{ log.provider_message_id[:16] }}...</span>
+                  {% endif %}
+                </div>
+                {% if log.status == 'FAILED' %}
+                  {% if log.error_message %}
+                    <div style="margin-top: 4px; color: #dc2626; font-size: 0.75rem;">
+                      <strong>Error:</strong> {{ log.error_message }}
+                    </div>
+                  {% endif %}
+                  <form method="POST" action="{{ url_for('admin.retry_application_notification', app_id=app.id) }}" style="margin-top: 6px;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <input type="hidden" name="event_key" value="{{ log.template_type }}" />
+                    <button type="submit" class="btn btn-outline btn-xs" style="padding: 2px 8px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px;">
+                      {{ icon('refresh-cw', size=11) }} Retry Sending
+                    </button>
+                  </form>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: var(--space-md); text-align: center; color: var(--color-text-dim); font-size: 0.825rem;">
+            No status notifications dispatched yet. Changing the recruitment stage will automatically dispatch emails.
+          </div>
+        {% endif %}
+      </div>
+
     </div>
 
     <!-- Candidate Detailed Dossier Cards Grid -->

@@ -6,6 +6,45 @@ from models import db, EmailTemplate, EmailTemplateMapping
 
 
 # =====================================================================
+# DEFAULT STATUS EMAIL TEMPLATE BODIES
+# =====================================================================
+
+DEFAULT_UNDER_REVIEW_SUBJECT = "Your Application is Under Review — Anti-Matrix"
+
+DEFAULT_UNDER_REVIEW_BODY = """Dear {{candidate_name}},
+
+Thank you for your interest in Anti-Matrix and for applying for the **{{job_title}}** position.
+
+We wanted to let you know that your application (ID: **{{application_id}}**) is currently **under review** by our recruitment team.
+
+We are carefully evaluating your profile and will get back to you with further updates as soon as possible.
+
+Please keep your **Application ID ({{application_id}})** handy for future reference.
+
+Best Regards,
+**Anti-Matrix Recruitment Team**
+{{company_email}}
+{{website}}"""
+
+DEFAULT_REJECTION_SUBJECT = "Update on Your Application — Anti-Matrix"
+
+DEFAULT_REJECTION_BODY = """Dear {{candidate_name}},
+
+Thank you for your interest in Anti-Matrix and for applying for the **{{job_title}}** position (Application ID: **{{application_id}}**).
+
+After careful consideration, we regret to inform you that we will not be moving forward with your application at this time.
+
+We appreciate the time and effort you invested in your application. We encourage you to continue developing your skills and to look out for future openings at Anti-Matrix that may align with your profile.
+
+We wish you the very best in your career journey.
+
+Best Regards,
+**Anti-Matrix Recruitment Team**
+{{company_email}}
+{{website}}"""
+
+
+# =====================================================================
 # DEFAULT SYSTEM EVENTS & CONFIGURATION
 # =====================================================================
 
@@ -25,6 +64,13 @@ SUPPORTED_RECRUITMENT_EVENTS = [
         'description': 'Sent automatically 5 minutes after a candidate submits their job application or completes payment.'
     },
     {
+        'key': 'candidate_under_review',
+        'label': 'Application Under Review',
+        'default_delay': 0,
+        'default_template_type': 'under_review_notification',
+        'description': 'Sent when a candidate application status is updated to Under Review.'
+    },
+    {
         'key': 'candidate_shortlisted',
         'label': 'Candidate Shortlisted',
         'default_delay': 0,
@@ -35,7 +81,7 @@ SUPPORTED_RECRUITMENT_EVENTS = [
         'key': 'candidate_rejected',
         'label': 'Candidate Rejected',
         'default_delay': 0,
-        'default_template_type': None,
+        'default_template_type': 'rejection_notification',
         'description': 'Sent when a candidate application status is updated to Rejected.'
     },
     {
@@ -254,11 +300,49 @@ def ensure_default_templates_and_mappings():
             except Exception:
                 db.session.rollback()
 
+    # 3. Ensure default Under Review Notification template exists
+    under_review_tmpl = EmailTemplate.query.filter_by(template_type='under_review_notification').first()
+    if not under_review_tmpl:
+        under_review_tmpl = EmailTemplate(
+            template_type='under_review_notification',
+            name='Application Under Review Notification',
+            description='Notification email sent when a candidate application status changes to Under Review.',
+            category='Recruitment',
+            subject=DEFAULT_UNDER_REVIEW_SUBJECT,
+            body=DEFAULT_UNDER_REVIEW_BODY,
+            is_active=True
+        )
+        db.session.add(under_review_tmpl)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    # 4. Ensure default Rejection Notification template exists
+    rejection_tmpl = EmailTemplate.query.filter_by(template_type='rejection_notification').first()
+    if not rejection_tmpl:
+        rejection_tmpl = EmailTemplate(
+            template_type='rejection_notification',
+            name='Application Rejected Notification',
+            description='Notification email sent when a candidate application is rejected.',
+            category='Recruitment',
+            subject=DEFAULT_REJECTION_SUBJECT,
+            body=DEFAULT_REJECTION_BODY,
+            is_active=True
+        )
+        db.session.add(rejection_tmpl)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
     # Re-fetch template references
     app_tmpl = EmailTemplate.query.filter_by(template_type='application_successful').first()
     offer_tmpl = EmailTemplate.query.filter_by(template_type='offer_letter').first()
+    under_review_tmpl = EmailTemplate.query.filter_by(template_type='under_review_notification').first()
+    rejection_tmpl = EmailTemplate.query.filter_by(template_type='rejection_notification').first()
 
-    # 3. Ensure supported event mappings exist
+    # 5. Ensure supported event mappings exist
     for event_cfg in SUPPORTED_RECRUITMENT_EVENTS:
         key = event_cfg['key']
         mapping = EmailTemplateMapping.query.filter_by(event_key=key).first()
@@ -273,7 +357,13 @@ def ensure_default_templates_and_mappings():
                 initial_active = True
             elif key == 'candidate_shortlisted' and offer_tmpl:
                 initial_tmpl_id = offer_tmpl.id
-                initial_active = False  # Inactive default until configured
+                initial_active = True
+            elif key == 'candidate_under_review' and under_review_tmpl:
+                initial_tmpl_id = under_review_tmpl.id
+                initial_active = True
+            elif key == 'candidate_rejected' and rejection_tmpl:
+                initial_tmpl_id = rejection_tmpl.id
+                initial_active = True
 
             mapping = EmailTemplateMapping(
                 event_key=key,
@@ -289,11 +379,26 @@ def ensure_default_templates_and_mappings():
             except Exception:
                 db.session.rollback()
         else:
-            # If mapping exists for candidate_application_submitted but has no template_id, fix it
+            # Backfill template_id for existing mappings that have none
+            updated = False
             if key == 'candidate_application_submitted' and not mapping.email_template_id and app_tmpl:
                 mapping.email_template_id = app_tmpl.id
                 mapping.delay_minutes = 5
                 mapping.is_active = True
+                updated = True
+            elif key == 'candidate_under_review' and not mapping.email_template_id and under_review_tmpl:
+                mapping.email_template_id = under_review_tmpl.id
+                mapping.is_active = True
+                updated = True
+            elif key == 'candidate_shortlisted' and not mapping.email_template_id and offer_tmpl:
+                mapping.email_template_id = offer_tmpl.id
+                mapping.is_active = True
+                updated = True
+            elif key == 'candidate_rejected' and not mapping.email_template_id and rejection_tmpl:
+                mapping.email_template_id = rejection_tmpl.id
+                mapping.is_active = True
+                updated = True
+            if updated:
                 try:
                     db.session.commit()
                 except Exception:
