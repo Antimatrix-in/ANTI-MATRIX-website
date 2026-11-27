@@ -199,23 +199,38 @@
                   </form>
                 </td>
                 <td>
-                  {% set email_st = app.ack_email_status %}
-                  {% if email_st == 'Sent' %}
-                    <span class="badge-status active" style="font-size: 0.75rem; background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25);" title="Acknowledgment sent at {{ app.ack_email_sent_at.strftime('%H:%M UTC') if app.ack_email_sent_at else '' }}">
-                      {{ icon('check-circle', size=12) }} Sent
+                  {% set email_st = (app.application_success_email_status or 'PENDING').strip().upper() %}
+                  {% if email_st == 'SENT' %}
+                    <span class="badge-status active" style="font-size: 0.75rem; background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" title="Delivered at {{ app.ack_email_sent_at.strftime('%d %b %Y, %H:%M UTC') if app.ack_email_sent_at else '' }}">
+                      {{ icon('check-circle', size=12) }} Application Acknowledgment Sent
                     </span>
-                  {% elif email_st == 'Processing' %}
-                    <span class="badge-status" style="font-size: 0.75rem; background: rgba(59,130,246,0.12); color: #3b82f6; border: 1px solid rgba(59,130,246,0.25);">
-                      {{ icon('loader', size=12) }} Processing
+                  {% elif email_st in ['PROCESSING', 'SENDING'] %}
+                    <span class="badge-status" style="font-size: 0.75rem; background: rgba(59,130,246,0.12); color: #3b82f6; border: 1px solid rgba(59,130,246,0.25); font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                      {{ icon('loader', size=12) }} Sending
                     </span>
-                  {% elif email_st == 'Failed' %}
-                    <span class="badge-status" style="font-size: 0.75rem; background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.25);" title="{{ app.ack_email_error or 'Failed' }}">
-                      {{ icon('alert-circle', size=12) }} Failed ({{ app.ack_email_attempts }})
-                    </span>
+                  {% elif email_st in ['FAILED', 'FAILED_MAX_RETRIES'] %}
+                    <div style="display: inline-flex; align-items: center; gap: 6px;">
+                      <span class="badge-status" style="font-size: 0.75rem; background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.25); font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" title="{{ app.ack_email_error or 'Delivery failed' }}">
+                        {{ icon('alert-circle', size=12) }} Failed
+                      </span>
+                      <form method="POST" action="{{ url_for('admin.retry_application_notification', app_id=app.id) }}" style="display: inline; margin: 0;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <input type="hidden" name="event_key" value="application_successful" />
+                        <button type="submit" class="btn btn-outline btn-xs" style="padding: 2px 8px; font-size: 0.7rem; font-weight: 700;" title="Retry Acknowledgment Email">
+                          Retry
+                        </button>
+                      </form>
+                    </div>
                   {% else %}
-                    <span class="badge-status" style="font-size: 0.75rem; background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25);" title="Scheduled for +5 minutes">
-                      {{ icon('clock', size=12) }} Pending (+5m)
-                    </span>
+                    {% if app.ack_email_scheduled_at %}
+                      <span class="badge-status ack-countdown-badge" data-scheduled-at="{{ app.ack_email_scheduled_at.isoformat() }}" style="font-size: 0.75rem; background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                        {{ icon('clock', size=12) }} <span class="countdown-label">Scheduled — <span class="countdown-timer">--:--</span></span>
+                      </span>
+                    {% else %}
+                      <span class="badge-status" style="font-size: 0.75rem; background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25);">
+                        {{ icon('clock', size=12) }} Scheduled
+                      </span>
+                    {% endif %}
                   {% endif %}
                 </td>
                 <td style="font-size: 0.825rem; color: var(--color-text-dim); white-space: nowrap;">
@@ -344,5 +359,34 @@
       });
     }
   }
+
+  // Live countdown timer for Scheduled Acknowledgment Emails
+  function updateAcknowledgmentCountdowns() {
+    const elements = document.querySelectorAll('.ack-countdown-badge[data-scheduled-at]');
+    const now = new Date().getTime();
+    elements.forEach(function (el) {
+      const schedStr = el.getAttribute('data-scheduled-at');
+      if (!schedStr) return;
+      const target = new Date(schedStr).getTime();
+      const diffSeconds = Math.floor((target - now) / 1000);
+      const timerSpan = el.querySelector('.countdown-timer');
+      const labelSpan = el.querySelector('.countdown-label');
+      if (diffSeconds > 0) {
+        const mins = Math.floor(diffSeconds / 60);
+        const secs = diffSeconds % 60;
+        const formatted = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+        if (timerSpan) timerSpan.textContent = formatted;
+      } else {
+        if (labelSpan) {
+          labelSpan.textContent = 'Sending...';
+          el.style.color = '#3b82f6';
+          el.style.background = 'rgba(59,130,246,0.12)';
+          el.style.borderColor = 'rgba(59,130,246,0.25)';
+        }
+      }
+    });
+  }
+  setInterval(updateAcknowledgmentCountdowns, 1000);
+  updateAcknowledgmentCountdowns();
 </script>
 {% endblock %}

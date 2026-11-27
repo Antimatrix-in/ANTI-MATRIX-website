@@ -15,28 +15,25 @@ from models import db, JobApplication, Employee, EmployeeDocument, DocumentTempl
 # DEFAULT OFFICIAL ANTI MATRIX EMAIL TEMPLATES
 # =====================================================================
 
-DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT = "Thank You for Showing Interest in Anti-Matrix"
+DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT = "Application Received Successfully – Anti-Matrix | {{application_id}}"
 
 DEFAULT_APPLICATION_SUCCESSFUL_BODY = """Dear {{candidate_name}},
 
-Thank you for showing interest in Anti-Matrix and applying for the **{{job_title}}** position.
+Thank you for showing interest in Anti-Matrix and applying for the position of {{job_title}}.
 
-We are pleased to inform you that your application has been **successfully received**.
+We are pleased to inform you that your application has been successfully submitted.
 
-### Application Details
+Your application is currently under review by our recruitment team.
 
-**Application ID:** {{application_id}}
-**Position:** {{job_title}}
-**Application Date:** {{application_date}}
+If your profile is shortlisted for the next round of the selection process, you will receive a separate email from us with further instructions.
 
-Our recruitment team is currently **evaluating your credentials and experience**. If your profile matches our requirements, you will receive further instructions regarding the next steps.
+We appreciate your interest in joining Anti-Matrix and thank you for your patience.
 
-Please keep your **Application ID ({{application_id}})** for reference during future communications.
+Application ID: {{application_id}}
 
 Best Regards,
-**Anti-Matrix Recruitment Team**
-{{company_email}}
-{{website}}"""
+Anti-Matrix Recruitment Team
+https://antimatrix.co.in"""
 
 DEFAULT_OFFER_LETTER_SUBJECT = "Congratulations! You Have Been Shortlisted — {{Internship Role}} | Anti Matrix"
 
@@ -1201,7 +1198,7 @@ def render_sample_email_preview(template_identifier):
     elif template_identifier in ['application_successful', 'application_acknowledgment']:
         raw_subject = DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT
         raw_body = DEFAULT_APPLICATION_SUCCESSFUL_BODY
-        template_name = 'Application Acknowledgment'
+        template_name = 'Application Submitted Successfully'
         template_category = 'Recruitment'
         template_id = None
     elif template_identifier == 'joining_credentials':

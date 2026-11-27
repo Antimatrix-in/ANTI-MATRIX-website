@@ -180,80 +180,41 @@ def _record_email_log(application, event_key, subject, body_preview,
 
 def send_recruitment_status_email(application, new_status, old_status):
     """
-    Dispatch an automatic recruitment status change notification email.
-
-    Called after a successful DB commit of the status change.
-
-    Args:
-        application: JobApplication ORM instance (fully loaded).
-        new_status:  Normalized status string, e.g. 'Under Review'.
-        old_status:  Previous status string before the change.
-
-    Returns:
-        (success: bool, message: str)
-
-    Guarantees:
-        - Never raises; all exceptions are caught and logged.
-        - If the status did not actually change, returns immediately.
-        - Duplicate sends are prevented via EmailLog idempotency check.
-        - Email failures do not affect the saved status change.
+    Recruitment stages (Applied, Under Review, Shortlisted, Rejected) are for
+    internal candidate management only. They do NOT trigger automated emails.
+    Anti-Matrix sends only ONE automated email: Application Submitted Successfully.
     """
     try:
         # 1. Guard: no status change
         if new_status == old_status:
             return False, "No status change — skipped."
 
-        # 2. Map new_status → event_key
+        # 2. Map new_status -> event_key
         event_key = STATUS_TO_EVENT_KEY.get(new_status)
         if not event_key:
-            return False, f"No email configured for status '{new_status}'."
+            return False, f"Recruitment stage notifications for '{new_status}' are inactive."
 
-        # 3. Resolve active template mapping
+        # 3. Resolve template mapping
         mapping = EmailTemplateMapping.query.filter_by(event_key=event_key).first()
-        if not mapping:
+        if not mapping or not mapping.is_active:
             msg = (
-                f"No EmailTemplateMapping found for event '{event_key}'. "
-                f"Configure it in the admin Email Templates panel."
-            )
-            if current_app:
-                current_app.logger.warning(f"[RecruitmentNotification] {msg} app={application.formatted_code}")
-            return False, msg
-
-        if not mapping.is_active:
-            msg = (
-                f"EmailTemplateMapping for event '{event_key}' is inactive. "
-                f"Enable it in the admin Email Templates panel to send automatic notifications."
+                f"Status notification for '{event_key}' is inactive. "
+                f"Recruitment stage changes do not trigger automated emails. "
+                f"Anti-Matrix currently uses a single Application Submitted Successfully acknowledgment email."
             )
             if current_app:
                 current_app.logger.info(f"[RecruitmentNotification] {msg} app={application.formatted_code}")
             return False, msg
 
-        template = mapping.template  # EmailTemplate via relationship
-        if not template:
-            msg = (
-                f"EmailTemplateMapping for event '{event_key}' has no linked template. "
-                f"Assign a template in the admin Email Templates panel."
-            )
-            if current_app:
-                current_app.logger.warning(f"[RecruitmentNotification] {msg} app={application.formatted_code}")
-            return False, msg
-
-        if not template.is_active:
-            msg = f"Email template '{template.name}' (type={template.template_type}) is inactive."
-            if current_app:
-                current_app.logger.info(f"[RecruitmentNotification] {msg} app={application.formatted_code}")
+        template = mapping.template
+        if not template or not template.is_active:
+            msg = f"Email template for event '{event_key}' is inactive."
             return False, msg
 
         # 4. Idempotency check
         ref_id = application.formatted_code
         if _already_sent(ref_id, event_key):
-            msg = (
-                f"Notification '{event_key}' already sent for application {ref_id}. "
-                f"Skipping duplicate send."
-            )
-            if current_app:
-                current_app.logger.info(f"[RecruitmentNotification] {msg}")
-            return False, msg
+            return False, f"Notification '{event_key}' already sent for application {ref_id}."
 
         # 5. Render subject and body
         rendered_subject = _render_template(template.subject, application)
@@ -283,18 +244,8 @@ def send_recruitment_status_email(application, new_status, old_status):
         )
 
         if success:
-            if current_app:
-                current_app.logger.info(
-                    f"[RecruitmentNotification] '{event_key}' email sent to "
-                    f"{application.email} for app {ref_id}. Provider ID: {provider_id}"
-                )
             return True, f"Notification email sent to {application.email}."
         else:
-            if current_app:
-                current_app.logger.error(
-                    f"[RecruitmentNotification] Failed to send '{event_key}' email to "
-                    f"{application.email} for app {ref_id}: {msg}"
-                )
             return False, f"Email delivery failed: {msg}"
 
     except Exception as exc:
@@ -302,13 +253,6 @@ def send_recruitment_status_email(application, new_status, old_status):
             db.session.rollback()
         except Exception:
             pass
-        if current_app:
-            current_app.logger.error(
-                f"[RecruitmentNotification] Unexpected error dispatching "
-                f"'{new_status}' notification for app "
-                f"{getattr(application, 'formatted_code', '?')}: {exc}",
-                exc_info=True
-            )
         return False, f"Unexpected error: {exc}"
 
 
@@ -385,6 +329,13 @@ def retry_recruitment_status_email(application, event_key):
     # Case 2: Status Notification Retry (Under Review, Shortlisted, Rejected)
     target_status = handler  # 'Under Review', 'Shortlisted', or 'Rejected'
     target_event_key = STATUS_TO_EVENT_KEY.get(target_status)
+
+    mapping = EmailTemplateMapping.query.filter_by(event_key=target_event_key).first()
+    if not mapping or not mapping.is_active:
+        return False, (
+            f"Status notification for '{target_status}' is currently inactive. "
+            f"Anti-Matrix currently uses a single Application Submitted Successfully acknowledgment email."
+        )
 
     # Check if a successful send already exists in EmailLog (Duplicate Prevention)
     if _already_sent(application.formatted_code, target_event_key):

@@ -49,10 +49,7 @@ Best Regards,
 # =====================================================================
 
 SUPPORTED_TEMPLATE_CATEGORIES = [
-    'Recruitment',
-    'Assessment',
-    'Interview',
-    'General'
+    'Recruitment'
 ]
 
 SUPPORTED_RECRUITMENT_EVENTS = [
@@ -61,42 +58,48 @@ SUPPORTED_RECRUITMENT_EVENTS = [
         'label': 'Candidate Application Submitted',
         'default_delay': 5,
         'default_template_type': 'application_successful',
-        'description': 'Sent automatically 5 minutes after a candidate submits their job application or completes payment.'
+        'description': 'Single official acknowledgment email sent automatically 5 minutes after a candidate submits their job application or completes payment.',
+        'is_active': True
     },
     {
         'key': 'candidate_under_review',
         'label': 'Application Under Review',
         'default_delay': 0,
         'default_template_type': 'under_review_notification',
-        'description': 'Sent when a candidate application status is updated to Under Review.'
+        'description': 'Reserved for future recruitment phase. Inactive.',
+        'is_active': False
     },
     {
         'key': 'candidate_shortlisted',
         'label': 'Candidate Shortlisted',
         'default_delay': 0,
         'default_template_type': 'offer_letter',
-        'description': 'Sent when a candidate application status is updated to Shortlisted.'
+        'description': 'Reserved for future recruitment phase. Inactive.',
+        'is_active': False
     },
     {
         'key': 'candidate_rejected',
         'label': 'Candidate Rejected',
         'default_delay': 0,
         'default_template_type': 'rejection_notification',
-        'description': 'Sent when a candidate application status is updated to Rejected.'
+        'description': 'Reserved for future recruitment phase. Inactive.',
+        'is_active': False
     },
     {
         'key': 'assessment_invitation',
         'label': 'Assessment Invitation',
         'default_delay': 0,
         'default_template_type': None,
-        'description': 'Reserved for future Assessment Portal integration. Inactive by default.'
+        'description': 'Reserved for future Assessment Portal integration. Inactive.',
+        'is_active': False
     },
     {
         'key': 'interview_invitation',
         'label': 'Interview Invitation',
         'default_delay': 0,
         'default_template_type': None,
-        'description': 'Sent when an interview invitation is scheduled for a candidate.'
+        'description': 'Reserved for future interview scheduling. Inactive.',
+        'is_active': False
     }
 ]
 
@@ -224,23 +227,24 @@ def ensure_email_template_schema():
 
 def ensure_default_templates_and_mappings():
     """
-    Ensures default email templates and automation event mappings exist in the database.
-    Non-destructive: will never overwrite admin customizations or existing mappings.
+    Ensures the single active Application Submitted Successfully template
+    and automation event mapping exist in the database.
+    Safely deactivates and archives all other templates and event mappings so that
+    only the single acknowledgment template remains active.
+    Preserves all historical email delivery records and audit logs.
     """
     from services.email_service import (
         DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT,
-        DEFAULT_APPLICATION_SUCCESSFUL_BODY,
-        DEFAULT_OFFER_LETTER_SUBJECT,
-        DEFAULT_OFFER_LETTER_BODY
+        DEFAULT_APPLICATION_SUCCESSFUL_BODY
     )
 
-    # 1. Ensure default Application Acknowledgment template exists
+    # 1. Ensure the single active Application Submitted Successfully template exists
     app_tmpl = EmailTemplate.query.filter_by(template_type='application_successful').first()
     if not app_tmpl:
         app_tmpl = EmailTemplate(
             template_type='application_successful',
-            name='Application Acknowledgment',
-            description='Default acknowledgment email sent 5 minutes after job application submission.',
+            name='Application Submitted Successfully',
+            description='Single official acknowledgment email sent 5 minutes after job application submission.',
             category='Recruitment',
             subject=DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT,
             body=DEFAULT_APPLICATION_SUCCESSFUL_BODY,
@@ -252,157 +256,121 @@ def ensure_default_templates_and_mappings():
         except Exception:
             db.session.rollback()
     else:
-        # Update missing fields if needed without overwriting customized body/subject
-        updated = False
-        if not app_tmpl.name:
-            app_tmpl.name = 'Application Acknowledgment'
-            updated = True
-        if not getattr(app_tmpl, 'category', None):
-            app_tmpl.category = 'Recruitment'
-            updated = True
-        if getattr(app_tmpl, 'is_active', None) is None:
-            app_tmpl.is_active = True
-            updated = True
-        if updated:
-            try:
-                db.session.commit()
-            except Exception:
-                db.session.rollback()
-
-    # 2. Ensure default Offer Letter template exists
-    offer_tmpl = EmailTemplate.query.filter_by(template_type='offer_letter').first()
-    if not offer_tmpl:
-        offer_tmpl = EmailTemplate(
-            template_type='offer_letter',
-            name='Offer Letter / Shortlisted',
-            description='Official congratulatory shortlisted offer letter email template.',
-            category='Recruitment',
-            subject=DEFAULT_OFFER_LETTER_SUBJECT,
-            body=DEFAULT_OFFER_LETTER_BODY,
-            is_active=True
-        )
-        db.session.add(offer_tmpl)
-        try:
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-    else:
-        updated = False
-        if not getattr(offer_tmpl, 'category', None):
-            offer_tmpl.category = 'Recruitment'
-            updated = True
-        if getattr(offer_tmpl, 'is_active', None) is None:
-            offer_tmpl.is_active = True
-            updated = True
-        if updated:
-            try:
-                db.session.commit()
-            except Exception:
-                db.session.rollback()
-
-    # 3. Ensure default Under Review Notification template exists
-    under_review_tmpl = EmailTemplate.query.filter_by(template_type='under_review_notification').first()
-    if not under_review_tmpl:
-        under_review_tmpl = EmailTemplate(
-            template_type='under_review_notification',
-            name='Application Under Review Notification',
-            description='Notification email sent when a candidate application status changes to Under Review.',
-            category='Recruitment',
-            subject=DEFAULT_UNDER_REVIEW_SUBJECT,
-            body=DEFAULT_UNDER_REVIEW_BODY,
-            is_active=True
-        )
-        db.session.add(under_review_tmpl)
+        app_tmpl.name = 'Application Submitted Successfully'
+        app_tmpl.category = 'Recruitment'
+        app_tmpl.is_active = True
+        # If subject/body is blank or legacy wording, update to the new single official template
+        if not app_tmpl.subject or "Thank You for Showing Interest" in app_tmpl.subject or "Application Successfully Submitted —" in app_tmpl.subject:
+            app_tmpl.subject = DEFAULT_APPLICATION_SUCCESSFUL_SUBJECT
+        if not app_tmpl.body or "evaluating your credentials" in app_tmpl.body or "Internship Opportunity at Anti Matrix" in app_tmpl.body:
+            app_tmpl.body = DEFAULT_APPLICATION_SUCCESSFUL_BODY
         try:
             db.session.commit()
         except Exception:
             db.session.rollback()
 
-    # 4. Ensure default Rejection Notification template exists
-    rejection_tmpl = EmailTemplate.query.filter_by(template_type='rejection_notification').first()
-    if not rejection_tmpl:
-        rejection_tmpl = EmailTemplate(
-            template_type='rejection_notification',
-            name='Application Rejected Notification',
-            description='Notification email sent when a candidate application is rejected.',
-            category='Recruitment',
-            subject=DEFAULT_REJECTION_SUBJECT,
-            body=DEFAULT_REJECTION_BODY,
-            is_active=True
-        )
-        db.session.add(rejection_tmpl)
-        try:
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-
-    # Re-fetch template references
+    # Re-fetch app_tmpl id
     app_tmpl = EmailTemplate.query.filter_by(template_type='application_successful').first()
-    offer_tmpl = EmailTemplate.query.filter_by(template_type='offer_letter').first()
-    under_review_tmpl = EmailTemplate.query.filter_by(template_type='under_review_notification').first()
-    rejection_tmpl = EmailTemplate.query.filter_by(template_type='rejection_notification').first()
 
-    # 5. Ensure supported event mappings exist
-    for event_cfg in SUPPORTED_RECRUITMENT_EVENTS:
-        key = event_cfg['key']
-        mapping = EmailTemplateMapping.query.filter_by(event_key=key).first()
-
-        if not mapping:
-            # Determine initial template link
-            initial_tmpl_id = None
-            initial_active = False
-
-            if key == 'candidate_application_submitted' and app_tmpl:
-                initial_tmpl_id = app_tmpl.id
-                initial_active = True
-            elif key == 'candidate_shortlisted' and offer_tmpl:
-                initial_tmpl_id = offer_tmpl.id
-                initial_active = True
-            elif key == 'candidate_under_review' and under_review_tmpl:
-                initial_tmpl_id = under_review_tmpl.id
-                initial_active = True
-            elif key == 'candidate_rejected' and rejection_tmpl:
-                initial_tmpl_id = rejection_tmpl.id
-                initial_active = True
-
-            mapping = EmailTemplateMapping(
-                event_key=key,
-                event_label=event_cfg['label'],
-                description=event_cfg['description'],
-                email_template_id=initial_tmpl_id,
-                delay_minutes=event_cfg['default_delay'],
-                is_active=initial_active
+    # 2. Deactivate and archive all other templates safely (Preserve records, do not delete)
+    archived_template_defs = [
+        {
+            'template_type': 'under_review_notification',
+            'name': 'Application Under Review',
+            'description': 'Candidate notification once review begins. Archived.',
+            'category': 'Recruitment',
+            'subject': 'Application Under Review – Anti-Matrix | {{application_id}}',
+            'body': 'Dear {{candidate_name}},\n\nYour application for {{job_title}} is currently under review.\n\nBest Regards,\nAnti-Matrix Recruitment Team',
+        },
+        {
+            'template_type': 'offer_letter',
+            'name': 'Candidate Shortlisted Notification',
+            'description': 'Candidate notification when moved to Shortlisted. Archived.',
+            'category': 'Recruitment',
+            'subject': 'Update on Your Application – Anti-Matrix | {{application_id}}',
+            'body': 'Dear {{candidate_name}},\n\nCongratulations! You have been shortlisted for {{job_title}}.\n\nBest Regards,\nAnti-Matrix Recruitment Team',
+        },
+        {
+            'template_type': 'rejection_notification',
+            'name': 'Application Status Update',
+            'description': 'Candidate notification when not moving forward. Archived.',
+            'category': 'Recruitment',
+            'subject': 'Update Regarding Your Application – Anti-Matrix | {{application_id}}',
+            'body': 'Dear {{candidate_name}},\n\nThank you for applying for {{job_title}}. At this time, we have decided to proceed with other candidates.\n\nBest Regards,\nAnti-Matrix Recruitment Team',
+        }
+    ]
+    for adef in archived_template_defs:
+        t = EmailTemplate.query.filter_by(template_type=adef['template_type']).first()
+        if not t:
+            t = EmailTemplate(
+                template_type=adef['template_type'],
+                name=adef['name'],
+                description=adef['description'],
+                category=adef['category'],
+                subject=adef['subject'],
+                body=adef['body'],
+                is_active=False
             )
-            db.session.add(mapping)
-            try:
-                db.session.commit()
-            except Exception:
-                db.session.rollback()
+            db.session.add(t)
         else:
-            # Backfill template_id for existing mappings that have none
-            updated = False
-            if key == 'candidate_application_submitted' and not mapping.email_template_id and app_tmpl:
-                mapping.email_template_id = app_tmpl.id
-                mapping.delay_minutes = 5
-                mapping.is_active = True
-                updated = True
-            elif key == 'candidate_under_review' and not mapping.email_template_id and under_review_tmpl:
-                mapping.email_template_id = under_review_tmpl.id
-                mapping.is_active = True
-                updated = True
-            elif key == 'candidate_shortlisted' and not mapping.email_template_id and offer_tmpl:
-                mapping.email_template_id = offer_tmpl.id
-                mapping.is_active = True
-                updated = True
-            elif key == 'candidate_rejected' and not mapping.email_template_id and rejection_tmpl:
-                mapping.email_template_id = rejection_tmpl.id
-                mapping.is_active = True
-                updated = True
-            if updated:
-                try:
-                    db.session.commit()
-                except Exception:
-                    db.session.rollback()
+            t.is_active = False
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    # 3. Ensure the single active automation mapping: Candidate Application Submitted
+    app_mapping = EmailTemplateMapping.query.filter_by(event_key='candidate_application_submitted').first()
+    if not app_mapping:
+        app_mapping = EmailTemplateMapping(
+            event_key='candidate_application_submitted',
+            event_label='Candidate Application Submitted',
+            description='Sent automatically 5 minutes after a candidate submits their job application or completes payment.',
+            email_template_id=app_tmpl.id if app_tmpl else None,
+            delay_minutes=5,
+            is_active=True
+        )
+        db.session.add(app_mapping)
+    else:
+        if app_tmpl:
+            app_mapping.email_template_id = app_tmpl.id
+        app_mapping.delay_minutes = 5
+        app_mapping.is_active = True
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    # 4. Deactivate and archive all other automation mappings safely
+    archived_mapping_defs = [
+        ('candidate_under_review', 'Application Under Review', 'under_review_notification'),
+        ('candidate_shortlisted', 'Candidate Shortlisted', 'offer_letter'),
+        ('candidate_rejected', 'Candidate Rejected', 'rejection_notification'),
+    ]
+    for ev_key, ev_label, tmpl_type in archived_mapping_defs:
+        linked_tmpl = EmailTemplate.query.filter_by(template_type=tmpl_type).first()
+        m = EmailTemplateMapping.query.filter_by(event_key=ev_key).first()
+        if not m:
+            m = EmailTemplateMapping(
+                event_key=ev_key,
+                event_label=ev_label,
+                description=f'{ev_label} notification (Archived/Inactive).',
+                email_template_id=linked_tmpl.id if linked_tmpl else None,
+                delay_minutes=0,
+                is_active=False
+            )
+            db.session.add(m)
+        else:
+            m.is_active = False
+            if linked_tmpl and not m.email_template_id:
+                m.email_template_id = linked_tmpl.id
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 # =====================================================================

@@ -1249,16 +1249,8 @@ def update_application_stage(app_id):
     db.session.commit()
     flash(f"Application stage for candidate {application.full_name} updated to '{normalized}'.", "success")
 
-    # Automatic recruitment status notification email trigger
-    try:
-        from services.recruitment_notification_service import send_recruitment_status_email
-        email_sent, email_msg = send_recruitment_status_email(application, normalized, old_stage)
-        if email_sent:
-            flash(f"Notification email sent to {application.email}.", "info")
-        elif email_msg and "Already sent" not in email_msg and "No email configured" not in email_msg and "No status change" not in email_msg:
-            flash(f"Note: Status notification email could not be sent — {email_msg}", "warning")
-    except Exception as email_err:
-        current_app.logger.error(f"[StatusEmail] Failed to dispatch status email for app {app_id}: {email_err}")
+    # Anti-Matrix uses only ONE automated email: Application Submitted Successfully (5m after submission).
+    # Recruitment stage changes (Applied, Under Review, Shortlisted, Rejected) NEVER trigger automated emails.
 
     return redirect(request.referrer or url_for('admin.application_detail', app_id=application.id))
 
@@ -1412,41 +1404,38 @@ def templates():
         current_app.logger.warning(f"Note on template schema initialization: {e}")
 
     try:
-        email_templates = EmailTemplate.query.order_by(EmailTemplate.category, EmailTemplate.name).all()
+        app_tmpl = EmailTemplate.query.filter_by(template_type='application_successful').first()
     except Exception as e:
-        current_app.logger.warning(f"Error querying templates with category ordering: {e}")
-        try:
-            db.session.rollback()
-            email_templates = EmailTemplate.query.all()
-        except Exception:
-            try:
-                db.session.rollback()
-            except Exception:
-                pass
-            email_templates = []
-
-    try:
-        mappings = EmailTemplateMapping.query.order_by(EmailTemplateMapping.id).all()
-    except Exception as e:
-        current_app.logger.warning(f"Error querying template mappings: {e}")
+        current_app.logger.warning(f"Error querying acknowledgment template: {e}")
         try:
             db.session.rollback()
         except Exception:
             pass
-        mappings = []
-    
-    # Backward compatibility helper for single template reference
-    app_success_email = next((t for t in email_templates if t.template_type == 'application_successful'), None)
+        app_tmpl = None
 
-    active_tab = request.args.get('tab', 'templates')
+    try:
+        app_mapping = EmailTemplateMapping.query.filter_by(event_key='candidate_application_submitted').first()
+    except Exception as e:
+        current_app.logger.warning(f"Error querying template mapping: {e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        app_mapping = None
+
+    try:
+        archived_templates = EmailTemplate.query.filter(EmailTemplate.template_type != 'application_successful').all()
+    except Exception:
+        archived_templates = []
 
     return render_template(
         'admin/templates.html',
-        templates=email_templates,
-        mappings=mappings,
+        template=app_tmpl,
+        mapping=app_mapping,
+        templates=[app_tmpl] if app_tmpl else [],
+        archived_templates=archived_templates,
         categories=SUPPORTED_TEMPLATE_CATEGORIES,
-        active_tab=active_tab,
-        app_success_email=app_success_email
+        app_success_email=app_tmpl
     )
 
 
@@ -1519,7 +1508,10 @@ def edit_template(template_id):
     category = (request.form.get('category') or tmpl.category or 'Recruitment').strip()
     subject = (request.form.get('subject') or '').strip()
     body = (request.form.get('body') or '').strip()
-    is_active = request.form.get('is_active') in ['true', 'on', '1', True]
+    if 'is_active' in request.form:
+        is_active = request.form.get('is_active') in ['true', 'on', '1', True]
+    else:
+        is_active = tmpl.is_active
 
     is_valid, err_msg = validate_template_name(name, current_id=tmpl.id)
     if not is_valid:
@@ -1530,20 +1522,6 @@ def edit_template(template_id):
         flash('Subject and Body are required for email templates.', 'danger')
         return redirect(url_for('admin.templates'))
 
-    # Check if deactivating a template that is mapped to an active event
-    warning_notice = None
-    if tmpl.is_active and not is_active:
-        active_mappings = EmailTemplateMapping.query.filter_by(
-            email_template_id=tmpl.id,
-            is_active=True
-        ).all()
-        if active_mappings:
-            event_names = ", ".join([m.event_label for m in active_mappings])
-            warning_notice = (
-                f"Template '{name}' was deactivated. Warning: This template is mapped to active event(s): "
-                f"{event_names}. Automated emails for these events are paused until an active template is assigned."
-            )
-
     tmpl.name = name
     tmpl.description = description
     tmpl.category = category
@@ -1551,10 +1529,16 @@ def edit_template(template_id):
     tmpl.body = body
     tmpl.is_active = is_active
 
+    # Also synchronize the automation mapping active state
+    mapping = EmailTemplateMapping.query.filter_by(event_key='candidate_application_submitted').first()
+    if mapping:
+        mapping.is_active = is_active
+        mapping.delay_minutes = 5
+
     db.session.commit()
 
-    if warning_notice:
-        flash(warning_notice, 'warning')
+    if not is_active:
+        flash(f"Template '{name}' updated. Acknowledgment email automation is currently DISABLED.", 'warning')
     else:
         flash(f"Template '{name}' updated successfully.", 'success')
 

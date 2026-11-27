@@ -137,7 +137,15 @@ class TestEmailRetryEventKeys(unittest.TestCase):
             mock_send.assert_not_called()
 
     def test_03_retry_under_review_notification(self):
-        """Retrying with 'under_review_notification' correctly dispatches Under Review email."""
+        """Retrying with 'under_review_notification' correctly dispatches Under Review email when active."""
+        # Enable mapping for this specific test
+        mapping = EmailTemplateMapping.query.filter_by(event_key='candidate_under_review').first()
+        self.assertIsNotNone(mapping)
+        mapping.is_active = True
+        if mapping.template:
+            mapping.template.is_active = True
+        db.session.commit()
+
         with patch('services.email_service.send_brevo_email') as mock_send:
             mock_send.return_value = (True, "Delivered", "brevo_ur_retry_002")
 
@@ -159,7 +167,15 @@ class TestEmailRetryEventKeys(unittest.TestCase):
             self.assertEqual(mock_send.call_count, 1)  # Not called again
 
     def test_04_retry_shortlisted_notification(self):
-        """Retrying with 'offer_letter' correctly dispatches Shortlisted email."""
+        """Retrying with 'offer_letter' correctly dispatches Shortlisted email when active."""
+        # Enable mapping for this specific test
+        mapping = EmailTemplateMapping.query.filter_by(event_key='candidate_shortlisted').first()
+        self.assertIsNotNone(mapping)
+        mapping.is_active = True
+        if mapping.template:
+            mapping.template.is_active = True
+        db.session.commit()
+
         with patch('services.email_service.send_brevo_email') as mock_send:
             mock_send.return_value = (True, "Delivered", "brevo_sh_retry_003")
 
@@ -174,7 +190,15 @@ class TestEmailRetryEventKeys(unittest.TestCase):
             self.assertIsNotNone(log)
 
     def test_05_retry_rejected_notification(self):
-        """Retrying with 'rejection_notification' correctly dispatches Rejected email."""
+        """Retrying with 'rejection_notification' correctly dispatches Rejected email when active."""
+        # Enable mapping for this specific test
+        mapping = EmailTemplateMapping.query.filter_by(event_key='candidate_rejected').first()
+        self.assertIsNotNone(mapping)
+        mapping.is_active = True
+        if mapping.template:
+            mapping.template.is_active = True
+        db.session.commit()
+
         with patch('services.email_service.send_brevo_email') as mock_send:
             mock_send.return_value = (True, "Delivered", "brevo_rej_retry_004")
 
